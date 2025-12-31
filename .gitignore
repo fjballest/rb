@@ -1,0 +1,10 @@
+*~
+*.exe
+*.app
+rb
+.DS_Store
+__pycache__
+dist
+screenshots
+build
+guide
