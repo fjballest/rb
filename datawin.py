@@ -34,7 +34,6 @@ def create_file_actions(parent):
 	)
 	new_action.setShortcut("Ctrl+N")
 	new_action.setToolTip("New RoadBook")
-
 	open_action = QAction(
 		style.standardIcon(QStyle.SP_DialogOpenButton),
 		"Open",
@@ -51,7 +50,31 @@ def create_file_actions(parent):
 	save_action.setShortcut("Ctrl+S")
 	save_action.setToolTip("Save RoadBook")
 
-	return new_action, open_action, save_action
+	saveas_action = QAction(
+		style.standardIcon(QStyle.SP_DirLinkIcon),
+		"SaveAs",
+		parent,
+	)
+	saveas_action.setToolTip("Save RoadBook as")
+
+	return [new_action, open_action, save_action, saveas_action]
+
+def mktoolbar(dwin):
+		toolbar = QToolBar("File", dwin)
+		toolbar.setMovable(False)
+		toolbar.setFloatable(False)
+		toolbar.setIconSize(QSize(16, 16))
+		acts = create_file_actions(dwin)
+		fns = [dwin.newroadbook, dwin.openroadbook, dwin.saveroadbook,
+			dwin.saveroadbookas]
+		menu = dwin.menuBar()
+		fmenu = menu.addMenu("&File")
+
+		for i, a in enumerate(acts):
+			toolbar.addAction(a)
+			fmenu.addAction(a)
+			a.triggered.connect(fns[i])
+		dwin.addToolBar(toolbar)
 
 
 class FileDropLineEdit(QLineEdit):
@@ -102,6 +125,54 @@ def getstr(txt):
 	except:
 		return ""
 
+class AccountEdit(QWidget):
+	def __init__(self, dwin, t=None, dirtied=None):
+		super(AccountEdit, self).__init__()
+		self.dwin = dwin
+		layout = QFormLayout(self)
+
+		self.accbox = mkindouble("Account", 10000)
+		self.accbox.editingFinished.connect(self.edited)
+		self.neutbox = mkindouble("Neutral", 10)
+		self.neutbox.editingFinished.connect(self.edited)
+		self.fixedbox = QCheckBox("Fixed risk")
+		self.fixedbox.checkStateChanged.connect(self.edited)
+		self.fixedbox.setChecked(True)
+		self.cpbox = QCheckBox("Copy Graphs")
+		self.cpbox.checkStateChanged.connect(self.edited)
+		self.cpbox.setChecked(True)
+
+		#layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+		layout.addRow(QLabel("Account"), self.accbox)
+		layout.addRow(QLabel("Neutral"), self.neutbox)
+		layout.addRow(QLabel("Fixed"), self.fixedbox)
+		layout.addRow(QLabel("Copy Graphs"), self.cpbox)
+		self.refresh()
+
+	def edited(self):
+		rb = self.dwin.rb
+		if not rb or not rb.account:
+			return
+		a = rb.account
+		acc = nborzero(self.accbox.text())
+		neu = nborzero(self.neutbox.text())
+		fx = self.fixedbox.isChecked()
+		cp = self.cpbox.isChecked()
+		if acc != a.account or neu != a.neutral or fx != a.fixed or cp  != a.copygraphs:
+			rb.account.account = acc
+			rb.account.neutral = neu
+			rb.account.fixed = fx
+			rb.account.copygraphs = cp
+			self.dwin.dirtied()
+
+	def refresh(self):
+		rb = self.dwin.rb
+		if not rb or not rb.account:
+			return
+		self.accbox.setText(f"{rb.account.account}")
+		self.neutbox.setText(f"{rb.account.neutral}")
+		self.fixedbox.setChecked(rb.account.fixed if rb else True)
+		self.cpbox.setChecked(rb.account.copygraphs if rb else True)
 
 class TradeEdit(QDialog):
 	def __init__(self, rb, t=None, dirtied=None):
@@ -276,7 +347,7 @@ class TradeEdit(QDialog):
 			shutil.copyfile(src, dst)
 			t.graph = dst
 		except Exception as e:
-			print(f"failed to copy graphic {e}")
+			print(f"failed to copy graphic {e}", file=sys.stderr)
 
 
 def setfeats(q):
@@ -301,7 +372,7 @@ class DataWindow(QMainWindow):
 		self.featurestbl = self.mkfeaturestbl()
 		self.instrumentstbl = self.mkinstrumentstbl()
 		self.currenciestbl = self.mkcurrenciestbl()
-
+		self.accounttbl = AccountEdit(self)
 
 		trades = QDockWidget("Trades", self)
 		setfeats(trades)
@@ -319,6 +390,10 @@ class DataWindow(QMainWindow):
 		setfeats(currencies)
 		currencies.setWidget(self.currenciestbl)
 
+		account = QDockWidget("Account", self)
+		setfeats(account)
+		account.setWidget(self.accounttbl)
+
 		w = QWidget(self)
 		w.setFixedSize(0,0)
 		self.setCentralWidget(w)
@@ -332,6 +407,8 @@ class DataWindow(QMainWindow):
 		self.tabifyDockWidget(features, instruments)
 		self.addDockWidget(Qt.LeftDockWidgetArea, currencies)
 		self.tabifyDockWidget(instruments, currencies)
+		self.addDockWidget(Qt.LeftDockWidgetArea, account)
+		self.tabifyDockWidget(currencies, account)
 
 		self.featchecks = CheckBoxGroup([], dirtied=self.dirtied)
 		checks = QDockWidget("Trade Features", self)
@@ -353,18 +430,7 @@ class DataWindow(QMainWindow):
 
 		trades.raise_()
 
-		toolbar = QToolBar("File", self)
-		toolbar.setMovable(False)
-		toolbar.setFloatable(False)
-		toolbar.setIconSize(QSize(16, 16))
-		new_action, open_action, save_action = create_file_actions(self)
-		toolbar.addAction(new_action)
-		toolbar.addAction(open_action)
-		toolbar.addAction(save_action)
-		self.addToolBar(toolbar)
-		new_action.triggered.connect(self.newroadbook)
-		open_action.triggered.connect(self.openroadbook)
-		save_action.triggered.connect(self.saveroadbook)
+		mktoolbar(self)
 
 		self.updateTitle()
 
@@ -399,6 +465,8 @@ class DataWindow(QMainWindow):
 				return
 		file_path = QFileDialog.getExistingDirectory(
 			self, "Open Roadbook", "", QFileDialog.ShowDirsOnly)
+		if not file_path:
+			return
 		if not RoadBook.isRoadBook(file_path):
 			QMessageBox.warning(
             	self,
@@ -419,6 +487,19 @@ class DataWindow(QMainWindow):
 			return
 		self.rb.save()
 		self.updateTitle()
+
+	def saveroadbookas(self):
+		if not self.rb or not self.rb.dir:
+			QMessageBox.warning(
+            	self,
+            	"No roadBook",
+            	f"Do not have a roadbook to save")
+			return
+		file_path, _ = QFileDialog.getSaveFileName(
+			self, "Save (Filtered) Roadbook as", "", "")
+		if not file_path:
+			return
+		self.rb.save(file_path, filtered=True)
 
 	def edittrade(self, trade):
 		if trade.trade == 0:
@@ -645,6 +726,7 @@ class DataWindow(QMainWindow):
 		self.currenciestbl.changedata(r.currencies)
 		self.featchecks.set_items(self.rb.featureNames())
 		self.updateTitle()
+		self.accounttbl.refresh()
 
 	def closeEvent(self, ev):
 		if self.rb and self.rb.dirty:

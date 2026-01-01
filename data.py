@@ -44,6 +44,7 @@ class Account:
 	account: float = 10000
 	neutral: float = 10
 	fixed: bool = True
+	copygraphs: bool = True
 	version: float = 1.1
 
 def accountexample():
@@ -145,6 +146,7 @@ class Trade:
 
 	def __postinit__(self):
 		self.pts = self.points()
+		self.rb = None
 	def inval(self)-> None:
 		self.pts = self.points()
 
@@ -184,7 +186,9 @@ class Trade:
 		else:
 			return self.ptsin - self.sysout
 
-	def result(self, neutral: float = 10) -> Result:
+	def result(self, neutral: float = 0) -> Result:
+		if neutral == 0 and self.rb and self.rb.account:
+			neutral = self.rb.account.neutral
 		pt = self.euros if self.euros != 0 else self.points()
 		if pt > neutral:
 			return Result.OK
@@ -192,7 +196,9 @@ class Trade:
 			return Result.KO
 		return Result.Neutral
 
-	def sysresult(self, neutral: float = 10) -> Result:
+	def sysresult(self, neutral: float = 0) -> Result:
+		if neutral == 0 and self.rb and self.rb.account:
+			neutral = self.rb.account.neutral
 		pt = self.syspoints()
 		if pt > neutral:
 			return Result.OK
@@ -286,7 +292,6 @@ class RoadBook:
 		self.features = features
 		self.currencies = currencies
 		self.account = Account()
-		self.neutral = 10
 		self.dir = None
 		self.maxid = 0
 		self.dirty = False
@@ -508,9 +513,10 @@ class RoadBook:
 		self.dirty = False
 		return errs
 
-	def save(self, dir: str = None) -> None:
+	def save(self, dir: str = None, filtered=False) -> None:
 		"""save files at dir, create it when it does not exist.
 		"""
+		savingas = (dir is not None and self.dir is not None and dir != self.dir)
 		if dir is None:
 			dir = self.dir
 		if dir is None:
@@ -527,8 +533,11 @@ class RoadBook:
 			self.saveinstruments()
 			self.savesetups()
 			self.savefeatures()
-			self.savetrades()
-			self.dirty = False
+			self.savetrades(filtered=filtered)
+			if not savingas:
+				self.dirty = False
+			elif self.account and self.account.copygraphs:
+				self.savegraphs(filtered=filtered)
 		finally:
 			self.dir = saved
 
@@ -656,12 +665,37 @@ class RoadBook:
 		self.defaultsfortrades()
 		return ts, errors
 
-	def savetrades(self, fname: str = None) -> None:
+	def savetrades(self, fname: str = None, filtered=False) -> None:
 		if fname is None or fname == "":
 			fname = self.tradespath()
 		copyfile(fname, fname+BCK)
 		rens = {"datein":"date", "has":"with"}
 		skips = set(["pts"])
-		write_objects_to_csv(fname, self.trades, Trade, rens, skips)
+		trades = self.trades
+		if filtered and self.filteredtrades:
+			trades = self.filteredtrades
+		for t in trades:
+			if t.graf is None or t.graf == "":
+				npath = self.mkgraphpath(t)
+				if os.path.exists(npath):
+					t.graf = npath
+		write_objects_to_csv(fname, trades, Trade, rens, skips)
 
 
+	def savegraphs(self, filtered=False) -> None:
+		trades = self.trades
+		if filtered and self.filteredtrades:
+			trades = self.filteredtrades
+		for t in trades:
+			if t.graf is None or not os.path.exists(t.graf):
+				continue
+			npath = self.mkgraphpath(t)
+			try:
+				if os.path.samefile(t.graf, npath):
+					continue
+			except:
+				pass
+			try:
+				shutil.copyfile(t.graf, npath)
+			except Exception as e:
+				print(f"failed to copy graphic {e}", file=sys.stderr)
