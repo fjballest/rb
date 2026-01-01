@@ -30,6 +30,9 @@ jobs:
       - name: Build executable
         run: pyinstaller rb.spec
 
+      - name: list executable
+        run: ls -l dist
+
       - name: Rename executable
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
@@ -44,7 +47,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-${{ matrix.os }}
+          name: rb-${{ matrix.os }}
           path: dist/*
 
   release:
