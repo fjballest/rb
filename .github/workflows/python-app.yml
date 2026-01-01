@@ -1,4 +1,4 @@
 - name: PyInstaller Linux
-  uses: JackMcKew/pyinstaller-action-linux@python3.10
-  with:
-    path: src
+  uses: JackMcKew/pyinstaller-action-linux@main
+    with:
+      path: src
