@@ -1,26 +1,4 @@
-
-name: Package Application with Pyinstaller
-
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-
-jobs:
-  build:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout
-
-    - name: Package Application
-      uses: JackMcKew/pyinstaller-action-linux@main
+- name: PyInstaller Linux
+      uses: JackMcKew/pyinstaller-action-linux@python3.10
       with:
-        path: .
-
-    - uses: actions/upload-artifact@v2
-      with:
-        name: rb-linux
-        path: dist/linux
+        path: src
