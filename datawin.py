@@ -2,40 +2,34 @@
 # Data window (main window)
 #
 import sys
-from PySide6.QtWidgets import *
-from PySide6.QtCore import Qt, Signal
-from data import *
-from objtbl import *
-from stats import *
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QFont
-from PySide6.QtGui import QIntValidator, QDoubleValidator
-from checklist import *
-from imgwin import *
-from filterwin import *
-from statswin import *
-import sys
-from PySide6.QtWidgets import (
-	QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-	QCheckBox, QPushButton, QLabel, QScrollArea, QFileDialog, QPlainTextEdit
-)
-from PySide6.QtCore import Qt
+
+from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QStyle
 from PySide6.QtWidgets import QToolBar
+from PySide6.QtWidgets import (
+	QWidget, QVBoxLayout, QHBoxLayout,
+	QCheckBox, QLabel, QFileDialog, QPlainTextEdit
+)
+
+from filterwin import *
+from imgwin import *
+from objtbl import *
+from statswin import *
 
 
 def create_file_actions(parent):
 	style = parent.style()
 
 	new_action = QAction(
-		style.standardIcon(QStyle.SP_FileIcon),
+		style.standardIcon(QStyle.StandardPixmap.SP_FileIcon),
 		"New",
 		parent,
 	)
 	new_action.setShortcut("Ctrl+N")
 	new_action.setToolTip("New RoadBook")
 	open_action = QAction(
-		style.standardIcon(QStyle.SP_DialogOpenButton),
+		style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton),
 		"Open",
 		parent,
 	)
@@ -43,7 +37,7 @@ def create_file_actions(parent):
 	open_action.setToolTip("Open RoadBbook")
 
 	save_action = QAction(
-		style.standardIcon(QStyle.SP_DialogSaveButton),
+		style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
 		"Save",
 		parent,
 	)
@@ -51,7 +45,7 @@ def create_file_actions(parent):
 	save_action.setToolTip("Save RoadBook")
 
 	saveas_action = QAction(
-		style.standardIcon(QStyle.SP_DirLinkIcon),
+		style.standardIcon(QStyle.StandardPixmap.SP_DirLinkIcon),
 		"SaveAs",
 		parent,
 	)
@@ -202,9 +196,10 @@ class TradeEdit(QDialog):
 		ed = self.setupbox.lineEdit()
 		ed.editingFinished.connect(lambda: self.setupchanged(ed.text()))
 		#self.setupbox.currentTextChanged.connect(self.setupchanged)
-
-		self.datebox = QDateEdit(calendarPopup=True)
-		self.datebox.setDate(date.today())
+		td = date.today()
+		qt = QDate(td.year, td.month, td.day)
+		self.datebox = QDateEdit(qt,calendarPopup=True)
+		self.datebox.setDate(qt)
 		if t:
 			self.datebox.setDate(t.datein)
 
@@ -267,7 +262,8 @@ class TradeEdit(QDialog):
 
 		self.formGroupBox.setLayout(layout)
 		self.errors = QLabel("")
-		self.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+		self.buttonBox = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+										  QDialogButtonBox.StandardButton.Cancel)
 		mainLayout = QVBoxLayout()
 		x = QWidget()
 		lay2 = QHBoxLayout()
@@ -317,7 +313,7 @@ class TradeEdit(QDialog):
 			self.errors.setText(e)
 			return None
 		if self.t is not None:
-			self.t.copyFrom(t)
+			self.t.copy_from(t)
 			t = self.t
 		if t.graf:
 			self.maycopygraph(t)
@@ -345,7 +341,7 @@ class TradeEdit(QDialog):
 			pass
 		try:
 			shutil.copyfile(src, dst)
-			t.graph = dst
+			t.graf = dst
 		except Exception as e:
 			print(f"failed to copy graphic {e}", file=sys.stderr)
 
@@ -398,16 +394,16 @@ class DataWindow(QMainWindow):
 		w.setFixedSize(0,0)
 		self.setCentralWidget(w)
 
-		self.addDockWidget(Qt.LeftDockWidgetArea, trades)
-		self.addDockWidget(Qt.LeftDockWidgetArea, setups)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, trades)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, setups)
 		self.tabifyDockWidget(trades, setups)
-		self.addDockWidget(Qt.LeftDockWidgetArea, features)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, features)
 		self.tabifyDockWidget(setups, features)
-		self.addDockWidget(Qt.LeftDockWidgetArea, instruments)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, instruments)
 		self.tabifyDockWidget(features, instruments)
-		self.addDockWidget(Qt.LeftDockWidgetArea, currencies)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, currencies)
 		self.tabifyDockWidget(instruments, currencies)
-		self.addDockWidget(Qt.LeftDockWidgetArea, account)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, account)
 		self.tabifyDockWidget(currencies, account)
 
 		self.featchecks = CheckBoxGroup([], dirtied=self.dirtied)
@@ -415,14 +411,14 @@ class DataWindow(QMainWindow):
 		setfeats(checks)
 		checks.setWidget(self.featchecks)
 		self.featcheckswidget = checks
-		self.addDockWidget(Qt.RightDockWidgetArea, checks)
+		self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, checks)
 
 		self.setupchecks = CheckBoxGroup([], dirtied=self.dirtied)
 		checks = QDockWidget("Feature Setups", self)
 		setfeats(checks)
 		checks.setWidget(self.setupchecks)
 		self.setupcheckswidget = checks
-		self.addDockWidget(Qt.RightDockWidgetArea, checks)
+		self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, checks)
 
 
 		self.tabifyDockWidget(self.featcheckswidget, self.setupcheckswidget)
@@ -456,15 +452,15 @@ class DataWindow(QMainWindow):
 
 	def askuser(self, msg):
 		qm = QMessageBox
-		r = qm.question(self, '', msg, qm.Yes, qm.No)
-		return r == qm.Yes
+		r = qm.question(self, '', msg, qm.StandardButton.Yes, qm.StandardButton.No)
+		return r == qm.StandardButton.Yes
 
 	def openroadbook(self):
 		if self.rb and self.rb.dirty:
 			if not self.askuser('unsaved changed. sure to open another one?'):
 				return
 		file_path = QFileDialog.getExistingDirectory(
-			self, "Open Roadbook", "", QFileDialog.ShowDirsOnly)
+			self, "Open Roadbook", "", QFileDialog.Option.ShowDirsOnly)
 		if not file_path:
 			return
 		if not RoadBook.isRoadBook(file_path):
@@ -545,7 +541,7 @@ class DataWindow(QMainWindow):
 
 	def coloured(self, t):
 		return int(t.result()) if t else 0
-		return t.result()
+
 
 	def mkfilter(self):
 		self.filterwindow = FilterWindow(self.rb, self.setfilter)

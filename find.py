@@ -99,8 +99,8 @@ class FindDialog(QDialog):
 		super().__init__(parent)
 
 		self.setWindowTitle("Find")
-		self.setWindowModality(Qt.NonModal)
-		self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+		self.setWindowModality(Qt.WindowModality.NonModal)
+		self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
 
 		# --- Widgets ---
 		self.find_edit = QLineEdit()
@@ -168,8 +168,8 @@ class FindReplaceDialog(QDialog):
 		super().__init__(parent)
 
 		self.setWindowTitle("Find and Replace")
-		self.setWindowModality(Qt.NonModal)
-		self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+		self.setWindowModality(Qt.WindowModality.NonModal)
+		self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
 
 		# --- Widgets ---
 		self.find_edit = QLineEdit()

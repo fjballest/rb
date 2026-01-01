@@ -1,11 +1,6 @@
-from dataclasses import dataclass, field
-from datetime import date, time
-from typing import Optional, Set
+
 from enum import Enum, IntEnum, IntFlag, auto
-import os
-import shutil
 from data import *
-from csv_mapper import load_objects_from_csv,write_objects_to_csv
 
 class StatKind(IntFlag):
 	Tot = auto()

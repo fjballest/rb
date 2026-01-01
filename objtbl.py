@@ -59,7 +59,7 @@ class ObjectTableModel(QAbstractTableModel):
 	def columnCount(self, parent=QModelIndex()):
 		return len(self.field_defs)
 
-	def data(self, index, role=Qt.DisplayRole):
+	def data(self, index, role=Qt.ItemDataRole.DisplayRole):
 		if not index.isValid():
 			return None
 		if index.row() < 0 or index.row() >= len(self.objects):
@@ -68,9 +68,9 @@ class ObjectTableModel(QAbstractTableModel):
 		field = self.field_defs[index.column()]
 		value = getattr(obj, field.name)
 
-		if role in (Qt.DisplayRole, Qt.EditRole):
+		if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
 			return format_value(value)
-		if role == Qt.ForegroundRole:
+		if role == Qt.ItemDataRole.ForegroundRole:
 			x = 0
 			if hasattr(obj, "euros"):
 				x = obj.euros
@@ -82,8 +82,8 @@ class ObjectTableModel(QAbstractTableModel):
 				return QColor('green')
 		return None
 
-	def setData(self, index, value, role=Qt.EditRole):
-		if role != Qt.EditRole or not index.isValid():
+	def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+		if role != Qt.ItemDataRole.EditRole or not index.isValid():
 			return False
 
 		if index.row() < 0 or index.row() >= len(self.objects):
@@ -120,21 +120,23 @@ class ObjectTableModel(QAbstractTableModel):
 		if isnew is not None:
 			self.obj0.renamed(None, converted)
 
-		self.dataChanged.emit(index, index, [Qt.DisplayRole, Qt.EditRole])
+		self.dataChanged.emit(index, index,
+					  [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
 		return True
 
 	def flags(self, index):
 		c = index.column()
 		fd = self.field_defs[c]
 		if fd.name in self.rdonly:
-			return Qt.ItemIsSelectable | Qt.ItemIsEnabled
-		return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
+			return Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+		return (Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled |
+				Qt.ItemFlag.ItemIsEditable)
 
-	def headerData(self, section, orientation, role=Qt.DisplayRole):
-		if role != Qt.DisplayRole:
+	def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+		if role != Qt.ItemDataRole.DisplayRole:
 			return None
 
-		if orientation == Qt.Horizontal:
+		if orientation == Qt.Orientation.Horizontal:
 			return self.field_defs[section].name
 		return section + 1
 
@@ -299,8 +301,12 @@ class ObjectTableModel(QAbstractTableModel):
 
 class ObjectTable(QWidget):
 	def __init__(self, obj, objects, object_factory,
-			order=[], rdonly=[], hasedit=True, parent=None):
+			order=None, rdonly=None, hasedit=True, parent=None):
 		super().__init__(parent)
+		if order is None:
+			order = []
+		if rdonly is None:
+			rdonly = []
 		self.obj0 = obj
 		fake = False
 		if len(objects) == 0:
@@ -310,8 +316,8 @@ class ObjectTable(QWidget):
 
 		self.view = QTableView()
 		self.view.setModel(self.model)
-		self.view.setSelectionBehavior(QTableView.SelectRows)
-		self.view.setSelectionMode(QTableView.SingleSelection)
+		self.view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+		self.view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
 		self.view.resizeColumnsToContents()
 		selmodel = self.view.selectionModel()
 		selmodel.selectionChanged.connect(self.selChanged)
@@ -386,7 +392,7 @@ class ObjectTable(QWidget):
 			if oldi.row() >= 0 and oldi.row() <= self.model.rowCount():
 				self.view.setCurrentIndex(oldi)
 			if olds and olds[0].row() >= 0 and olds[0].row() <= self.model.rowCount():
-				selmodel.select(olds[0], QItemSelectionModel.ClearAndSelect)
+				selmodel.select(olds[0], QItemSelectionModel.SelectionFlag.ClearAndSelect)
 
 	def selChanged(self):
 		indexes = self.view.selectionModel().selectedRows()
@@ -461,7 +467,7 @@ class ObjectTable(QWidget):
 		index = self.model.findNext(old, txt, cs)
 		if index:
 			self.view.setCurrentIndex(index)
-			selmodel.select(index, QItemSelectionModel.ClearAndSelect)
+			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 	def find_prev(self, txt, cs):
 		selmodel = self.view.selectionModel()
 		indexes = selmodel.selectedRows()
@@ -475,7 +481,7 @@ class ObjectTable(QWidget):
 		index = self.model.findPrev(old, txt, cs)
 		if index:
 			self.view.setCurrentIndex(index)
-			selmodel.select(index, QItemSelectionModel.ClearAndSelect)
+			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 	def replace1(self, txt, rtxt, cs):
 		pass
 	def replaceall(self, txt, rtxt, cs):

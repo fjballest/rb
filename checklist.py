@@ -1,19 +1,12 @@
-import sys
-from PySide6.QtWidgets import *
-from PySide6.QtCore import Qt, QSize
-from data import *
-from objtbl import *
-from stats import *
-import sys
-from PySide6.QtWidgets import *
-from PySide6.QtGui import *
-
-import sys
-from PySide6.QtWidgets import (
-	QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-	QCheckBox, QPushButton, QLabel, QScrollArea
-)
+from PySide6.QtCore import QSize
 from PySide6.QtCore import Qt
+from PySide6.QtGui import *
+from PySide6.QtWidgets import *
+from PySide6.QtWidgets import (
+	QWidget, QVBoxLayout, QHBoxLayout,
+	QPushButton, QLabel
+)
+
 
 class ListViewSz(QListView):
 	def __init__(self):
@@ -42,7 +35,7 @@ class CheckBoxGroup(QWidget):
 
 		# ---- List view + model ----
 		self.view = ListViewSz()
-		self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+		self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 		self.model = QStandardItemModel(self.view)
 		self.view.setModel(self.model)
 		self.view.selectionModel().currentChanged.connect(self.changed)
@@ -95,9 +88,10 @@ class CheckBoxGroup(QWidget):
 			item.setEditable(False)
 			if self.w3state:
 				item.setUserTristate(True)
-			st = Qt.Checked if text in checked_items else Qt.Unchecked
+			st = Qt.CheckState.Checked if text in checked_items else (
+				Qt.CheckState.Unchecked)
 			if self.w3state and text in checkedneg_items:
-				st = Qt.PartiallyChecked
+				st = Qt.CheckState.PartiallyChecked
 			item.setCheckState(st)
 			self.model.appendRow(item)
 
@@ -118,14 +112,14 @@ class CheckBoxGroup(QWidget):
 		return [
 			self.model.item(row).text()
 			for row in range(self.model.rowCount())
-			if self.model.item(row).checkState() == Qt.Checked
+			if self.model.item(row).checkState() == Qt.CheckState.Checked
 		]
 
 	def checkedneg_items(self):
 		return [
 			self.model.item(row).text()
 			for row in range(self.model.rowCount())
-			if self.model.item(row).checkState() == Qt.PartiallyChecked
+			if self.model.item(row).checkState() == Qt.CheckState.PartiallyChecked
 		]
 
 	# --------------------------------------------------
@@ -133,13 +127,13 @@ class CheckBoxGroup(QWidget):
 	# --------------------------------------------------
 	def select_none(self):
 		for row in range(self.model.rowCount()):
-			self.model.item(row).setCheckState(Qt.Unchecked)
+			self.model.item(row).setCheckState(Qt.CheckState.Unchecked)
 
 	def select_all(self):
 		for row in range(self.model.rowCount()):
-			self.model.item(row).setCheckState(Qt.Checked)
+			self.model.item(row).setCheckState(Qt.CheckState.Checked)
 
 	def select_negall(self):
 		for row in range(self.model.rowCount()):
-			self.model.item(row).setCheckState(Qt.PartiallyChecked)
+			self.model.item(row).setCheckState(Qt.CheckState.PartiallyChecked)
 

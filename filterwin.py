@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout
 )
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QEvent
+from PySide6.QtCore import Qt, QEvent, QDate
 from checklist import *
 from stats import *
 import os
@@ -28,10 +28,11 @@ class FilterWindow(QMainWindow):
 		b_none = QPushButton("No Filter")
 		b_none.clicked.connect(self.nofilter)
 
-		self.b_since = QDateEdit(calendarPopup=True)
-		self.b_until = QDateEdit(calendarPopup=True)
-		self.b_since.setDate(date.today())
-		self.b_until.setDate(date.today())
+		td = date.today()
+		self.b_since = QDateEdit(QDate(td.year,td.month,td.day), calendarPopup=True)
+		self.b_until = QDateEdit(QDate(td.year,td.month,td.day), calendarPopup=True)
+		self.b_since.setDate(QDate(td.year,td.month,td.day))
+		self.b_until.setDate(QDate(td.year,td.month,td.day))
 
 		b_layout = QHBoxLayout()
 		b_layout.addWidget(b_apply)
@@ -111,8 +112,9 @@ class FilterWindow(QMainWindow):
 		self.wdays.select_none()
 		self.hours.select_none()
 		self.hours.select_none()
-		self.b_since.setDate(date.today())
-		self.b_until.setDate(date.today())
+		td = date.today()
+		self.b_since.setDate(QDate(td.year,td.month,td.day))
+		self.b_until.setDate(QDate(td.year,td.month,td.day))
 		self.instrumentsb.setChecked(True)
 		self.setupsb.setChecked(True)
 		self.wdaysb.setChecked(True)

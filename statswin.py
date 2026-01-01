@@ -68,7 +68,7 @@ class StatsWindow(QMainWindow):
 
 		sc = QScrollArea()
 		sc.setWidgetResizable(True) # Allow widget to resize
-		sc.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+		sc.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
 		#sc.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 		self.scroll = sc
 		sc.setWidget(self.mkstats())
@@ -219,7 +219,7 @@ class StatsWindow(QMainWindow):
 		if self.plot_bs[0].isChecked() or self.plot_bs[1].isChecked():
 			h = QWidget()
 			hlayout = QHBoxLayout(h)
-			hlayout.setAlignment(Qt.AlignLeft)
+			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 			if self.plot_bs[0].isChecked():
 				w = self.mkstat(StatPlot.Plot, StatKind.Tot)
 				if w is not None:
@@ -231,7 +231,7 @@ class StatsWindow(QMainWindow):
 		if self.plot_bs[1].isChecked():
 			h = QWidget()
 			hlayout = QHBoxLayout(h)
-			hlayout.setAlignment(Qt.AlignLeft)
+			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 			w = self.mkokpie(StatKind.Avg, self.unit)
 			hlayout.addWidget(w)
 			w = self.mkokpie(StatKind.Cnt, self.unit)
@@ -240,7 +240,7 @@ class StatsWindow(QMainWindow):
 		if self.plot_bs[2].isChecked() or self.plot_bs[3].isChecked():
 			h = QWidget()
 			hlayout = QHBoxLayout(h)
-			hlayout.setAlignment(Qt.AlignLeft)
+			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 			if self.plot_bs[2].isChecked():
 				w = self.mkstat(StatPlot.WeekPlot, StatKind.Tot)
 				if w is not None:
@@ -260,7 +260,7 @@ class StatsWindow(QMainWindow):
 			if st != StatPlot.PerInstrument:
 				h = QWidget()
 				hlayout = QHBoxLayout(h)
-				hlayout.setAlignment(Qt.AlignLeft)
+				hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 			for k in self.kind_bs:
 				if not k.isChecked():
 					continue
@@ -270,7 +270,7 @@ class StatsWindow(QMainWindow):
 					if st == StatPlot.PerInstrument:
 						h = QWidget()
 						hlayout = QHBoxLayout(h)
-						hlayout.setAlignment(Qt.AlignLeft)
+						hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 					hlayout.addWidget(w)
 					if st == StatPlot.PerInstrument:
 						playout.addWidget(h)

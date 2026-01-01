@@ -39,18 +39,13 @@ class PieWidget(QWidget):
 
 		# --- View ---
 		self._view = QChartView(self._chart)
-		self._view.setRenderHint(QPainter.Antialiasing)
+		self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
 
 		# --- Layout (with optional aspect ratio) ---
-		if aspect_ratio is not None:
-			self._container = AspectRatioWidget(self._view, aspect_ratio, self)
-			layout = QVBoxLayout(self)
-			layout.setContentsMargins(0, 0, 0, 0)
-			layout.addWidget(self._container)
-		else:
-			layout = QVBoxLayout(self)
-			layout.setContentsMargins(0, 0, 0, 0)
-			layout.addWidget(self._view)
+
+		layout = QVBoxLayout(self)
+		layout.setContentsMargins(0, 0, 0, 0)
+		layout.addWidget(self._view)
 
 	# ----------------------------
 	# Public API
@@ -59,7 +54,7 @@ class PieWidget(QWidget):
 	def set_title(self, title: str):
 		self._chart.setTitle(title)
 
-	def set_data(self, labels: list[str], vals: list[list[float]]):
+	def set_data(self, labels: list[str], vals: list[float]):
 		self._labels = labels
 		self._vals = vals
 		self._series.clear()

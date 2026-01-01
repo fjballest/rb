@@ -1,14 +1,7 @@
 
-from dataclasses import dataclass
-from datetime import date, time
-from typing import Optional, Set
-from enum import Enum
-from data import *
-from objtbl import *
-from stats import *
-import sys
+
 from datawin import *
-from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
+from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QLoggingCategory
 #
 # roadbook using qt & python; take 2

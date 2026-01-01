@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QGraphicsSimpleTextItem
+from PySide6.QtWidgets import QVBoxLayout, QGraphicsSimpleTextItem
 from PySide6.QtCharts import (
 	QChart,
 	QChartView,
@@ -54,15 +54,15 @@ class XYPlotWidget(QWidget):
 		self._axis_y = QValueAxis()
 		#self._axis_y.setLabelFormat("%f")
 
-		self._chart.addAxis(self._axis_x, Qt.AlignBottom)
-		self._chart.addAxis(self._axis_y, Qt.AlignLeft)
+		self._chart.addAxis(self._axis_x, Qt.AlignmentFlag.AlignBottom)
+		self._chart.addAxis(self._axis_y, Qt.AlignmentFlag.AlignLeft)
 
 		self._series.attachAxis(self._axis_x)
 		self._series.attachAxis(self._axis_y)
 
 		# --- View ---
 		self._view = QChartView(self._chart)
-		self._view.setRenderHint(QPainter.Antialiasing)
+		self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
 		# --- Optional aspect ratio enforcement ---
 		if aspect_ratio is not None:
 			self._container = AspectRatioWidget(self._view, aspect_ratio, self)

@@ -218,8 +218,10 @@ def write_objects_to_csv(
 	objects: List[object],
 	cls: Type,
 	renames: dict[str,str] = None,
-	skip: set[str] = set([])
+	skip: set[str] = None
 ):
+	if skip is None:
+		skip = set([])
 	field_names = list(get_field_types(cls).keys())
 	r = [x for x in field_names if not x in skip]
 	field_names = r

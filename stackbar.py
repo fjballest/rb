@@ -39,8 +39,8 @@ class XYStackBarWidget(QWidget):
 		self._axis_y = QValueAxis()
 		self._axis_y.setLabelFormat("%.2f")
 
-		self._chart.addAxis(self._axis_x, Qt.AlignBottom)
-		self._chart.addAxis(self._axis_y, Qt.AlignLeft)
+		self._chart.addAxis(self._axis_x, Qt.AlignmentFlag.AlignBottom)
+		self._chart.addAxis(self._axis_y, Qt.AlignmentFlag.AlignLeft)
 		self._series.attachAxis(self._axis_x)
 		self._series.attachAxis(self._axis_y)
 
@@ -50,18 +50,12 @@ class XYStackBarWidget(QWidget):
 
 		# --- View ---
 		self._view = QChartView(self._chart)
-		self._view.setRenderHint(QPainter.Antialiasing)
+		self._view.setRenderHint(QPainter.RenderHint.Antialiasing)
 
 		# --- Layout (with optional aspect ratio) ---
-		if aspect_ratio is not None:
-			self._container = AspectRatioWidget(self._view, aspect_ratio, self)
-			layout = QVBoxLayout(self)
-			layout.setContentsMargins(0, 0, 0, 0)
-			layout.addWidget(self._container)
-		else:
-			layout = QVBoxLayout(self)
-			layout.setContentsMargins(0, 0, 0, 0)
-			layout.addWidget(self._view)
+		layout = QVBoxLayout(self)
+		layout.setContentsMargins(0, 0, 0, 0)
+		layout.addWidget(self._view)
 
 	# ----------------------------
 	# Public API

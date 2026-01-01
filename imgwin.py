@@ -32,7 +32,8 @@ class ImageViewer(QMainWindow):
 
 		# --- Image label ---
 		self.image_label = QLabel()
-		self.image_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+		self.image_label.setAlignment(Qt.AlignmentFlag.AlignLeft |
+									  Qt.AlignmentFlag.AlignTop)
 
 		# Drag-to-pan state
 		self._drag_pos = None
@@ -58,7 +59,7 @@ class ImageViewer(QMainWindow):
 		layout.addWidget(self.scroll_area)
 		self.setCentralWidget(container)
 		self.setimage(self.file_path)
-		QTimer.singleShot(0.1, lambda: self.enable_fit_mode(x = x, y = y))
+		QTimer.singleShot(0, lambda: self.enable_fit_mode(x = x, y = y))
 
 	def preview(self):
 		if self.file_path is not None:
@@ -118,8 +119,8 @@ class ImageViewer(QMainWindow):
 	def update_image(self):
 		scaled = self.original_pixmap.scaled(
 			self.original_pixmap.size() * self.scale_factor,
-			Qt.KeepAspectRatio,
-			Qt.SmoothTransformation
+			Qt.AspectRatioMode.KeepAspectRatio,
+			Qt.TransformationMode.SmoothTransformation
 		)
 		self.image_label.setPixmap(scaled)
 		self.image_label.adjustSize()
@@ -127,11 +128,12 @@ class ImageViewer(QMainWindow):
 	# ---------- Drag-to-pan ----------
 	def eventFilter(self, source, event):
 		if source is self.scroll_area.viewport():
-			if event.type() == QEvent.MouseButtonPress and event.buttons() & Qt.LeftButton:
+			if (event.type() == QEvent.Type.MouseButtonPress and event.buttons() &
+					Qt.MouseButton.LeftButton):
 				self._drag_pos = event.pos()
 				return True
 
-			elif event.type() == QEvent.MouseMove and self._drag_pos is not None:
+			elif event.type() == QEvent.Type.MouseMove and self._drag_pos is not None:
 				delta = event.pos() - self._drag_pos
 				self._drag_pos = event.pos()
 
@@ -143,7 +145,7 @@ class ImageViewer(QMainWindow):
 				)
 				return True
 
-			elif event.type() == QEvent.MouseButtonRelease:
+			elif event.type() == QEvent.Type.MouseButtonRelease:
 				self._drag_pos = None
 				return True
 

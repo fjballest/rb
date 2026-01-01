@@ -2,14 +2,12 @@
 # data classes
 #
 from dataclasses import dataclass, field
-from time import gmtime
 from datetime import date, time, datetime
 from typing import Optional, Set
 from enum import Enum, IntEnum
 import os
 import sys
 import shutil
-import traceback
 from csv_mapper import load_objects_from_csv,write_objects_to_csv
 
 ACCOUNTFILE = "account.csv"
@@ -66,7 +64,7 @@ class Feature:
 
 def featureexample():
 	return Feature("ApoyoH4 Aper", "apoyo pero antes de GL y con cota cerca",
-		set(["ApoyoH4 Aper", "ApoyoH4 Aper", "ApoyoH4 Aper"]))
+                   {"ApoyoH4 Aper", "ApoyoH4 Aper", "ApoyoH4 Aper"})
 
 @dataclass
 class Currency:
@@ -122,7 +120,7 @@ class Trade:
 	has: Optional[Set[str]] = field(default_factory= set)
 	pts: Optional[float] = 0.0
 
-	def copyFrom(self, o):
+	def copy_from(self, o):
 		"""swallow copy"""
 		self.trade = o.trade
 		self.instrument = o.instrument
@@ -210,7 +208,7 @@ class Trade:
 	def isKO(self) -> bool:
 		return self.result() == Result.KO
 
-	def instr(self) -> Instrument:
+	def instr(self) -> Instrument|None:
 		if self.instrument is None or self.instrument == "":
 			return None
 		if self.rb is None:
@@ -228,7 +226,7 @@ class Trade:
 			return pts
 		return pts * 260000 / i.scale
 
-	def currency(self) -> Currency:
+	def currency(self) -> Currency|None:
 		i = self.instr()
 		if i is None:
 			return None
@@ -253,7 +251,7 @@ class Trade:
 	def hasfeature(self, name) -> bool:
 		return self.has is not None and name in self.has
 
-	def checkOut(self) -> str:
+	def checkOut(self) -> str|None:
 		t = self
 		if t.instrument is None or t.instrument == "":
 			return "no instrument"
@@ -273,9 +271,13 @@ class Trade:
 		return None
 
 def tradeexample():
+	t = time(15,30)
+	to = time(15,30)
 	return Trade(100, "NASDAQ", "ApoyoH4 Aper", date.today(), Dir.Short, 1.2,
-		"15:30", "15:30", 245430, 245430, 245430, 245430,
-		154.3, 154.3, "/path/to/plot", "apoyo 4H, sin muros, fuerza, sem flojo. 1H sin fuerza: no reentrar", "mejor salir por patron si sem en giro", "Apertura;Apoyo D;Apoyo4H;Desp.Corr.;Pullback;Sin Muros;Val Estr;Willy OK", 245430)
+		t, to, 245430, 245430, 245430, 245430,
+		154.3, 154.3, "/path/to/plot", "apoyo 4H, sin muros, fuerza, sem flojo. 1H sin fuerza: no reentrar", "mejor salir por patron si sem en giro",
+		{"Apertura","Apoyo D","Apoyo4H","Desp.Corr","Pullback", "Sin Muros;Willy OK"},
+		 245430)
 
 def copyfile(src: str, dst: str) -> None:
 	try:
@@ -284,7 +286,18 @@ def copyfile(src: str, dst: str) -> None:
 		pass
 
 class RoadBook:
-	def __init__(self, trades = [], instrs = [], setups = [], features = [], currencies = []):
+	def __init__(self, trades = None, instrs = None,
+			setups = None, features = None, currencies = None):
+		if trades is None:
+			trades = []
+		if instrs is None:
+			instrs = []
+		if setups is None:
+			setups = []
+		if features is None:
+			features = []
+		if currencies is None:
+			currencies = []
 		self.trades = trades
 		self.filteredtrades = None
 		self.instruments = instrs
@@ -410,8 +423,9 @@ class RoadBook:
 
 	def defaultsforfeatures(self) -> None:
 		for f in self.features:
-			#self.defaultsetups(f.setups)
-			pass
+			if False:
+				self.defaultsetups(f.setups)
+
 
 	def defaultsforinstruments(self) -> None:
 		for i in self.instruments:
@@ -489,15 +503,15 @@ class RoadBook:
 			#self.defaultsetup(setup)
 
 
-	def load(self, dir: str = None) -> list[dict]:
+	def load(self, dirpath: str = None) -> list[dict]:
 		"""load files from dir and return a list of errors.
 		each error is a dict with 'file', 'row', 'errors', and 'data'
 		"""
-		if dir is None:
-			dir = self.dir
-		if dir is None:
+		if dirpath is None:
+			dirpath = self.dir
+		if dirpath is None:
 			raise "no directory set"
-		self.dir = dir
+		self.dir = dirpath
 		_, errs = self.loadaccount()
 
 		_, ierrs = self.loadcurrencies()
@@ -513,19 +527,19 @@ class RoadBook:
 		self.dirty = False
 		return errs
 
-	def save(self, dir: str = None, filtered=False) -> None:
+	def save(self, dirpath: str = None, filtered=False) -> None:
 		"""save files at dir, create it when it does not exist.
 		"""
-		savingas = (dir is not None and self.dir is not None and dir != self.dir)
-		if dir is None:
-			dir = self.dir
-		if dir is None:
+		savingas = (dirpath is not None and self.dir is not None and dirpath != self.dir)
+		if dirpath is None:
+			dirpath = self.dir
+		if dirpath is None:
 			raise "no directory set"
 		if self.dir is None:
-			self.dir = dir
+			self.dir = dirpath
 		saved = self.dir
-		self.dir = dir
-		gdir = os.path.join(dir, GRAPHSDIR)
+		self.dir = dirpath
+		gdir = os.path.join(dirpath, GRAPHSDIR)
 		try:
 			os.makedirs(gdir, exist_ok = True)
 			self.saveaccount()
@@ -541,7 +555,7 @@ class RoadBook:
 		finally:
 			self.dir = saved
 
-	def isRoadBook(path):
+	def isRoadBook(path: str):
 		p = os.path.join(path, TRADESFILE)
 		return os.path.exists(p)
 
@@ -570,7 +584,7 @@ class RoadBook:
 		p = os.path.join(d, f"trade{t.trade}{t.instrument.lower()}.png")
 		return p
 
-	def loadaccount(self, fname: str = None) -> tuple[Account, list[dict]]:
+	def loadaccount(self, fname: str = None) -> tuple[object, list[dict]]:
 		if fname is None or fname == "":
 			fname = self.accountpath()
 		aa, errors = load_objects_from_csv(fname, Account)
@@ -581,7 +595,7 @@ class RoadBook:
 		self.account = aa[0]
 		return self.account, errors
 
-	def loadcurrencies(self, fname: str = None) -> tuple[list[Currency], list[dict]]:
+	def loadcurrencies(self, fname: str = None) -> tuple[list[object], list[dict]]:
 		if fname is None or fname == "":
 			fname = self.currenciespath()
 		cs, errors = load_objects_from_csv(fname, Currency)
@@ -597,7 +611,7 @@ class RoadBook:
 		copyfile(fname, fname+BCK)
 		write_objects_to_csv(fname, self.currencies, Currency)
 
-	def loadinstruments(self, fname: str = None) -> tuple[list[Instrument], list[dict]]:
+	def loadinstruments(self, fname: str = None) -> tuple[list[object], list[dict]]:
 		if fname is None or fname == "":
 			fname = self.instrumentspath()
 		ii, errors = load_objects_from_csv(fname, Instrument)
@@ -620,7 +634,7 @@ class RoadBook:
 		copyfile(fname, fname+BCK)
 		write_objects_to_csv(fname, self.instruments, Instrument)
 
-	def loadsetups(self, fname: str = None) -> tuple[list[Setup], list[dict]]:
+	def loadsetups(self, fname: str = None) -> tuple[list[object], list[dict]]:
 		if fname is None or fname == "":
 			fname = self.setupspath()
 		ss, errors = load_objects_from_csv(fname, Setup)
@@ -636,7 +650,7 @@ class RoadBook:
 		copyfile(fname, fname+BCK)
 		write_objects_to_csv(fname, self.setups, Setup)
 
-	def loadfeatures(self, fname: str = None) -> tuple[list[Feature], list[dict]]:
+	def loadfeatures(self, fname: str = None) -> tuple[list[object], list[dict]]:
 		if fname is None or fname == "":
 			fname = self.featurespath()
 		fs, errors = load_objects_from_csv(fname, Feature)
@@ -653,7 +667,7 @@ class RoadBook:
 		copyfile(fname, fname+BCK)
 		write_objects_to_csv(fname, self.features, Feature)
 
-	def loadtrades(self, fname: str = None) -> tuple[list[Trade], list[dict]]:
+	def loadtrades(self, fname: str = None) -> tuple[list[object], list[dict]]:
 		if fname is None or fname == "":
 			fname = self.tradespath()
 		rens = {"datein":"date", "has":"with"}
@@ -670,7 +684,7 @@ class RoadBook:
 			fname = self.tradespath()
 		copyfile(fname, fname+BCK)
 		rens = {"datein":"date", "has":"with"}
-		skips = set(["pts"])
+		skips = {"pts"}
 		trades = self.trades
 		if filtered and self.filteredtrades:
 			trades = self.filteredtrades
