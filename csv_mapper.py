@@ -39,6 +39,8 @@ def unwrap_optional(t):
 def is_string_set(t):
 	return get_origin(t) is set and get_args(t) == (str,)
 
+
+# noinspection PyDataclass
 def get_field_types(cls: Type) -> dict:
 	if is_dataclass(cls):
 		return {f.name: f.type for f in fields(cls)}

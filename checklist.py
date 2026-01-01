@@ -98,10 +98,10 @@ class CheckBoxGroup(QWidget):
 
 	def updating(self, items):
 		if self.updateitems is not None:
-			self.changed(None, None)
+			self.changed()
 		self.updateitems = items
 
-	def changed(self, cur=None, prev=None):
+	def changed(self):
 		if self.updateitems is not None:
 			self.dirtied()
 			self.updateitems.clear()

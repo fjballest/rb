@@ -106,7 +106,7 @@ class ImageViewer(QMainWindow):
 			y = viewport.height()
 		self.scale_factor = min(
 			x / img.width(),
-			x / img.height()
+			y / img.height()
 		)
 
 	def resizeEvent(self, event):

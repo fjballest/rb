@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt, QMargins
 
 
 class XYBarWidget(QWidget):
-	def __init__(self, title: str = "", aspect_ratio = None, parent=None):
+	def __init__(self, title: str = "", parent=None):
 		super().__init__(parent)
 
 		# --- Chart ---

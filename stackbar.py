@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, QMargins
 
 
 class XYStackBarWidget(QWidget):
-	def __init__(self, labels: list[str], title: str = "", aspect_ratio: float | None = None, parent=None, colors=None):
+	def __init__(self, labels: list[str], title: str = "", parent=None, colors=None):
 		super().__init__(parent)
 
 		# --- Chart ---

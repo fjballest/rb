@@ -14,8 +14,7 @@ from PySide6.QtCore import Qt, QMargins
 
 class PieWidget(QWidget):
 	def __init__(self, labels: list[str], vals: list[float],
-			title: str = "",
-			aspect_ratio: float | None = None, parent=None, colors=None):
+			title: str = "", parent=None, colors=None):
 		super().__init__(parent)
 
 		# --- Chart ---
@@ -29,11 +28,11 @@ class PieWidget(QWidget):
 		self._series = QPieSeries()
 		self._series.setHoleSize(0.3)
 		for i, lbl in enumerate(labels):
-			slice = self._series.append(lbl, vals[i])
-			slice.setLabelVisible()
-			slice.setLabel(f"{vals[i]:.0f} {lbl}")
+			sl = self._series.append(lbl, vals[i])
+			sl.setLabelVisible()
+			sl.setLabel(f"{vals[i]:.0f} {lbl}")
 			if colors is not None:
-				slice.setColor(colors[i])
+				sl.setColor(colors[i])
 		self._chart.addSeries(self._series)
 		self._series.setLabelsVisible(True)
 

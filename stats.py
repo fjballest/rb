@@ -68,15 +68,17 @@ class Filter:
 		if len(self.wdays) > 0:
 			trades = [t for t in trades if t.dayofweek() in self.wdays]
 		if self.since is not None and self.until is not None and self.since < self.until:
-			trades = [t for t in trades if t.datein >= self.since and t.datein <= self.until]
+			trades = [t for t in trades if self.since <= t.datein <= self.until]
 		return trades
 
+	@staticmethod
 	def thisday(trades: list[Trade]) -> list[Trade]:
 		if len(trades) == 0:
 			return trades
 		d = trades[-1].datein
 		return [t for t in trades if t.datein == d]
 
+	@staticmethod
 	def thisweek(trades: list[Trade]) -> list[Trade]:
 		if len(trades) == 0:
 			return trades
@@ -84,6 +86,7 @@ class Filter:
 		w = trades[-1].week()
 		return [t for t in trades if t.year() == y and t.week() == w]
 
+	@staticmethod
 	def thismonth(trades: list[Trade]) -> list[Trade]:
 		if len(trades) == 0:
 			return trades
@@ -91,6 +94,7 @@ class Filter:
 		m = trades[-1].month()
 		return [t for t in trades if t.year() == y and t.month() == m]
 
+	@staticmethod
 	def thisyear(trades: list[Trade]) -> list[Trade]:
 		if len(trades) == 0:
 			return trades
@@ -181,7 +185,7 @@ def tradevaluetots(ts: list[Trade], u: StatUnit, initial=0) -> list[float]:
 		tots.append(initial)
 	return tots
 
-def forkind(iset, vdict, vcnt, k, minval=0):
+def forkind(iset, vdict, vcnt, k):
 	iset = [str(i) for i in iset]
 	if k == StatKind.Cnt:
 		return iset, [vcnt[i] for i in iset]
@@ -211,7 +215,6 @@ def perfunc(ts: list[Trade],
 				cnts.append(cnt)
 			val = 0
 			cnt = 0
-			lastlabel = label
 		val = val + tradevalue(t, u)
 		cnt = cnt + 1
 		lastlabel = label
@@ -247,7 +250,7 @@ def permonth(ts: list[Trade], u: StatUnit, k: StatKind, nb=None) -> tuple[list[s
 
 
 
-def perfield(ts: list[Trade], u: StatUnit, k: StatKind, fn, minval=0) -> tuple[list[str],list[float]]:
+def perfield(ts: list[Trade], u: StatUnit, k: StatKind, fn) -> tuple[list[str],list[float]]:
 	iset = sorted(set([fn(t) or "none" for t in ts]))
 	vdict = {i:0 for i in iset}
 	vcnt = {i:0 for i in iset}
@@ -256,7 +259,7 @@ def perfield(ts: list[Trade], u: StatUnit, k: StatKind, fn, minval=0) -> tuple[l
 		v = tradevalue(t, u)
 		vdict[nm] += v
 		vcnt[nm] += 1
-	return forkind(iset, vdict, vcnt, k, minval)
+	return forkind(iset, vdict, vcnt, k)
 
 def perresult(ts: list[Trade], u: StatUnit, k: StatKind, nb = 0) -> tuple[list[str],list[float]]:
 	return perfield(ts, u, k, lambda t: t.result().name)
@@ -273,4 +276,4 @@ def persetup(ts: list[Trade], u: StatUnit, k: StatKind, nb = 0) -> tuple[list[st
 	return perfield(ts, u, k, lambda t: t.setup)
 
 def perinstrument(ts: list[Trade], u: StatUnit, k: StatKind, nb = 0) -> tuple[list[str],list[float]]:
-	return perfield(ts, u, k, lambda t: t.instrument, minval=30)
+	return perfield(ts, u, k, lambda t: t.instrument)

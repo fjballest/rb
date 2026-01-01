@@ -29,8 +29,8 @@ class FilterWindow(QMainWindow):
 		b_none.clicked.connect(self.nofilter)
 
 		td = date.today()
-		self.b_since = QDateEdit(QDate(td.year,td.month,td.day), calendarPopup=True)
-		self.b_until = QDateEdit(QDate(td.year,td.month,td.day), calendarPopup=True)
+		self.b_since = QDateEdit(date=QDate(td.year,td.month,td.day), calendarPopup=True)
+		self.b_until = QDateEdit(date=QDate(td.year,td.month,td.day), calendarPopup=True)
 		self.b_since.setDate(QDate(td.year,td.month,td.day))
 		self.b_until.setDate(QDate(td.year,td.month,td.day))
 
@@ -120,7 +120,8 @@ class FilterWindow(QMainWindow):
 		self.wdaysb.setChecked(True)
 		self.hoursb.setChecked(True)
 
-	def mkgrp(self, name, w, simple=False):
+	@staticmethod
+	def mkgrp(name, w, simple=False):
 		b_with = None
 		if not simple:
 			b_layout = QHBoxLayout()
@@ -163,8 +164,8 @@ class FilterWindow(QMainWindow):
 			neg = set(HOURS).difference(set(hoursset))
 			hoursset = list(neg)
 		hoursset = [int(h) for h in hoursset]
-		since = self.b_since.date().toPython()
-		until = self.b_until.date().toPython()
+		flt.since = self.b_since.date().toPython()
+		flt.until = self.b_until.date().toPython()
 
 		flt.musthave = set(hasset)
 		flt.canthave = set(hasnotset)

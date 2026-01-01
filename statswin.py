@@ -120,8 +120,6 @@ class StatsWindow(QMainWindow):
 		x, yok = perresult(trades, u, k, nb)
 		res = {x[i]: yok[i] for i in range(3)}
 
-		vok, vko, vneutral = yok[2], yok[1], yok[0]
-
 		plot = PieWidget(["OK", "Neut", "KO"],
 			[res["OK"], res["Neutral"], res["KO"]],
 			self.mktitle(k, u, StatPlot.PerResult),
@@ -134,9 +132,6 @@ class StatsWindow(QMainWindow):
 		if p == StatPlot.PerResult:
 			return self.mkokpie(k, u, nb=nb)
 		x, y = fn(trades, u, k, nb)
-		title = f"{k.name} {u.name} {p.name}"
-		if k == StatKind.Cnt:
-			title = f"{k.name} {p.name}"
 		plot = XYBarWidget(self.mktitle(k, u, p))
 		plot.set_data(x, y)
 		f = 1
@@ -145,7 +140,8 @@ class StatsWindow(QMainWindow):
 		plot.setFixedSize(self.plotxsize*f,self.plotysize)
 		return plot
 
-	def mktitle(self, k, u, p):
+	@staticmethod
+	def mktitle(k, u, p):
 		title = f"{k.name} {u.name} {p.name}"
 		if k == StatKind.Cnt:
 			title = f"{k.name} {p.name}"

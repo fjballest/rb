@@ -423,7 +423,7 @@ class RoadBook:
 
 	def defaultsforfeatures(self) -> None:
 		for f in self.features:
-			if False:
+			if f != f:
 				self.defaultsetups(f.setups)
 
 
@@ -555,7 +555,8 @@ class RoadBook:
 		finally:
 			self.dir = saved
 
-	def isRoadBook(path: str):
+	@staticmethod
+	def isRoadBook(path: str) ->bool:
 		p = os.path.join(path, TRADESFILE)
 		return os.path.exists(p)
 

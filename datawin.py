@@ -120,7 +120,7 @@ def getstr(txt):
 		return ""
 
 class AccountEdit(QWidget):
-	def __init__(self, dwin, t=None, dirtied=None):
+	def __init__(self, dwin):
 		super(AccountEdit, self).__init__()
 		self.dwin = dwin
 		layout = QFormLayout(self)
@@ -177,7 +177,6 @@ class TradeEdit(QDialog):
 		self.dirtiedfn = dirtied
 		if t is not None and t.trade <= 0:
 			t.trade = rb.nextId()
-		id = rb.nextId()
 		self.formGroupBox = QGroupBox("Data:")
 
 		self.instrbox = QComboBox()
@@ -198,7 +197,7 @@ class TradeEdit(QDialog):
 		#self.setupbox.currentTextChanged.connect(self.setupchanged)
 		td = date.today()
 		qt = QDate(td.year, td.month, td.day)
-		self.datebox = QDateEdit(qt,calendarPopup=True)
+		self.datebox = QDateEdit(date=qt,calendarPopup=True)
 		self.datebox.setDate(qt)
 		if t:
 			self.datebox.setDate(t.datein)
@@ -256,7 +255,7 @@ class TradeEdit(QDialog):
 		layout.addRow(QLabel("Mistakes"), self.mistakesbox)
 
 		fset = []
-		if t and t.has != None and len(t.has) > 0:
+		if t and t.has is not None and len(t.has) > 0:
 			fset = t.has
 		self.featuresGroup = CheckBoxGroup(rb.featureNames(), fset)
 
@@ -335,7 +334,7 @@ class TradeEdit(QDialog):
 		dst = self.rb.mkgraphpath(t)
 		t.graf = dst
 		try:
-			if os.path.samefile(src, dst):
+			if src == dst or os.path.samefile(src, dst):
 				return
 		except:
 			pass
@@ -343,7 +342,7 @@ class TradeEdit(QDialog):
 			shutil.copyfile(src, dst)
 			t.graf = dst
 		except Exception as e:
-			print(f"failed to copy graphic {e}", file=sys.stderr)
+			print(f"failed to copy graphics: {e}", file=sys.stderr)
 
 
 def setfeats(q):
@@ -470,7 +469,7 @@ class DataWindow(QMainWindow):
             	f"The selected directory does not contain a roadbook.")
 			return
 		rb = RoadBook()
-		errs = rb.load(file_path)
+		rb.load(file_path)
 		self.changedata(rb)
 		self.updateTitle()
 
@@ -504,7 +503,6 @@ class DataWindow(QMainWindow):
 		w.exec()
 
 	def selectedtrade(self, t):
-		fset = []
 		if t and t.has is None:
 			t.has = set([])
 		fset = t.has if t else []
@@ -539,7 +537,7 @@ class DataWindow(QMainWindow):
 		self.setupchecks.set_items(self.rb.setupNames(), fset)
 		self.setupcheckswidget.raise_()
 
-	def coloured(self, t):
+	def coloured(self, t) -> int:
 		return int(t.result()) if t else 0
 
 

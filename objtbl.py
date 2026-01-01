@@ -157,7 +157,7 @@ class ObjectTableModel(QAbstractTableModel):
 
 	def removeRows(self, row, count=1, parent=QModelIndex(), usrdel=False):
 		fn = None
-		if usrdel and row >= 0 and row < len(self.objects) and hasattr(self.obj0, "removing"):
+		if usrdel and 0 <= row < len(self.objects) and hasattr(self.obj0, "removing"):
 			fn = self.obj0.removing
 			o = self.objects[row]
 			if not fn(o, False):
@@ -234,7 +234,7 @@ class ObjectTableModel(QAbstractTableModel):
 		if not cs:
 			txt = txt.lower()
 		for i in range(len(self.objects)):
-			if row >= 0 and row < len(self.objects):
+			if 0 <= row < len(self.objects):
 				obj = self.objects[row]
 				j = col
 			while obj and j < len(self.field_defs):
@@ -269,7 +269,7 @@ class ObjectTableModel(QAbstractTableModel):
 			col = len(self.field_defs)-1
 			row -= 1
 		if row < 0:
-			row = len(self.objects)-1
+			#row = len(self.objects)-1
 			row = 0
 		if row < 0:
 			return None
@@ -277,7 +277,7 @@ class ObjectTableModel(QAbstractTableModel):
 		if not cs:
 			txt = txt.lower()
 		for i in range(len(self.objects)):
-			if row >= 0 and row < len(self.objects):
+			if 0 <= row < len(self.objects):
 				obj = self.objects[row]
 				j = col
 			while obj and j >= 0:
@@ -389,9 +389,9 @@ class ObjectTable(QWidget):
 		if self.infolabel is not None:
 			self.infolabel.setText(self.obj0.info())
 		if oldi:
-			if oldi.row() >= 0 and oldi.row() <= self.model.rowCount():
+			if 0 <= oldi.row() <= self.model.rowCount():
 				self.view.setCurrentIndex(oldi)
-			if olds and olds[0].row() >= 0 and olds[0].row() <= self.model.rowCount():
+			if olds and 0 <= olds[0].row() <= self.model.rowCount():
 				selmodel.select(olds[0], QItemSelectionModel.SelectionFlag.ClearAndSelect)
 
 	def selChanged(self):
@@ -401,15 +401,12 @@ class ObjectTable(QWidget):
 		row = indexes[0].row()
 		self.model.selChanged(row)
 
-	def clicked2(self, ev):
-		dt = QDateEdit(calendarPopup=True)
-		dt.show()
 
 	def cellact(self, r, c):
 		#print(r, c, file=sys.stderr)
 		pass
 
-	def contextMenuEvent(self, ev):
+	def contextMenuEvent(self, _):
 		#print(ev, file=sys.stderr)
 		pass
 
@@ -457,12 +454,12 @@ class ObjectTable(QWidget):
 	def find_next(self, txt, cs):
 		selmodel = self.view.selectionModel()
 		indexes = selmodel.selectedRows()
-		row = 0
-		col = 0
-		if indexes:
-			row = indexes[0].row()
-			col = indexes[0].column()
-		old = self.model.index(row, col)
+		#row = 0
+		#col = 0
+		#if indexes:
+		#	row = indexes[0].row()
+		#	col = indexes[0].column()
+		#old = self.model.index(row, col)
 		old = self.view.currentIndex()
 		index = self.model.findNext(old, txt, cs)
 		if index:
@@ -471,12 +468,12 @@ class ObjectTable(QWidget):
 	def find_prev(self, txt, cs):
 		selmodel = self.view.selectionModel()
 		indexes = selmodel.selectedRows()
-		row = 0
-		col = 0
-		if indexes:
-			row = indexes[0].row()
-			col = indexes[0].column()
-		old = self.model.index(row, col)
+		#row = 0
+		#col = 0
+		#if indexes:
+		#	row = indexes[0].row()
+		#	col = indexes[0].column()
+		#old = self.model.index(row, col)
 		old = self.view.currentIndex()
 		index = self.model.findPrev(old, txt, cs)
 		if index:
