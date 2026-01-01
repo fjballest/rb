@@ -32,12 +32,13 @@ jobs:
 
       - name: Rename executable
         run: |
+          ls -l dist
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            mv dist/app.exe dist/app-windows.exe
+            mv dist/rb.exe dist/rb-windows.exe
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
-            mv dist/app dist/app-linux
+            mv dist/rb dist/rb-linux
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            mv dist/app dist/app-macos
+            mv dist/rb dist/rb-macos
           fi
         shell: bash
 
@@ -64,7 +65,7 @@ jobs:
         run: ls -R
 
       - name: Make files executable (Linux/Mac)
-        run: chmod +x app-* || true
+        run: chmod +x rb-* || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
