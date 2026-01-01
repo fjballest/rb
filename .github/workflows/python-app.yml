@@ -1,4 +1,0 @@
-- name: PyInstaller Linux
-  uses: JackMcKew/pyinstaller-action-linux@main
-  with:
-    path: .
