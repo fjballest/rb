@@ -31,7 +31,7 @@ jobs:
         run: pyinstaller rb.spec
 
       - name: list executable
-        run: ls -lR dist
+        run: ls -l dist
 
       - name: Rename executable
         run: |
