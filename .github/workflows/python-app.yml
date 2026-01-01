@@ -2,7 +2,7 @@ name: Package Application with PyInstaller
 on:
   push:
     branches:
-      - main
+      - master
 jobs:
   build:
     runs-on: windows-latest
