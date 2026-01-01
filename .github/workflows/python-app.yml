@@ -31,12 +31,12 @@ jobs:
         run: pyinstaller rb.spec
 
       - name: list executable
-        run: ls -l dist
+        run: ls -lR dist
 
       - name: Rename executable
         run: |
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            mv dist/*.exe dist/rb-windows.exe
+            mv dist/rb dist/rb-windows
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
             mv dist/rb dist/rb-linux
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
@@ -48,7 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rb-${{ matrix.os }}
-          path: dist/*
+          path: dist/rb-*
 
   release:
     needs: build
