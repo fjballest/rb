@@ -75,6 +75,7 @@ class CheckBoxGroup(QWidget):
 		layout.addWidget(self.view)
 		layout.addLayout(btn_layout)
 
+
 		if items is not None:
 			self.set_items(items, checked_items, checkedneg_items)
 

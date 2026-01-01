@@ -95,11 +95,20 @@ class ObjectTableModel(QAbstractTableModel):
 			converted = convert_value(value, field.type)
 		except Exception:
 			return False
+		isnew = None
 		if index.column() == 0 and hasattr(self.obj0, 'renamed'):
+			for i, r in enumerate(self.objects):
+				if i == index.row():
+					continue
+				old = getattr(self.objects[i], field.name, None)
+				if old and old == converted:
+					# already in use
+					return False
 			try:
 				old = getattr(obj, field.name, None)
 				if old:
 					self.obj0.renamed(old, converted)
+				isnew = not old
 			except:
 				pass
 		setattr(obj, field.name, converted)
@@ -108,6 +117,9 @@ class ObjectTableModel(QAbstractTableModel):
 				self.obj0.dirtied()
 			except:
 				pass
+		if isnew is not None:
+			self.obj0.renamed(None, converted)
+
 		self.dataChanged.emit(index, index, [Qt.DisplayRole, Qt.EditRole])
 		return True
 
@@ -141,12 +153,18 @@ class ObjectTableModel(QAbstractTableModel):
 
 	# ----- Row removal -----
 
-	def removeRows(self, row, count=1, parent=QModelIndex()):
+	def removeRows(self, row, count=1, parent=QModelIndex(), usrdel=False):
+		fn = None
+		if usrdel and row >= 0 and row < len(self.objects) and hasattr(self.obj0, "removing"):
+			fn = self.obj0.removing
+			o = self.objects[row]
+			if not fn(o, False):
+				return False
 		self.beginRemoveRows(parent, row, row + count - 1)
-
 		del self.objects[row: row + count]
-
 		self.endRemoveRows()
+		if fn:
+			fn(o, True)
 		return True
 
 	def newRow(self, row):
@@ -186,6 +204,12 @@ class ObjectTableModel(QAbstractTableModel):
 		self.beginResetModel()
 		self.objects = objects
 		self.endResetModel()
+		topLeft = self.index(0,0)
+		bottomRight = self.index(len(objects)-1, len(self.field_defs)-1)
+		self.dataChanged.emit(topLeft, bottomRight)
+
+	def refresh(self):
+		objects = self.objects
 		topLeft = self.index(0,0)
 		bottomRight = self.index(len(objects)-1, len(self.field_defs)-1)
 		self.dataChanged.emit(topLeft, bottomRight)
@@ -350,6 +374,20 @@ class ObjectTable(QWidget):
 		row = indexes[0].row()
 		self.model.graphics(row)
 
+	def refresh(self):
+		selmodel = self.view.selectionModel()
+		oldi = self.view.currentIndex()
+		olds = selmodel.selectedRows()
+		self.model.refresh()
+		self.view.resizeColumnsToContents()
+		if self.infolabel is not None:
+			self.infolabel.setText(self.obj0.info())
+		if oldi:
+			if oldi.row() >= 0 and oldi.row() <= self.model.rowCount():
+				self.view.setCurrentIndex(oldi)
+			if olds and olds[0].row() >= 0 and olds[0].row() <= self.model.rowCount():
+				selmodel.select(olds[0], QItemSelectionModel.ClearAndSelect)
+
 	def selChanged(self):
 		indexes = self.view.selectionModel().selectedRows()
 		if not indexes:
@@ -380,7 +418,7 @@ class ObjectTable(QWidget):
 			return
 
 		row = indexes[0].row()
-		self.model.removeRows(row)
+		self.model.removeRows(row, usrdel=True)
 
 	def edit_row(self):
 		indexes = self.view.selectionModel().selectedRows()

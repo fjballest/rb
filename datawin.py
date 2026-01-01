@@ -432,7 +432,7 @@ class DataWindow(QMainWindow):
 			t.has = set([])
 		fset = t.has if t else []
 		self.featcheckswidget.setWindowTitle(f"Trade {t.trade} Features")
-		self.featchecks.updating(fset)
+		self.featchecks.updateitems = fset
 		self.featchecks.set_items(self.rb.featureNames(t.setup), fset)
 		self.featcheckswidget.raise_()
 		if self.graphwindow is not None and self.graphwindow.isVisible():
@@ -512,7 +512,7 @@ class DataWindow(QMainWindow):
 
 
 	def updateinfo(self):
-		if not self.rb or not self.rb.account:
+		if self.rb is None or not self.rb.account:
 			self.info = ""
 			return
 		trades = self.rb.filteredtrades or self.rb.trades
@@ -537,39 +537,103 @@ class DataWindow(QMainWindow):
 		s = setupexample()
 		s.dirtied = self.dirtied
 		s.renamed = self.renamedSetup
+		s.removing = self.removingSetup
 		return ObjectTable(s, [], lambda: Setup(), hasedit=False )
 	def renamedSetup(self, oname, nname):
-		if self.rb:
-			self.rb.rensetup(oname, nname)
+		if self.rb is None:
+			return
+		try:
+			if oname is not None:
+				self.rb.rensetup(oname, nname)
 			self.dirtied()
+			self.tradestbl.refresh()
+			if self.filterwindow is not None:
+				self.filterwindow.refresh()
+		except Exception as e:
+			print(e, file=sys.stderr)
+	def removingSetup(self, o, done=False):
+		name = o.setup
+		if done and self.filterwindow is not None:
+			self.filterwindow.refresh()
+			return
+		if self.rb is None:
+			return True
+		if self.rb.setupUsed(name):
+			QMessageBox.warning(self,"Setup in use", f"Setup {name} is in use")
+			return False
+		return True
 	def mkfeaturestbl(self):
 		f = featureexample()
 		f.selected = self.selectedfeature
 		f.dirtied = self.dirtied
 		f.renamed = self.renamedFeature
+		f.removing = self.removingFeature
 		return ObjectTable(f, [], lambda: Feature(), hasedit=False  )
 	def renamedFeature(self, oname, nname):
-		if self.rb:
+		if self.rb is None:
+			return
+		if oname is not None:
 			self.rb.renfeature(oname, nname)
-			self.dirtied()
+		# else is a new element
+		self.dirtied()
+		try:
+			self.tradestbl.refresh()
+			print("refreshD", file=sys.stderr)
+			self.featchecks.set_items(self.rb.featureNames())
+			print("refreshE", file=sys.stderr)
+			if self.filterwindow is not None:
+				self.filterwindow.refresh()
+		except Exception as e:
+			print(e, file=sys.stderr)
+	def removingFeature(self, o, done=False):
+		name = o.feature
+		if done and self.filterwindow is not None:
+			self.filterwindow.refresh()
+			return
+		if self.rb is None:
+			return True
+		if self.rb.featureUsed(name):
+			QMessageBox.warning(self,"Feature in use", f"Feature {name} is in use")
+			return False
+		return True
 	def mkinstrumentstbl(self):
 		i = instrumentexample()
 		i.dirtied = self.dirtied
 		i.renamed = self.renamedInstrument
+		i.removing = self.removingInstrument
 		return ObjectTable(i, [], lambda: Instrument(), hasedit=False )
 	def renamedInstrument(self, oname, nname):
-		if self.rb:
+		if self.rb is None:
+			return
+		if oname is not None:
 			self.rb.reninstrument(oname, nname)
-			self.dirtied()
+		self.dirtied()
+		self.tradestbl.refresh()
+		if self.filterwindow is not None:
+			self.filterwindow.refresh()
+	def removingInstrument(self, o, done=False):
+		name = o.instrument
+		if done and self.filterwindow is not None:
+			self.filterwindow.refresh()
+			return
+		if self.rb is None:
+			return True
+		if self.rb.instrumentUsed(name):
+			QMessageBox.warning(self,"Instrument in use", f"Instrument {name} is in use")
+			return False
+		return True
 	def mkcurrenciestbl(self):
 		c = currencyexample()
 		c.dirtied = self.dirtied
 		c.renamed = self.renamedCurrency
 		return ObjectTable(c, [], lambda: Currency(), hasedit=False  )
 	def renamedCurrency(self, oname, nname):
-		if self.rb:
+		if self.rb is None:
+			return
+		if oname is not None:
 			self.rb.rencurrency(oname, nname)
-			self.dirtied()
+		self.dirtied()
+		self.instrumentstbl.refresh()
 
 	def changedata(self, r):
 		self.rb = r

@@ -333,6 +333,25 @@ class RoadBook:
 	def currencyNames(self):
 		return [c.currency for c in self.currencies]
 
+	def setupUsed(self, name):
+		for t in self.trades:
+			if t.setup == name:
+				return True
+		for f in self.features:
+			if f.setups and name in f.setups:
+				return True
+		return False
+	def instrumentUsed(self, name):
+		for t in self.trades:
+			if t.instrument == name:
+				return True
+		return False
+	def featureUsed(self, name):
+		for t in self.trades:
+			if t.has is not None and name in t.has:
+				return True
+		return False
+
 	def _defaults(self) -> None:
 		"""add default instr/setup/feature/currency for missing ones"""
 		self.defaultsforfeatures()
@@ -348,7 +367,6 @@ class RoadBook:
 		i = self.findInstrument(oname)
 		if i is not None:
 			i.instrument = nname
-
 	def rencurrency(self, oname: str, nname: str) -> None:
 		"""rename and update all data"""
 		for i in self.instruments:
@@ -364,8 +382,10 @@ class RoadBook:
 			if t.setup == oname:
 				t.setup = nname
 		for f in self.features:
+			if f.setups is None:
+				f.setups = set([])
 			if oname in f.setups:
-				delete(f.setups, oname)
+				f.setups.remove(oname)
 				f.setups.add(nname)
 		s = self.findSetup(oname)
 		if s is not None:
@@ -374,8 +394,10 @@ class RoadBook:
 	def renfeature(self, oname: str, nname: str) -> None:
 		"""rename and update all data"""
 		for t in self.trades:
+			if t.has is None:
+				t.has = set({})
 			if oname in t.has:
-				delete(t.has, oname)
+				t.has.remove(oname)
 				t.has.add(nname)
 		f = self.findFeature(oname)
 		if f is not None:

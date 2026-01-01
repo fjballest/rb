@@ -45,6 +45,7 @@ class FilterWindow(QMainWindow):
 
 		self.instruments = CheckBoxGroup(rb.instrumentNames(), wsetall=True)
 		instruments, self.instrumentsb = self.mkgrp("Instrument", self.instruments)
+
 		self.setups = CheckBoxGroup(rb.setupNames(), wsetall=True)
 		setups, self.setupsb = self.mkgrp("Setup", self.setups)
 
@@ -87,6 +88,18 @@ class FilterWindow(QMainWindow):
 		layout.addLayout(b_layout)
 		layout.addWidget(sets)
 		self.setCentralWidget(container)
+
+	def refreshInstruments(self):
+		self.instruments.set_items(self.rb.instrumentNames())
+	def refreshFeatures(self):
+		self.features.set_items(self.rb.featureNames())
+		self.nfeatures.set_items(self.rb.featureNames())
+	def refreshSetups(self):
+		self.setups.set_items(self.rb.setupNames())
+	def refresh(self):
+		self.refreshInstruments()
+		self.refreshFeatures()
+		self.refreshSetups()
 
 	def clear(self):
 		self.instruments.select_none()
