@@ -74,6 +74,6 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            app-linux
-            app-windows.exe
-            app-macos
+            rb-linux
+            rb-windows.exe
+            rb-macos
