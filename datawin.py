@@ -418,9 +418,16 @@ class DataWindow(QMainWindow):
 		checks.setWidget(self.setupchecks)
 		self.setupcheckswidget = checks
 		self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, checks)
-
-
 		self.tabifyDockWidget(self.featcheckswidget, self.setupcheckswidget)
+
+		self.today = TodayPanel(self.rb)
+		today = QDockWidget("Today", self.rb)
+		setfeats(today)
+		today.setWidget(self.today)
+		self.todaywidget = today
+		self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, today)
+		self.tabifyDockWidget(self.setupcheckswidget, self.todaywidget)
+
 		self.featcheckswidget.raise_()
 
 		trades.raise_()
@@ -428,6 +435,10 @@ class DataWindow(QMainWindow):
 		mktoolbar(self)
 
 		self.updateTitle()
+
+	def updatetoday(self):
+		self.today = TodayPanel(self.rb)
+		self.todaywidget.setWidget(self.today)
 
 	def newroadbook(self):
 		if self.rb and self.rb.dirty:
@@ -721,6 +732,7 @@ class DataWindow(QMainWindow):
 		self.featchecks.set_items(self.rb.featureNames())
 		self.updateTitle()
 		self.accounttbl.refresh()
+		self.updatetoday()
 
 	def closeEvent(self, ev):
 		if self.rb and self.rb.dirty:

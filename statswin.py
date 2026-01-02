@@ -125,7 +125,7 @@ class StatsWindow(QMainWindow):
 			res["KO"] = 0
 		if not "Neutral" in res:
 			res["Neutral"] = 0
-		title = self.mktitle(k, u, StatPlot.PerResult)
+		title = StatsWindow.mktitle(k, u, StatPlot.PerResult)
 		if k == StatKind.Tot:
 			v = sum(yok)
 			title = f"{v:.0f} " + title
@@ -142,7 +142,7 @@ class StatsWindow(QMainWindow):
 		if p == StatPlot.PerResult:
 			return self.mkokpie(k, u, nb=nb)
 		x, y = fn(trades, u, k, nb)
-		plot = XYBarWidget(self.mktitle(k, u, p))
+		plot = XYBarWidget(StatsWindow.mktitle(k, u, p))
 		plot.set_data(x, y)
 		f = 1
 		if p == StatPlot.PerInstrument:
@@ -161,7 +161,7 @@ class StatsWindow(QMainWindow):
 		trades = self.rb.filteredtrades or self.rb.trades
 		x, yok = fn(trades, StatUnit.Success, k, nb)
 		x2, yko = fn(trades, StatUnit.Failure, k, nb)
-		plot = XYStackBarWidget(["KO", "OK"], self.mktitle(k, u, p),
+		plot = XYStackBarWidget(["KO", "OK"], StatsWindow.mktitle(k, u, p),
 			colors = ["red", "green"])
 		plot.set_data(x, [yko, yok])
 		f = 1
@@ -170,8 +170,8 @@ class StatsWindow(QMainWindow):
 		plot.setFixedSize(self.plotxsize*f,self.plotysize)
 		return plot
 
-	def mktodayokpie(self, k, u, p, flt=Filter.thisday, factor=1, nb=None):
-		trades = self.rb.filteredtrades or self.rb.trades
+	def todayokpie(rb, k, u, p, flt=Filter.thisday, nb=None):
+		trades = rb.filteredtrades or rb.trades
 		trades = flt(trades)
 		if u == StatUnit.Success or u == StatUnit.Failure:
 			u = StatUnit.Pts
@@ -183,7 +183,7 @@ class StatsWindow(QMainWindow):
 			res["KO"] = 0
 		if not "Neutral" in res:
 			res["Neutral"] = 0
-		title = self.mktitle(k, u, p)
+		title = StatsWindow.mktitle(k, u, p)
 		if k == StatKind.Tot:
 			v = sum(yok)
 			title = f"{v:.0f} " + title
@@ -191,6 +191,11 @@ class StatsWindow(QMainWindow):
 			[res["OK"], res["Neutral"], res["KO"]],
 			title,
 			colors=["green", "grey", "red"])
+		return plot
+
+	def mktodayokpie(self, k, u, p, flt=Filter.thisday, factor=1, nb=None):
+		plot = StatsWindow.todayokpie(self.rb, k, u, p, flt, nb)
+		plot.setFixedSize(int(self.plotxsize*factor),int(self.plotysize*factor))
 		plot.setFixedSize(int(self.plotxsize*factor),int(self.plotysize*factor))
 		return plot
 
@@ -336,3 +341,23 @@ class StatsWindow(QMainWindow):
 
 	def plotchanged(self):
 		self.scroll.setWidget(self.mkstats())
+
+class TodayPanel(QWidget):
+	def __init__(self, rb):
+		super(TodayPanel, self).__init__()
+		self.rb = rb
+		layout = QVBoxLayout(self)
+		if self.rb is None:
+			return
+		k = StatKind.Tot
+		u = StatUnit.Euros
+		p = StatPlot.DayResult
+		flt = Filter.thisday
+		w = StatsWindow.todayokpie(self.rb, k, u, p, flt)
+		w.setFixedSize(300, 300)
+		layout.addWidget(w)
+
+		k = StatKind.Cnt
+		w = StatsWindow.todayokpie(self.rb, k, u, p, flt)
+		w.setFixedSize(300, 300)
+		layout.addWidget(w)
