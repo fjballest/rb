@@ -125,10 +125,14 @@ class StatsWindow(QMainWindow):
 			res["KO"] = 0
 		if not "Neutral" in res:
 			res["Neutral"] = 0
+		title = self.mktitle(k, u, StatPlot.PerResult)
+		if k == StatKind.Tot:
+			v = sum(yok)
+			title = f"{v:.0f} " + title
 
 		plot = PieWidget(["OK", "Neut", "KO"],
 			[res["OK"], res["Neutral"], res["KO"]],
-			self.mktitle(k, u, StatPlot.PerResult),
+			title,
 			colors=["green", "grey", "red"])
 		plot.setFixedSize(int(self.plotxsize*factor),int(self.plotysize*factor))
 		return plot
@@ -169,6 +173,8 @@ class StatsWindow(QMainWindow):
 	def mktodayokpie(self, k, u, p, flt=Filter.thisday, factor=1, nb=None):
 		trades = self.rb.filteredtrades or self.rb.trades
 		trades = flt(trades)
+		if u == StatUnit.Success or u == StatUnit.Failure:
+			u = StatUnit.Pts
 		x, yok = perresult(trades, u, k, nb)
 		res = {x[i]: yok[i] for i in range(len(x))}
 		if not "OK" in res:
@@ -177,10 +183,13 @@ class StatsWindow(QMainWindow):
 			res["KO"] = 0
 		if not "Neutral" in res:
 			res["Neutral"] = 0
-
+		title = self.mktitle(k, u, p)
+		if k == StatKind.Tot:
+			v = sum(yok)
+			title = f"{v:.0f} " + title
 		plot = PieWidget(["OK", "Neut", "KO"],
 			[res["OK"], res["Neutral"], res["KO"]],
-			self.mktitle(k, u, p),
+			title,
 			colors=["green", "grey", "red"])
 		plot.setFixedSize(int(self.plotxsize*factor),int(self.plotysize*factor))
 		return plot
