@@ -20,6 +20,9 @@ class StatUnit(IntFlag):
 class StatPlot(IntEnum):
 	Plot = auto()
 	PerResult = auto()
+	DayResult = auto()
+	WeekResult = auto()
+	MonthResult = auto()
 	WeekPlot = auto()
 	MonthPlot = auto()
 	PerDay = auto()

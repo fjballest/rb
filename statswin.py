@@ -102,7 +102,7 @@ class StatsWindow(QMainWindow):
 			b.setChecked(True)
 		self.plotchanged()
 
-	def mkplot(self, k, u, p, fn=lambda x: x):
+	def mkplot(self, k, u, p, fn=lambda x: x, factorx=1.0, factory=1.0):
 		trades = self.rb.filteredtrades or self.rb.trades
 		trades = fn(trades)
 		y = tradevaluetots(trades, u)
@@ -110,21 +110,27 @@ class StatsWindow(QMainWindow):
 		x = [str(a) for a in x]
 		plot = XYPlotWidget(f"{k.name} {u.name} {p.name}")
 		plot.set_data(x, y)
-		plot.setFixedSize(self.plotxsize,self.plotysize)
+		plot.setFixedSize(int(self.plotxsize*factorx),self.plotysize*factory)
 		return plot
 
-	def mkokpie(self, k, u, nb=None):
+	def mkokpie(self, k, u, nb=None, factor=1.0):
 		trades = self.rb.filteredtrades or self.rb.trades
 		if u in [StatUnit.Success, StatUnit.Failure]:
 			u = StatUnit.Pts
 		x, yok = perresult(trades, u, k, nb)
-		res = {x[i]: yok[i] for i in range(3)}
+		res = {x[i]: yok[i] for i in range(len(x))}
+		if not "OK" in res:
+			res["OK"] = 0
+		if not "KO" in res:
+			res["KO"] = 0
+		if not "Neutral" in res:
+			res["Neutral"] = 0
 
 		plot = PieWidget(["OK", "Neut", "KO"],
 			[res["OK"], res["Neutral"], res["KO"]],
 			self.mktitle(k, u, StatPlot.PerResult),
 			colors=["green", "grey", "red"])
-		plot.setFixedSize(self.plotxsize,self.plotysize)
+		plot.setFixedSize(int(self.plotxsize*factor),int(self.plotysize*factor))
 		return plot
 
 	def mkgraph(self, k, u, p, fn, nb=None):
@@ -160,25 +166,50 @@ class StatsWindow(QMainWindow):
 		plot.setFixedSize(self.plotxsize*f,self.plotysize)
 		return plot
 
+	def mktodayokpie(self, k, u, p, flt=Filter.thisday, factor=1, nb=None):
+		trades = self.rb.filteredtrades or self.rb.trades
+		trades = flt(trades)
+		x, yok = perresult(trades, u, k, nb)
+		res = {x[i]: yok[i] for i in range(len(x))}
+		if not "OK" in res:
+			res["OK"] = 0
+		if not "KO" in res:
+			res["KO"] = 0
+		if not "Neutral" in res:
+			res["Neutral"] = 0
 
-	def mkstat(self, p, k):
+		plot = PieWidget(["OK", "Neut", "KO"],
+			[res["OK"], res["Neutral"], res["KO"]],
+			self.mktitle(k, u, p),
+			colors=["green", "grey", "red"])
+		plot.setFixedSize(int(self.plotxsize*factor),int(self.plotysize*factor))
+		return plot
+
+
+	def mkstat(self, p, k, factorx=1.0, factory=1.0):
 		if p == StatPlot.Plot:
-			return self.mkplot(k, self.unit, p)
+			return self.mkplot(k, self.unit, p, factorx=factorx,factory=factory)
+		fn = self.mkgraph
+		if self.unit == StatUnit.Success:
+			fn = self.mkokgraph
+		if p == StatPlot.PerResult:
+			return fn(k, self.unit, p, perresult)
+		if p == StatPlot.DayResult:
+			return self.mktodayokpie(k, self.unit, p, Filter.thisday, factor=factorx)
+		if p == StatPlot.WeekResult:
+			return self.mktodayokpie(k, self.unit, p, Filter.thisweek, factor=factorx)
+		if p == StatPlot.MonthResult:
+			return self.mktodayokpie(k, self.unit, p, Filter.thismonth, factor=factorx)
 		if p == StatPlot.WeekPlot:
 			return self.mkplot(k, self.unit, p, Filter.thisweek)
 		if p == StatPlot.MonthPlot:
 			return self.mkplot(k, self.unit, p, Filter.thismonth)
-		fn = self.mkgraph
-		if self.unit == StatUnit.Success:
-			fn = self.mkokgraph
 		if p == StatPlot.PerDay:
 			return fn(k, self.unit, p, perday, 10)
 		if p == StatPlot.PerWeek:
 			return fn(k, self.unit, p, perweek, 10)
 		if p == StatPlot.PerMonth:
 			return fn(k, self.unit, p, permonth, 10)
-		if p == StatPlot.PerResult:
-			return fn(k, self.unit, p, perresult)
 		if p == StatPlot.PerSetup:
 			return fn(k, self.unit, p, persetup)
 		if p == StatPlot.PerInstrument:
@@ -212,15 +243,11 @@ class StatsWindow(QMainWindow):
 		self.mktots(playout)
 		#Plot, PerResult, and Week, Month use their own boxes
 
-		if self.plot_bs[0].isChecked() or self.plot_bs[1].isChecked():
+		if self.plot_bs[0].isChecked():
 			h = QWidget()
 			hlayout = QHBoxLayout(h)
 			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-			if self.plot_bs[0].isChecked():
-				w = self.mkstat(StatPlot.Plot, StatKind.Tot)
-				if w is not None:
-					hlayout.addWidget(w)
-			w = self.mkokpie(StatKind.Tot, self.unit)
+			w = self.mkstat(StatPlot.Plot, StatKind.Tot, factorx=2, factory=1.3)
 			if w is not None:
 				hlayout.addWidget(w)
 			playout.addWidget(h)
@@ -228,12 +255,31 @@ class StatsWindow(QMainWindow):
 			h = QWidget()
 			hlayout = QHBoxLayout(h)
 			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-			w = self.mkokpie(StatKind.Avg, self.unit)
+			w = self.mkokpie(StatKind.Tot, self.unit, factor=.65)
 			hlayout.addWidget(w)
-			w = self.mkokpie(StatKind.Cnt, self.unit)
+			w = self.mkokpie(StatKind.Avg, self.unit, factor=.65)
+			hlayout.addWidget(w)
+			w = self.mkokpie(StatKind.Cnt, self.unit, factor=.65)
 			hlayout.addWidget(w)
 			playout.addWidget(h)
-		if self.plot_bs[2].isChecked() or self.plot_bs[3].isChecked():
+
+		els = [StatPlot.DayResult, StatPlot.WeekResult, StatPlot.MonthResult]
+		for i in [2, 3, 4]:
+			if not self.plot_bs[i].isChecked():
+				continue
+			p = els[i-2]
+			h = QWidget()
+			hlayout = QHBoxLayout(h)
+			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+			w = self.mkstat(p, StatKind.Tot, factorx=.65)
+			hlayout.addWidget(w)
+			w = self.mkstat(p, StatKind.Avg, factorx=.65)
+			hlayout.addWidget(w)
+			w = self.mkstat(p, StatKind.Cnt, factorx=.65)
+			hlayout.addWidget(w)
+			playout.addWidget(h)
+
+		if self.plot_bs[5].isChecked() or self.plot_bs[6].isChecked():
 			h = QWidget()
 			hlayout = QHBoxLayout(h)
 			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
