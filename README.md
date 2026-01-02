@@ -9,6 +9,8 @@ To build your exec just run
 
 pyinstaller -windowed rb.py
 
+Or checkout [releases](https://github.com/fjballest/rb/releases) for binaries built at github.
+
 Some screenshots:
 
 ![1](screenshots/screen1.png)
