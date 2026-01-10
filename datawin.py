@@ -329,6 +329,8 @@ class TradeEdit(QDialog):
 			if self.t is not None:
 				self.t.copy_from(t)
 				t = self.t
+			if t.rb is None:
+				t.rb = self.rb
 			if t.graf:
 				self.maycopygraph(t)
 				self.rb.defaultsfortrade(t)
@@ -465,17 +467,18 @@ class DataWindow(QMainWindow):
 			self, "New Roadbook", "", "")
 		if not file_path:
 			return
-		rb = RoadBook()
-		self.changedata(rb)
 		try:
-			rb.save(file_path)
-			self.updateTitle()
+			RoadBook.mknew(file_path)
+			rb = RoadBook()
+			rb.load(file_path)
 		except Exception as e:
 			QMessageBox.warning(
             	self,
             	"Failed to save",
             	f"Failed to save: {e}")
 			return
+		self.changedata(rb)
+		self.updateTitle()
 
 	def askuser(self, msg):
 		qm = QMessageBox

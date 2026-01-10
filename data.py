@@ -10,6 +10,8 @@ import sys
 import shutil
 from csv_mapper import load_objects_from_csv,write_objects_to_csv
 
+from newdata import *
+
 ACCOUNTFILE = "account.csv"
 SETUPSFILE = "setups.csv"
 TRADESFILE = "trades.csv"
@@ -543,6 +545,7 @@ class RoadBook:
 		self.dirty = False
 		return errs
 
+
 	def save(self, dirpath: str = None, filtered=False) -> None:
 		"""save files at dir, create it when it does not exist.
 		"""
@@ -588,6 +591,30 @@ class RoadBook:
 		return os.path.join(self.dir, FEATURESFILE) + suff
 	def tradespath(self, suff = "") -> str:
 		return os.path.join(self.dir, TRADESFILE) + suff
+
+	def mknew(file_path: str) -> None:
+		gdir = os.path.join(file_path, GRAPHSDIR)
+		os.makedirs(gdir, exist_ok = True)
+		rb = RoadBook()
+		rb.dir = file_path
+		p = rb.accountpath()
+		with open(p, "w") as f:
+			f.write(NEWACCOUNT)
+		p = rb.currenciespath()
+		with open(p, "w") as f:
+			f.write(NEWCURRENCIES)
+		p = rb.instrumentspath()
+		with open(p, "w") as f:
+			f.write(NEWINSTRUMENTS)
+		p = rb.setupspath()
+		with open(p, "w") as f:
+			f.write(NEWSETUPS)
+		p = rb.featurespath()
+		with open(p, "w") as f:
+			f.write(NEWFEATURES)
+		p = rb.tradespath()
+		with open(p, "w") as f:
+			f.write(NEWTRADES)
 
 	def mkgraphpath(self, t) -> str:
 		d = os.path.join(self.dir, GRAPHSDIR)
