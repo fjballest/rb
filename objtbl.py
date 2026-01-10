@@ -323,6 +323,11 @@ class ObjectTable(QWidget):
 		selmodel.selectionChanged.connect(self.selChanged)
 		if fake:
 			self.model.removeRows(0)
+
+		self.viewkeypress = self.view.keyPressEvent
+		self.view.keyPressEvent = self.keypress
+
+
 		# Buttons
 		add_btn = QPushButton("New")
 		del_btn = QPushButton("Del")
@@ -372,7 +377,18 @@ class ObjectTable(QWidget):
 #		self.customContextMenuRequested.connect(self.openmenu)
 
 #		self.view.doubleClicked.connect(self.clicked2)
+		self.model.rowsInserted.connect(lambda: QtCore.QTimer.singleShot(0, self.view.scrollToBottom))
 
+	def keypress(self, event):
+		if event.key() == Qt.Key_End:
+			self.view.scrollToBottom()
+			event.accept()
+			return
+		if event.key() == Qt.Key_Home:
+			self.view.scrollToTop()
+			event.accept()
+			return
+		self.viewkeypress(event)
 	def graphics(self):
 		indexes = self.view.selectionModel().selectedRows()
 		if not indexes:
