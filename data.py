@@ -149,6 +149,22 @@ class Trade:
 		self.pts = self.points()
 
 
+	def setdefaults(self):
+		if self.pts == 0 or self.pts is None or f"{self.pts}" == "":
+			self.pts = self.points()
+		if self.lots == 0 or self.lots is None:
+			self.lots = 1
+		if self.euros == 0 or self.euros is None:
+			self.euros = self.lots * self.points()
+		if self.ptsstop == 0 or self.ptsstop is None:
+			self.ptsstop = self.ptsout
+		if self.eurstop == 0 or self.eurstop is None:
+			self.eurstop = self.euros
+		if self.sysout == 0 or self.sysout is None:
+			self.sysout = self.ptsout
+		if self.instrument == "":
+			self.instrument = "DAX"
+
 	def hour(self) -> int:
 		return self.timein.hour if self.timein else 0
 
@@ -433,7 +449,7 @@ class RoadBook:
 
 	def defaultsfortrade(self, t):
 			t.rb = self
-			t.pts = t.points()
+			t.setdefaults()
 			self.defaultinstr(t.instrument)
 			self.defaultsetup(t.setup)
 			#self.defaultfeatures(t.has, t.setup)

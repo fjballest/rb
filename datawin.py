@@ -311,15 +311,18 @@ class TradeEdit(QDialog):
 		if e:
 			self.errors.setText(e)
 			return None
-		if self.t is not None:
-			self.t.copy_from(t)
-			t = self.t
-		if t.graf:
-			self.maycopygraph(t)
-		self.rb.defaultsfortrade(t)
-		self.rb.dirty = True
-		if self.dirtiedfn is not None:
-			self.dirtiedfn()
+		try:
+			if self.t is not None:
+				self.t.copy_from(t)
+				t = self.t
+			if t.graf:
+				self.maycopygraph(t)
+				self.rb.defaultsfortrade(t)
+			self.rb.dirty = True
+			if self.dirtiedfn is not None:
+				self.dirtiedfn()
+		except Exception as e:
+			print(f"failed to add: {e}", file=sys.stderr)
 		return t
 
 

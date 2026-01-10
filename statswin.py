@@ -354,10 +354,10 @@ class TodayPanel(QWidget):
 		p = StatPlot.DayResult
 		flt = Filter.thisday
 		w = StatsWindow.todayokpie(self.rb, k, u, p, flt)
-		w.setFixedSize(300, 300)
+		w.setFixedSize(300, 200)
 		layout.addWidget(w)
 
 		k = StatKind.Cnt
 		w = StatsWindow.todayokpie(self.rb, k, u, p, flt)
-		w.setFixedSize(300, 300)
+		w.setFixedSize(300, 200)
 		layout.addWidget(w)
