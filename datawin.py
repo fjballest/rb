@@ -77,7 +77,7 @@ class FileDropLineEdit(QLineEdit):
 		self.setAcceptDrops(True)
 	def dragEnterEvent(self, event):
 		if event.mimeData().hasUrls():
-			self.setPlaceholderText(""Drop your PNG here"")
+			self.setPlaceholderText("Drop your PNG here")
 			event.acceptProposedAction()
 		else:
 			event.ignore()
