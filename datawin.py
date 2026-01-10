@@ -77,7 +77,7 @@ class FileDropLineEdit(QLineEdit):
 		self.setAcceptDrops(True)
 	def dragEnterEvent(self, event):
 		if event.mimeData().hasUrls():
-			self.setPlaceholderText("Drop OK")
+			self.setPlaceholderText(""Drop your PNG here"")
 			event.acceptProposedAction()
 		else:
 			event.ignore()
@@ -228,7 +228,7 @@ class TradeEdit(QDialog):
 		self.eurosbox = mkindouble("euros (Optional)", t.euros if t else None)
 		self.eurostopbox = mkindouble("euros (Optional)", t.eurstop if t else None)
 		self.grafbox = FileDropLineEdit()
-		self.grafbox.setPlaceholderText("graphics PNG")
+		self.grafbox.setPlaceholderText("drop your PNG into this form")
 		if t and t.graf != "":
 			self.grafbox.setText(t.graf)
 
@@ -275,6 +275,20 @@ class TradeEdit(QDialog):
 		self.setLayout(mainLayout)
 		self.buttonBox.accepted.connect(self.accept)
 		self.buttonBox.rejected.connect(self.reject)
+		self.setAcceptDrops(True)
+	def dragEnterEvent(self, event):
+		if event.mimeData().hasUrls():
+			self.grafbox.setPlaceholderText("Drop your PNG here")
+			event.acceptProposedAction()
+		else:
+			event.ignore()
+	def dropEvent(self, event):
+		if event.mimeData().hasUrls():
+			file_path = event.mimeData().urls()[0].toLocalFile()
+			self.grafbox.setText(file_path)
+			event.acceptProposedAction()
+		else:
+			event.ignore()
 
 	def setupchanged(self, txt):
 		if self.lastsetup == txt or self.rb is None:
