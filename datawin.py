@@ -329,6 +329,8 @@ class TradeEdit(QDialog):
 			if self.t is not None:
 				self.t.copy_from(t)
 				t = self.t
+			if not hasattr(t, 'rb') or t.rb is None:
+				t.rb = self.rb
 			if t.rb is None:
 				t.rb = self.rb
 			if t.graf:
