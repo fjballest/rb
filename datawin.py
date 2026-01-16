@@ -333,7 +333,7 @@ class TradeEdit(QDialog):
 				t.rb = self.rb
 			if t.graf:
 				self.maycopygraph(t)
-				self.rb.defaultsfortrade(t)
+			self.rb.defaultsfortrade(t)
 			self.rb.dirty = True
 			if self.dirtiedfn is not None:
 				self.dirtiedfn()

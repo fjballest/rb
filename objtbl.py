@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout, QDateEdit,
 	QTableView, QPushButton
 )
+from PySide6.QtCore import QTimer
 
 def findfield(flds, n):
 	for i, f in enumerate(flds):
@@ -377,7 +378,7 @@ class ObjectTable(QWidget):
 #		self.customContextMenuRequested.connect(self.openmenu)
 
 #		self.view.doubleClicked.connect(self.clicked2)
-		self.model.rowsInserted.connect(lambda: QtCore.QTimer.singleShot(0, self.view.scrollToBottom))
+		self.model.rowsInserted.connect(lambda: QTimer.singleShot(0, self.view.scrollToBottom))
 
 	def keypress(self, event):
 		if event.key() == Qt.Key_End:

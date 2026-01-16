@@ -121,6 +121,7 @@ class Trade:
 	mistakes: Optional[str] = ""
 	has: Optional[Set[str]] = field(default_factory= set)
 	pts: Optional[float] = 0.0
+	rb: Optional[object] = None
 
 	def copy_from(self, o):
 		"""swallow copy"""
@@ -143,6 +144,7 @@ class Trade:
 		self.mistakes = o.mistakes
 		self.has = o.has
 		self.pts = o.pts
+		self.rb = o.rb
 
 	def __postinit__(self):
 		self.pts = self.points()
@@ -330,6 +332,7 @@ class RoadBook:
 
 	def nextId(self):
 		return self.maxid+1
+
 
 	def findInstrument(self, name):
 		for i in self.instruments:
