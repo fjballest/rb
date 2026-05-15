@@ -10,8 +10,6 @@ class StatKind(IntFlag):
 class StatUnit(IntFlag):
 	Euros = auto()
 	Pts = auto()
-	SysPts = auto()
-	SysEuros = auto()
 	PtsNorm = auto()
 	StopPts = auto()
 	Success = auto()
@@ -112,10 +110,6 @@ def tradevalue(t: Trade, u: StatUnit, tots=False) -> float:
 			return t.ptseuros()
 		case StatUnit.Pts:
 			return t.points()
-		case StatUnit.SysPts:
-			return t.syspoints()
-		case StatUnit.SysEuros:
-			return t.syseuros()
 		case StatUnit.PtsNorm:
 			return t.ptsnorm()
 		case StatUnit.Success:

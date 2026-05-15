@@ -45,7 +45,7 @@ coll = COLLECT(
 )
 app = BUNDLE(
     coll,
-    name='rb.app',
+    name='rb2.app',
     icon='icon.icns',
     bundle_identifier=None,
 )

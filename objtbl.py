@@ -217,6 +217,28 @@ class ObjectTableModel(QAbstractTableModel):
 		bottomRight = self.index(len(objects)-1, len(self.field_defs)-1)
 		self.dataChanged.emit(topLeft, bottomRight)
 
+	def prev(self, index):
+		row = index.row()
+		col = index.column()
+		if row < 0:
+			row = 0
+		if col < 0:
+			col = 0
+		row = row + len(self.objects) - 1
+		row = row % len(self.objects)
+		return self.index(row, col)
+
+	def next(self, index):
+		row = index.row()
+		col = index.column()
+		if row < 0:
+			row = 0
+		if col < 0:
+			col = 0
+		row = row + 1
+		row = row % len(self.objects)
+		return self.index(row, col)
+
 	def findNext(self, index, txt, cs):
 		row = index.row()
 		col = index.column()
@@ -467,6 +489,22 @@ class ObjectTable(QWidget):
 		#f.replace_one.connect(self.replace1)
 		#f.replace_all.connect(self.replaceall)
 		f.show()
+
+	def next(self):
+		selmodel = self.view.selectionModel()
+		old = self.view.currentIndex()
+		index = self.model.next(old)
+		if index:
+			self.view.setCurrentIndex(index)
+			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+
+	def prev(self):
+		selmodel = self.view.selectionModel()
+		old = self.view.currentIndex()
+		index = self.model.prev(old)
+		if index:
+			self.view.setCurrentIndex(index)
+			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 
 	def find_next(self, txt, cs):
 		selmodel = self.view.selectionModel()

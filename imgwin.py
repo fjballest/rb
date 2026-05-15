@@ -10,6 +10,7 @@ import os
 class ImageViewer(QMainWindow):
 	def __init__(self, file, parent=None, x=1400, y=1024):
 		super().__init__(parent)
+		self.movedTo = None
 		self.file_path = file
 		self.setWindowTitle(file)
 		self.resize(x, y)
@@ -18,12 +19,16 @@ class ImageViewer(QMainWindow):
 		self.fit_mode = False
 
 		# --- Buttons ---
+		self.prev_button = QPushButton("Prev")
+		self.next_button = QPushButton("Next")
 		self.zoom_in_button = QPushButton("Zoom +")
 		self.zoom_out_button = QPushButton("Zoom -")
 		self.fit_button = QPushButton("Fit")
 		self.actual_button = QPushButton("Real Size")
 		self.preview_button = QPushButton("OS View")
 
+		self.prev_button.clicked.connect(lambda: self.moveTo(-1))
+		self.next_button.clicked.connect(lambda: self.moveTo(1))
 		self.zoom_in_button.clicked.connect(lambda: self.zoom(1.25))
 		self.zoom_out_button.clicked.connect(lambda: self.zoom(0.8))
 		self.fit_button.clicked.connect(self.enable_fit_mode)
@@ -46,6 +51,8 @@ class ImageViewer(QMainWindow):
 
 		# --- Layout ---
 		button_layout = QHBoxLayout()
+		button_layout.addWidget(self.prev_button)
+		button_layout.addWidget(self.next_button)
 		button_layout.addWidget(self.actual_button)
 		button_layout.addWidget(self.fit_button)
 		button_layout.addWidget(self.zoom_in_button)
@@ -74,6 +81,10 @@ class ImageViewer(QMainWindow):
 		except:
 			pass
 		self.update_image()
+
+	def moveTo(self, delta):
+		if self.movedTo is not None:
+			self.movedTo(delta)
 
 	# ---------- Zoom controls ----------
 	def zoom(self, factor):

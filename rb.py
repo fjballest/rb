@@ -12,6 +12,10 @@ def locaterb():
 	dirs += QStandardPaths.standardLocations(QStandardPaths.StandardLocation.HomeLocation)
 	dirs += QStandardPaths.standardLocations(QStandardPaths.StandardLocation.DocumentsLocation)
 	for dir in dirs:
+		rb = os.path.join(dir, "rb")
+		p = os.path.join(rb, "trades.csv")
+		if os.path.exists(p):
+			return rb
 		rb = os.path.join(dir, "diary")
 		p = os.path.join(rb, "trades.csv")
 		if os.path.exists(p):
