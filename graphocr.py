@@ -5,6 +5,7 @@ import os
 import sys
 import easyocr
 import datetime
+import time
 from dataclasses import dataclass, field
 
 import functools
@@ -34,8 +35,23 @@ def s2f(s):
 		s = s.replace(',','.').replace('..','.').replace('_','-')
 		return float(s)
 	except:
-		#print("XXX float", s, file=sys.stderr)
+		#print("XXX float ", s, file=sys.stderr)
 		return 0
+
+def s2t(s):
+	try:
+		s = s.replace(',',':').replace('.',':')
+		return datetime.datetime.strptime(s, "%H:%M").time()
+	except:
+		#print("XXX time ", s, file=sys.stderr)
+		return None
+
+def findsetup(s, ss):
+	s = s.lower()
+	for x in ss:
+		if x.lower() in s:
+			return x
+	return None
 
 @dataclass
 class TradeOCR:
@@ -47,16 +63,51 @@ class TradeOCR:
 	long: bool = None
 	at: datetime.datetime = None
 	size: float = None
+	tin: time = None
+	tout: time = None
 
 	def OCR(path, setups=None):
 		try:
 			if setups is None:
 				setups = []
 
-			return TradeOCR._OCR(path, [ x.lower() for x in setups ])
+			return TradeOCR._OCR(path, [ x for x in setups ])
 		except Exception as e:
 			print("OCR:", e, file=sys.stderr)
 			return None
+
+	# heuristics to get dates in vertical marks
+	def _dates(img):
+		img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+		results = reader.readtext(img)
+		tin=None
+		tout=None
+		for (bbox, text, confidence) in results:
+			if 'IN' in text:
+				dprint('--r-->', text)
+				match = re.search(r'[\s_](\d\d[,.:]\d\d)', text)
+				if match:
+					x = match.group(1)
+					dprint('==r=> ', x)
+					tin=s2t(x)
+					if tout is not None:
+						break
+				continue
+			if 'OUT' in text:
+				dprint('--r-->', text)
+				match = re.search(r'[\s_](\d\d[,.:]\d\d)', text)
+				if match:
+					x = match.group(1)
+					dprint('==r=> ', x)
+					tout=s2t(x)
+					if tin is not None:
+						break
+				continue
+		if tout is None:
+			tout = tin
+		if tin is None:
+			tin = tout
+		return tin, tout
 
 	# heuristics for PRT/TradingView scans according to experience
 	def _OCR(path, setups):
@@ -64,19 +115,24 @@ class TradeOCR:
 		instr=None
 		ninstr=0
 		ptstp=None
-		ptsstopt=None
+		ptsstop=None
 		success=None
 		long=None
 		at=None
 		setup = None
 		size=None
+		tin=None
+		tout=None
 		try:
 			mt = os.path.getmtime(path)
 			at = datetime.datetime.fromtimestamp(mt)
 		except:
 			pass
 		# Read text from image
-		results = reader.readtext(path)
+		img = cv2.imread(path)
+		results = reader.readtext(img)
+
+		dprint(f"setups: {setups}")
 		for (bbox, text, confidence) in results:
 			# first name is the instrument usually
 			if first:
@@ -97,6 +153,8 @@ class TradeOCR:
 				if not 'pips' in text and 'pips' in ltext:
 					text = ltext + text
 			dprint("-> ",text)
+			if setup is None and len(setups) > 0:
+				setup = findsetup(text.lower(), setups)
 
 			# TradingView
 			match = re.search(r'Stop:\s*([+-]?\d+([,.]+\d+)?)', text)
@@ -127,9 +185,9 @@ class TradeOCR:
 				continue
 
 			# PRT
-			match = re.search(r'\(([+-]?\d+([,.]+\d+)?)\s*(pips|pts).*nancia', text)
+			match = re.search(r'([+-]?\d+([,.]+\d+)?)\s*(pips|pts).*nancia', text)
 			# sometimes the dot is missed, see if that's the case
-			dotmatch = re.search(r'\(([+-]?\d+([,.]+\d+))\s*(pips|pts).*nancia', text)
+			dotmatch = re.search(r'([+-]?\d+([,.]+\d+))\s*(pips|pts).*nancia', text)
 			if match:
 				dprint(f"MATCH: {text}, Confidence: {confidence:.2f}")
 				x = match.group(1)
@@ -140,8 +198,8 @@ class TradeOCR:
 				long=(ptstp > 0)
 				ptstp=abs(ptstp)
 				continue
-			match = re.search(r'\(([+-]?\d+([,.]+\d+)?)\s*(pips|pts).*rdida', text)
-			dotmatch = re.search(r'\(([+-]?\d+([,.]+\d+))\s*(pips|pts).*rdida', text)
+			match = re.search(r'([+-]?\d+([,.]+\d+)?)\s*(pips|pts).*rdida', text)
+			dotmatch = re.search(r'([+-]?\d+([,.]+\d+))\s*(pips|pts).*rdida', text)
 			if match:
 				dprint(f"MATCH: {text}, Confidence: {confidence:.2f}")
 				x = match.group(1)
@@ -155,10 +213,11 @@ class TradeOCR:
 			if match:
 				dprint("MATCH ", text)
 				success = not 'cia:-' in text and not 'cia:_' in text
-			if setup is None and text.lower() in setups:
-				setup = text
 			ltext = text
-		to = TradeOCR(setup, instr, ptstp, ptsstop, success, long, at, size)
+
+		tin, tout = TradeOCR._dates(img)
+
+		to = TradeOCR(setup, instr, ptstp, ptsstop, success, long, at, size, tin, tout)
 		dprint(to)
 		return to
 

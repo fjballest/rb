@@ -170,7 +170,7 @@ class AccountEdit(QWidget):
 		self.cpbox.setChecked(rb.account.copygraphs if rb else True)
 
 class TradeEdit(QDialog):
-	def __init__(self, rb, t=None, dirtied=None):
+	def __init__(self, rb, t=None, dirtied=None, filepath=None):
 		super(TradeEdit, self).__init__()
 		self.setWindowTitle(f"Trade {t.trade}")
 		self.rb = rb
@@ -281,6 +281,11 @@ class TradeEdit(QDialog):
 		self.buttonBox.accepted.connect(self.accept)
 		self.buttonBox.rejected.connect(self.reject)
 		self.setAcceptDrops(True)
+		if filepath is not None:
+			self.grafbox.setText(filepath)
+			self.tOCR = TradeOCR.OCR(filepath, self.rb.setupNames())
+			if self.tOCR is not None:
+				self.pnginfo()
 	def dragEnterEvent(self, event):
 		if event.mimeData().hasUrls():
 			self.grafbox.setPlaceholderText("Drop your PNG here")
@@ -314,6 +319,10 @@ class TradeEdit(QDialog):
 		if self.tOCR.at is not None:
 			qt = QDate(self.tOCR.at.year, self.tOCR.at.month, self.tOCR.at.day)
 			self.datebox.setDate(qt)
+		if self.tOCR.tin is not None:
+			self.timeinbox.setTime(self.tOCR.tin)
+		if self.tOCR.tout is not None:
+			self.timeoutbox.setTime(self.tOCR.tout)
 
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
@@ -600,10 +609,10 @@ class DataWindow(QMainWindow):
 			return
 		self.rb.save(file_path, filtered=True)
 
-	def edittrade(self, trade):
+	def edittrade(self, trade, filepath=None):
 		if trade.trade == 0:
 			trade.trade = self.rb.nextId()
-		w = TradeEdit(self.rb, trade, self.dirtiedTrades)
+		w = TradeEdit(self.rb, trade, self.dirtiedTrades, filepath=filepath)
 		w.exec()
 
 	def selectedtrade(self, t):
@@ -718,8 +727,12 @@ class DataWindow(QMainWindow):
 		t.stats = self.stats
 		t.dirtied = self.dirtied
 		t.info = self.infofn
-		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY)
+		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=self.drop)
 		return tbl
+	def drop(self, x):
+		#print('XXX', x, file=sys.stderr)
+		pass
+
 	def mksetupstbl(self):
 		s = setupexample()
 		s.dirtied = self.dirtied
