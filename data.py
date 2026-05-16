@@ -19,6 +19,7 @@ CURRENCIESFILE = "divisas.csv"
 FEATURESFILE = "features.csv"
 INSTRUMENTSFILE = "activos.csv"
 GRAPHSDIR = "diarygraphs"
+VERSION = 2.0
 BCK = "~"
 
 class Dir(Enum):
@@ -45,7 +46,7 @@ class Account:
 	neutral: float = 10
 	fixed: bool = True
 	copygraphs: bool = True
-	version: float = 1.1
+	version: float = VERSION
 
 def accountexample():
 	return Account()
@@ -95,10 +96,36 @@ def instrumentexample():
 	return Instrument("NASDAQ", "SP 500", "EURUSD", 0.0001, 144.3, 240000,
 		243.4, 354.4, 354.4,  432, 432)
 
-TRADEVIEWORDER = ["trade", "instrument", "setup", "dir", "lots", "datein", "timein",
-	"timeout", "euros", "pts", "notes"]	#
-TRADEVIEWRDONLY = ["trade", "pts"]
+TRADEVIEWORDER = ["trade", "instrument", "setup", "dir", "out", "datein", "timein",
+	"timeout", "lots", "euros", "notes", "has"]	#
+TRADEVIEWRDONLY = ["trade"]
 
+@dataclass
+class Trade1:
+	trade: int = 0
+	instrument: str = ""
+	setup: Optional[str] = None
+	datein: date = field(default_factory= date.today)
+	dir: Dir = Dir.Long
+	lots: float = 1
+	timein: time = None
+	timeout: Optional[time] = None
+	ptsin: Optional[float] = 0
+	ptsout: Optional[float] = 0
+	sysout: Optional[float] = 0
+	ptsstop: Optional[float] = 0
+	euros: Optional[float] = 0.0
+	eurstop: Optional[float] = 0.0
+	graf: Optional[str] = ""
+	notes: Optional[str] = ""
+	mistakes: Optional[str] = ""
+	has: Optional[Set[str]] = field(default_factory= set)
+	pts: Optional[float] = 0.0
+
+	def points(self):
+		if self.dir == Dir.Long:
+			return self.ptsout - self.ptsin
+		return self.ptsin - self.ptsout
 
 @dataclass
 class Trade:
@@ -110,17 +137,52 @@ class Trade:
 	lots: float = 1
 	timein: time = None
 	timeout: Optional[time] = None
-	ptsin: float = 0
-	ptsout: float = 0
-	sysout: Optional[float] = 0
-	ptsstop: Optional[float] = 0
+	tp: float =  0.0
+	stop: float  = 0.0
+	out: float  = 0.0
 	euros: Optional[float] = 0.0
-	eurstop: Optional[float] = 0.0
 	graf: Optional[str] = ""
 	notes: Optional[str] = ""
-	mistakes: Optional[str] = ""
 	has: Optional[Set[str]] = field(default_factory= set)
-	pts: Optional[float] = 0.0
+
+	def old2new(t1):
+		if t1.pts is None or t1.pts == 0.0:
+			t1.pts = t1.points()
+		t = Trade()
+		t.trade = t1.trade
+		t.instrument = t1.instrument
+		t.setup = t1.setup
+		t.datein = t1.datein
+		t.dir = t1.dir
+		t.lots = t1.lots
+		t.timein = t1.timein
+		t.timeout = t1.timeout
+		t.euros = t1.euros
+		t.graf = t1.graf
+		t.notes = t1.notes
+		if t1.mistakes is not None and len(t1.mistakes) > 0:
+			t.notes = f"{t.notes}. errs: {t1.mistakes}"
+		t.has = t1.has
+		if t.dir == Dir.Long:
+			if t1.ptsout < t1.ptsin:
+				t.tp = 0.0
+			else:
+				t.tp = t1.ptsout - t1.ptsin
+			if t1.ptsstop > t1.ptsin:
+				t.stop = 0
+			else:
+				t.stop = t1.ptsin - t1.ptsstop
+		else:
+			if t1.ptsout > t1.ptsin:
+				t.tp = 0.0
+			else:
+				t.tp = abs(t1.ptsout - t1.ptsin)
+			if t1.ptsstop < t1.ptsin:
+				t.stop = 0
+			else:
+				t.stop = abs(t1.ptsin - t1.ptsstop)
+		t.out = t1.points()
+		return t
 
 	def copy_from(self, o):
 		"""swallow copy"""
@@ -132,38 +194,24 @@ class Trade:
 		self.lots = o.lots
 		self.timein = o.timein
 		self.timeout = o.timeout
-		self.ptsin = o.ptsin
-		self.ptsout = o.ptsout
-		self.sysout = o.sysout
-		self.ptsstop = o.ptsstop
+		self.tp = o.tp
+		self.stop = o.stop
+		self.out = o.out
 		self.euros = o.euros
-		self.eurstop = o.eurstop
 		self.graf = o.graf
 		self.notes = o.notes
-		self.mistakes = o.mistakes
 		self.has = o.has
-		self.pts = o.pts
 
 	def __postinit__(self):
-		self.pts = self.points()
 		self.rb = None
 	def inval(self)-> None:
-		self.pts = self.points()
-
+		pass
 
 	def setdefaults(self):
-		if self.pts == 0 or self.pts is None or f"{self.pts}" == "":
-			self.pts = self.points()
 		if self.lots == 0 or self.lots is None:
 			self.lots = 1
 		if self.euros == 0 or self.euros is None:
-			self.euros = self.lots * self.points()
-		if self.ptsstop == 0 or self.ptsstop is None:
-			self.ptsstop = self.ptsout
-		if self.eurstop == 0 or self.eurstop is None:
-			self.eurstop = self.euros
-		if self.sysout == 0 or self.sysout is None:
-			self.sysout = self.ptsout
+			self.euros = self.lots * self.out
 		if self.instrument == "":
 			self.instrument = "DAX"
 
@@ -185,22 +233,9 @@ class Trade:
 		ic = dt.isocalendar()
 		return WDay(ic.weekday-1)
 	def points(self) -> float:
-		if self.dir == Dir.Long:
-			return self.ptsout - self.ptsin
-		else:
-			return self.ptsin - self.ptsout
+		return self.out
 	def stoppoints(self) -> float:
-		if self.dir == Dir.Short:
-			return self.ptsstop - self.ptsin
-		else:
-			return self.ptsin - self.ptsstop
-	def syspoints(self) -> float:
-		if self.sysout == 0:
-			self.sysout = self.ptsout
-		if dir == Dir.Long:
-			return self.sysout - self.ptsin
-		else:
-			return self.ptsin - self.sysout
+		return self.stop
 
 	def result(self, neutral: float = 0) -> Result:
 		if neutral == 0 and self.rb and self.rb.account:
@@ -212,15 +247,6 @@ class Trade:
 			return Result.KO
 		return Result.Neutral
 
-	def sysresult(self, neutral: float = 0) -> Result:
-		if neutral == 0 and self.rb and self.rb.account:
-			neutral = self.rb.account.neutral
-		pt = self.syspoints()
-		if pt > neutral:
-			return Result.OK
-		if pt < -neutral:
-			return Result.KO
-		return Result.Neutral
 	def isOK(self) -> bool:
 		return self.result() == Result.OK
 	def isKO(self) -> bool:
@@ -263,9 +289,6 @@ class Trade:
 			toeur = 1/c.euros2
 		return pts * self.lots * toeur
 
-	def syseuros(self) -> float:
-		return self.ptseuros(self.syspoints())
-
 	def hasfeature(self, name) -> bool:
 		return self.has is not None and name in self.has
 
@@ -277,25 +300,21 @@ class Trade:
 			return "no setup"
 		if t.lots <= 0.0:
 			return "bad size in lots"
-		if t.ptsin <= 0.0:
-			return "bad ptsin"
-		if t.ptsout <= 0.0:
-			return "bad ptsout"
-		if t.ptsstop != 0:
-			if t.dir == Dir.Long and t.ptsstop > t.ptsin:
-				return "stop above in for long"
-			if t.dir == Dir.Short and t.ptsstop < t.ptsin:
-				return "stop not above in for short"
+		if t.tp <= 0.0 or t.tp > 1000:
+			return "bad TP"
+		if t.stop <= 0.0 or t.stop > 1000:
+			return "bad stop"
+		if t.out > 1000:
+			return "bad out"
 		return None
 
 def tradeexample():
 	t = time(15,30)
 	to = time(15,30)
-	return Trade(100, "NASDAQ", "ApoyoH4 Aper", date.today(), Dir.Short, 1.2,
-		t, to, 245430, 245430, 245430, 245430,
-		154.3, 154.3, "/path/to/plot", "apoyo 4H, sin muros, fuerza, sem flojo. 1H sin fuerza: no reentrar", "mejor salir por patron si sem en giro",
-		{"Apertura","Apoyo D","Apoyo4H","Desp.Corr","Pullback", "Sin Muros;Willy OK"},
-		 245430)
+	return Trade(100, "NASDAQ", "ApoyoH4 Aper", date.today(), Dir.Short, 1.0,
+		t, to, 100, 20, -20, -30,
+		"/path/to/plot", "apoyo 4H, sin muros, fuerza, sem flojo. 1H sin fuerza: no reentrar",
+		{"Apertura","Apoyo D","Apoyo4H","Desp.Corr","Pullback", "Sin Muros;Willy OK"})
 
 def copyfile(src: str, dst: str) -> None:
 	try:
@@ -716,9 +735,16 @@ class RoadBook:
 		if fname is None or fname == "":
 			fname = self.tradespath()
 		rens = {"datein":"date", "has":"with"}
-		ts, errors = load_objects_from_csv(fname, Trade, rens)
+		x = Trade
+		if self.account.version < VERSION:
+			x = Trade1
+		ts, errors = load_objects_from_csv(fname, x, rens)
 		for e in errors:
 			e["file"] = fname
+		if self.account.version != VERSION:
+			self.account.version = VERSION
+			nts = [Trade.old2new(x) for x in ts]
+			ts = nts
 		ts = sorted(ts, key = lambda t: t.datein)
 		self.trades = ts
 		self.defaultsfortrades()

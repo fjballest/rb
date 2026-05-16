@@ -237,7 +237,7 @@ class StatsWindow(QMainWindow):
 		trades = self.rb.filteredtrades or self.rb.trades
 		t = StatTotals(self.rb.account, trades, self.unit)
 		ln1 = f"account {t.account}"
-		if self.unit in [StatUnit.Euros, StatUnit.SysEuros]:
+		if self.unit in [StatUnit.Euros]:
 			ln1 += f" return {t.pcent:.0f}%"
 		ln1 += f"\t{t.ntrades} trades, total {t.total:.0f} {self.unit.name}, "
 		ln1 += f"average {t.average:.0f} {self.unit.name}"

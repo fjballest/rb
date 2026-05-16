@@ -170,11 +170,11 @@ class ObjectTableModel(QAbstractTableModel):
 			fn(o, True)
 		return True
 
-	def newRow(self, row):
+	def newRow(self, row, filepath=None):
 		t = self.object_factory()
 		o = self.obj0
 		if hasattr(o, "edit") and callable(o.edit):
-			o.edit(t)
+			o.edit(t, filepath)
 			if t.checkOut() is None:
 				self.insertRows(row, trade=t)
 			return
@@ -216,6 +216,28 @@ class ObjectTableModel(QAbstractTableModel):
 		topLeft = self.index(0,0)
 		bottomRight = self.index(len(objects)-1, len(self.field_defs)-1)
 		self.dataChanged.emit(topLeft, bottomRight)
+
+	def prev(self, index):
+		row = index.row()
+		col = index.column()
+		if row < 0:
+			row = 0
+		if col < 0:
+			col = 0
+		row = row + len(self.objects) - 1
+		row = row % len(self.objects)
+		return self.index(row, col)
+
+	def next(self, index):
+		row = index.row()
+		col = index.column()
+		if row < 0:
+			row = 0
+		if col < 0:
+			col = 0
+		row = row + 1
+		row = row % len(self.objects)
+		return self.index(row, col)
 
 	def findNext(self, index, txt, cs):
 		row = index.row()
@@ -300,9 +322,37 @@ class ObjectTableModel(QAbstractTableModel):
 			return self.index(row, j)
 		return None
 
+class DTableView(QTableView):
+	def __init__(self, drop=None):
+		super().__init__()
+		self.setAcceptDrops(True)
+		self.setDragEnabled(True)
+		self.setDropIndicatorShown(True)
+		self.drop = drop
+
+	def dragEnterEvent(self, event):
+		if event.mimeData().hasUrls():
+			event.acceptProposedAction()
+		else:
+			event.ignore()
+	def dragMoveEvent(self, event):
+			event.acceptProposedAction()
+	def dropEvent(self, event):
+		if event.mimeData().hasUrls():
+			file_path = event.mimeData().urls()[0].toLocalFile()
+			if self.drop is not None:
+				try:
+					self.drop(file_path)
+				except:
+					pass
+			event.acceptProposedAction()
+		else:
+			event.ignore()
+
+
 class ObjectTable(QWidget):
 	def __init__(self, obj, objects, object_factory,
-			order=None, rdonly=None, hasedit=True, parent=None):
+			order=None, rdonly=None, hasedit=True, parent=None, drop=None):
 		super().__init__(parent)
 		if order is None:
 			order = []
@@ -314,8 +364,9 @@ class ObjectTable(QWidget):
 			objects.append(obj)
 			fake = True
 		self.model = ObjectTableModel(obj, objects, order, rdonly, object_factory)
-
-		self.view = QTableView()
+		if drop is not None:
+			drop = self.add_row
+		self.view = DTableView(drop)
 		self.view.setModel(self.model)
 		self.view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
 		self.view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
@@ -427,9 +478,9 @@ class ObjectTable(QWidget):
 		#print(ev, file=sys.stderr)
 		pass
 
-	def add_row(self):
+	def add_row(self, filepath=None):
 		row = self.model.rowCount()
-		self.model.newRow(row)
+		self.model.newRow(row, filepath)
 		self.view.selectRow(row)
 
 	def delete_row(self):
@@ -467,6 +518,22 @@ class ObjectTable(QWidget):
 		#f.replace_one.connect(self.replace1)
 		#f.replace_all.connect(self.replaceall)
 		f.show()
+
+	def next(self):
+		selmodel = self.view.selectionModel()
+		old = self.view.currentIndex()
+		index = self.model.next(old)
+		if index:
+			self.view.setCurrentIndex(index)
+			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+
+	def prev(self):
+		selmodel = self.view.selectionModel()
+		old = self.view.currentIndex()
+		index = self.model.prev(old)
+		if index:
+			self.view.setCurrentIndex(index)
+			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 
 	def find_next(self, txt, cs):
 		selmodel = self.view.selectionModel()

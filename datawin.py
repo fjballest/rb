@@ -11,11 +11,12 @@ from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout,
 	QCheckBox, QLabel, QFileDialog, QPlainTextEdit
 )
-
+import traceback
 from filterwin import *
 from imgwin import *
 from objtbl import *
 from statswin import *
+from graphocr import *
 
 
 def create_file_actions(parent):
@@ -169,11 +170,12 @@ class AccountEdit(QWidget):
 		self.cpbox.setChecked(rb.account.copygraphs if rb else True)
 
 class TradeEdit(QDialog):
-	def __init__(self, rb, t=None, dirtied=None):
+	def __init__(self, rb, t=None, dirtied=None, filepath=None):
 		super(TradeEdit, self).__init__()
 		self.setWindowTitle(f"Trade {t.trade}")
 		self.rb = rb
 		self.t = t
+		self.tOCR = None
 		self.dirtiedfn = dirtied
 		if t is not None and t.trade <= 0:
 			t.trade = rb.nextId()
@@ -220,39 +222,42 @@ class TradeEdit(QDialog):
 		if t:
 			self.timeoutbox.setTime(t.timeout)
 
-		self.ptsinbox = mkindouble("points", t.ptsin if t else None)
-		self.ptsoutbox = mkindouble("points", t.ptsout if t else None)
-		self.sysoutbox = mkindouble("points (Optional)", t.sysout if t else None)
-		self.ptsstopbox = mkindouble("points (Optional)", t.ptsstop if t else None)
+		self.tpbox = mkindouble("TP Δpts", t.tp if t else None)
+		self.stopbox = mkindouble("Stop Δpts", t.stop if t else None)
+		self.outbox = mkindouble("Out Δpts", t.out if t else None)
 
-		self.eurosbox = mkindouble("euros (Optional)", t.euros if t else None)
-		self.eurostopbox = mkindouble("euros (Optional)", t.eurstop if t else None)
+		# to compute tp/stop/pts if we know points in/out/stop
+		self.ptsinbox = mkindouble("TP at")
+		self.ptsoutbox = mkindouble("Out at")
+		self.ptsstopbox = mkindouble("Stop at")
+
+		self.eurosbox = mkindouble("euros out", t.euros if t else None)
 		self.grafbox = FileDropLineEdit()
 		self.grafbox.setPlaceholderText("drop your PNG into this form")
 		if t and t.graf != "":
 			self.grafbox.setText(t.graf)
 
 		self.notesbox = mkintxt("your notes", t.notes if t else None)
-		self.mistakesbox = mkintxt("your notes", t.mistakes if t else None)
 
 		layout = QFormLayout()
 		layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 		layout.addRow(QLabel("Instrument"), self.instrbox)
 		layout.addRow(QLabel("Setup"), self.setupbox)
 		layout.addRow(QLabel("Date"), self.datebox)
-		layout.addRow(QLabel("Dir"), self.dirbox)
-		layout.addRow(QLabel("Size"), self.sizebox)
 		layout.addRow(QLabel("Time In"), self.timeinbox)
 		layout.addRow(QLabel("Time Out"), self.timeoutbox)
-		layout.addRow(QLabel("Points In"), self.ptsinbox)
-		layout.addRow(QLabel("Points Out"), self.ptsoutbox)
-		layout.addRow(QLabel("System Out"), self.sysoutbox)
-		layout.addRow(QLabel("Points Stop"), self.ptsstopbox)
+		layout.addRow(QLabel("Dir"), self.dirbox)
+		layout.addRow(QLabel("Size"), self.sizebox)
+		layout.addRow(QLabel("TP Δpts"), self.tpbox)
+		layout.addRow(QLabel("Stop Δpts"), self.stopbox)
+		layout.addRow(QLabel("Out Δpts"), self.outbox)
+		layout.addRow(QLabel("Tp at"), self.ptsinbox)
+		layout.addRow(QLabel("Out at"), self.ptsoutbox)
+		layout.addRow(QLabel("Stop at"), self.ptsstopbox)
+
 		layout.addRow(QLabel("Euros Out"), self.eurosbox)
-		layout.addRow(QLabel("Euros Stop"), self.eurostopbox)
 		layout.addRow(QLabel("Graphics"), self.grafbox)
 		layout.addRow(QLabel("Notes"), self.notesbox)
-		layout.addRow(QLabel("Mistakes"), self.mistakesbox)
 
 		fset = []
 		if t and t.has is not None and len(t.has) > 0:
@@ -276,17 +281,57 @@ class TradeEdit(QDialog):
 		self.buttonBox.accepted.connect(self.accept)
 		self.buttonBox.rejected.connect(self.reject)
 		self.setAcceptDrops(True)
+		if filepath is not None:
+			self.grafbox.setText(filepath)
+			self.tOCR = TradeOCR.OCR(filepath, self.rb.setupNames())
+			if self.tOCR is not None:
+				self.pnginfo()
 	def dragEnterEvent(self, event):
 		if event.mimeData().hasUrls():
 			self.grafbox.setPlaceholderText("Drop your PNG here")
 			event.acceptProposedAction()
 		else:
 			event.ignore()
+
+	def pnginfo(self):
+		if self.tOCR is None:
+			return
+		if self.tOCR.setup and len(self.setupbox.lineEdit().text()) == 0:
+			self.setupbox.setCurrentText(self.tOCR.setup)
+		if self.tOCR.instr and len(self.instrbox.lineEdit().text()) == 0:
+			self.instrbox.setCurrentText(self.tOCR.instr)
+
+		if self.tOCR.ptstp and len(self.tpbox.text()) == 0:
+			self.tpbox.setText(f"{self.tOCR.ptstp}")
+		if self.tOCR.ptsstop and len(self.stopbox.text()) == 0:
+			self.stopbox.setText(f"{self.tOCR.ptsstop}")
+		if self.tOCR.long is not None:
+			if self.tOCR.long:
+				self.dirbox.setCurrentText("Long")
+			else:
+				self.dirbox.setCurrentText("Short")
+		if self.tOCR.success:
+			self.outbox.setText(f"{self.tOCR.ptstp}")
+		else:
+			self.outbox.setText(f"-{self.tOCR.ptsstop}")
+		if self.tOCR.size is not None:
+			self.sizebox.setText(f"{self.tOCR.size}")
+		if self.tOCR.at is not None:
+			qt = QDate(self.tOCR.at.year, self.tOCR.at.month, self.tOCR.at.day)
+			self.datebox.setDate(qt)
+		if self.tOCR.tin is not None:
+			self.timeinbox.setTime(self.tOCR.tin)
+		if self.tOCR.tout is not None:
+			self.timeoutbox.setTime(self.tOCR.tout)
+
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
 			file_path = event.mimeData().urls()[0].toLocalFile()
 			self.grafbox.setText(file_path)
 			event.acceptProposedAction()
+			self.tOCR = TradeOCR.OCR(file_path, self.rb.setupNames())
+			if self.tOCR is not None:
+				self.pnginfo()
 		else:
 			event.ignore()
 
@@ -310,18 +355,46 @@ class TradeEdit(QDialog):
 		ds = getstr(self.dirbox.currentText())
 		t.dir = Dir.Long if ds == "Long" else Dir.Short
 		t.lots = nborzero(self.sizebox.text())
-		t.ptsin = nborzero(self.ptsinbox.text())
-		t.ptsout = nborzero(self.ptsoutbox.text())
-		t.sysout = nborzero(self.sysoutbox.text())
-		t.ptsstop = nborzero(self.ptsstopbox.text())
+		ptsin = nborzero(self.ptsinbox.text())
+		ptsout = nborzero(self.ptsoutbox.text())
+		ptsstop = nborzero(self.ptsstopbox.text())
 		t.euros = nborzero(self.eurosbox.text())
-		t.eurstop = nborzero(self.eurostopbox.text())
+		t.tp = nborzero(self.tpbox.text())
+		t.stop = nborzero(self.stopbox.text())
+		t.out = nborzero(self.outbox.text())
+		if ptsin != 0 and ptsout != 0:
+			if t.dir == Dir.Long:
+				t.out = ptsout - ptsin
+				if ptsstop != 0 and ptsstop > ptsin:
+					self.errors.setText("bad stop for long")
+					return None
+				if ptsout < ptsin:
+					t.tp = 0
+					t.stop = ptsin-ptsout
+				else:
+					t.tp = ptsout - ptsin
+					if ptsstop != 0:
+						t.stop = ptsin - ptsstop
+			else:
+				t.out = ptsin - ptsout
+				if ptsstop != 0 and ptsstop < ptsin:
+					self.errors.setText("bad stop for short")
+					return None
+				if ptsout > ptsin:
+					t.tp = 0
+					t.stop = ptsout - ptsin
+				else:
+					if ptsstop != 0:
+						t.stop = ptsstop - ptsin
 		t.graf = getstr(self.grafbox.text())
 		t.notes = getstr(self.notesbox.toPlainText())
-		t.mistakes = getstr(self.mistakesbox.toPlainText())
 		t.has = set(self.featuresGroup.checked_items())
 		t.inval()
 		e = t.checkOut()
+		if t.lots == 0:
+			t.lots = 1
+		if t.euros == 0:
+			t.euros = t.lots * t.out
 		if e:
 			self.errors.setText(e)
 			return None
@@ -457,6 +530,13 @@ class DataWindow(QMainWindow):
 
 		self.updateTitle()
 
+	def moveTo(self, delta):
+		# move to next prev callback
+		if delta > 0:
+			self.tradestbl.next()
+		if delta < 0:
+			self.tradestbl.prev()
+
 	def updatetoday(self):
 		self.today = TodayPanel(self.rb)
 		self.todaywidget.setWidget(self.today)
@@ -529,10 +609,10 @@ class DataWindow(QMainWindow):
 			return
 		self.rb.save(file_path, filtered=True)
 
-	def edittrade(self, trade):
+	def edittrade(self, trade, filepath=None):
 		if trade.trade == 0:
 			trade.trade = self.rb.nextId()
-		w = TradeEdit(self.rb, trade, self.dirtied)
+		w = TradeEdit(self.rb, trade, self.dirtiedTrades, filepath=filepath)
 		w.exec()
 
 	def selectedtrade(self, t):
@@ -548,6 +628,7 @@ class DataWindow(QMainWindow):
 
 	def mkgraph(self, p):
 		self.graphwindow = ImageViewer(p)
+		self.graphwindow.movedTo = self.moveTo
 
 	def tradegraphics(self, t):
 		if self.rb is None:
@@ -608,6 +689,13 @@ class DataWindow(QMainWindow):
 		self.rb.dirty = True
 		self.updateTitle()
 
+	def dirtiedTrades(self):
+		self.dirtied()
+		self.updatetoday()
+		if self.statswindow:
+			self.statswindow.plotchanged()
+
+
 	def updateTitle(self):
 		if self.rb and self.rb.dirty and self.rb.dir:
 			self.setWindowTitle(f"RoadBook {self.rb.dir} (unsaved)")
@@ -639,8 +727,12 @@ class DataWindow(QMainWindow):
 		t.stats = self.stats
 		t.dirtied = self.dirtied
 		t.info = self.infofn
-		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY)
+		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=self.drop)
 		return tbl
+	def drop(self, x):
+		#print('XXX', x, file=sys.stderr)
+		pass
+
 	def mksetupstbl(self):
 		s = setupexample()
 		s.dirtied = self.dirtied
@@ -746,15 +838,19 @@ class DataWindow(QMainWindow):
 	def changedata(self, r):
 		self.rb = r
 		self.updateinfo()
-		self.tradestbl.changedata(r.trades)
-		self.setupstbl.changedata(r.setups)
-		self.featurestbl.changedata(r.features)
-		self.instrumentstbl.changedata(r.instruments)
-		self.currenciestbl.changedata(r.currencies)
-		self.featchecks.set_items(self.rb.featureNames())
-		self.updateTitle()
-		self.accounttbl.refresh()
-		self.updatetoday()
+		try:
+			self.tradestbl.changedata(r.trades)
+			self.setupstbl.changedata(r.setups)
+			self.featurestbl.changedata(r.features)
+			self.instrumentstbl.changedata(r.instruments)
+			self.currenciestbl.changedata(r.currencies)
+			self.featchecks.set_items(self.rb.featureNames())
+			self.updateTitle()
+			self.accounttbl.refresh()
+			self.updatetoday()
+		except Exception as e:
+			print("failed: ", e)
+			traceback.print_exc()
 
 	def closeEvent(self, ev):
 		if self.rb and self.rb.dirty:

@@ -1,20 +1,25 @@
 
 NEWACCOUNT="""ACCOUNT;NEUTRAL;FIXED;COPYGRAPHS;VERSION
-"10000.0";"10.0";"true";"false";"0.1"
+"10000.0";"10.0";"true";"false";"2.0"
 """
 
 NEWSETUPS="""SETUP;DESCR
-"ReboteH1";"Separado ZC H4 pero rebote claro en ZCH1"
-"ReboteH4";"entrada fuerza tras rebote 4H previo"
+"ICT2022";"ICT 2022"
+"ICTFVG";"ICT FVGs but not 2022"
+"VueltaDeVolat";"Correccion tras volatilidad"
+"Envolvente15";"Envolvente m15"
+"Rebotem15";"Rebote en ZCm15"
+"ReboteH1";"Rebote en ZCH1"
+"ReboteH4";"Rebote en ZCH4"
 "ScalpAZC";"con ZC ancha y precio separado de ZC operacion en contra hasta ZC en fin de impulso."
 """
 
 NEWFEATURES="""FEATURE;DESCR;SETUPS
-"1ra vela";"En primera vela de fuerza, no se marca si ya hay muchas antes de llegar a muro";""
+"1ra vela";"En primera vela";""
 "Apertura";"En apertura";""
-"ApoyoD";"Apoyo en ZC Diario";"ReboteH4"
-"ApoyoH1";"apoyo en ZC H1";"ReboteH1;ReboteH4;"
-"ApoyoH4";"Apoyo en ZC de 4H";""
+"Plumas";"Con plumas feas";""
+"Cotas";"Con cota";""
+"Mecha";"Mecha en rechazos/envolventes";""
 "Corr";"operando una corrección";""
 """
 
