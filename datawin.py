@@ -172,6 +172,8 @@ class AccountEdit(QWidget):
 class TradeEdit(QDialog):
 	def __init__(self, rb, t=None, dirtied=None, filepath=None):
 		super(TradeEdit, self).__init__()
+		if type(filepath) != str:
+			filepath=None
 		self.setWindowTitle(f"Trade {t.trade}")
 		self.rb = rb
 		self.t = t
