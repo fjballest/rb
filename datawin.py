@@ -694,6 +694,7 @@ class DataWindow(QMainWindow):
 	def dirtiedTrades(self):
 		self.dirtied()
 		self.updatetoday()
+		self.updateinfo()
 		if self.statswindow:
 			self.statswindow.plotchanged()
 
@@ -728,6 +729,7 @@ class DataWindow(QMainWindow):
 		t.filter = self.filter
 		t.stats = self.stats
 		t.dirtied = self.dirtied
+		t.edited = self.dirtiedTrades
 		t.info = self.infofn
 		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=self.drop)
 		return tbl
@@ -839,7 +841,6 @@ class DataWindow(QMainWindow):
 
 	def changedata(self, r):
 		self.rb = r
-		self.updateinfo()
 		try:
 			self.tradestbl.changedata(r.trades)
 			self.setupstbl.changedata(r.setups)
@@ -851,8 +852,9 @@ class DataWindow(QMainWindow):
 			self.accounttbl.refresh()
 			self.updatetoday()
 		except Exception as e:
-			print("failed: ", e)
+			print("failed: ", e, file=sys.stderr)
 			traceback.print_exc()
+		self.updateinfo()
 
 	def closeEvent(self, ev):
 		if self.rb and self.rb.dirty:

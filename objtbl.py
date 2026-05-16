@@ -168,6 +168,9 @@ class ObjectTableModel(QAbstractTableModel):
 		self.endRemoveRows()
 		if fn:
 			fn(o, True)
+		o = self.obj0
+		if usrdel and hasattr(o, "edited") and callable(o.edited):
+			o.edited()
 		return True
 
 	def newRow(self, row, filepath=None):
@@ -177,6 +180,8 @@ class ObjectTableModel(QAbstractTableModel):
 			o.edit(t, filepath)
 			if t.checkOut() is None:
 				self.insertRows(row, trade=t)
+			if hasattr(o, "edited") and callable(o.edited):
+				o.edited()
 			return
 		self.insertRows(row)
 
