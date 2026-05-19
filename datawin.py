@@ -716,9 +716,10 @@ class DataWindow(QMainWindow):
 			return
 		trades = self.rb.filteredtrades or self.rb.trades
 		tots = StatTotals(self.rb.account, trades)
-		self.info = f"Δ{tots.total:+.0f}€ HR {tots.pcent:.1f}%"
+		self.info = f"Δ{tots.total:+.0f}€ R={tots.pcent:.1f}%"
 
 	def infofn(self):
+		self.updateinfo()
 		return self.info
 
 	def mktradestbl(self):
@@ -842,6 +843,7 @@ class DataWindow(QMainWindow):
 	def changedata(self, r):
 		self.rb = r
 		try:
+			self.updateinfo()
 			self.tradestbl.changedata(r.trades)
 			self.setupstbl.changedata(r.setups)
 			self.featurestbl.changedata(r.features)
