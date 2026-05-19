@@ -17,7 +17,7 @@ from imgwin import *
 from objtbl import *
 from statswin import *
 from graphocr import *
-
+from functools import partial
 
 def create_file_actions(parent):
 	style = parent.style()
@@ -54,7 +54,7 @@ def create_file_actions(parent):
 
 	return [new_action, open_action, save_action, saveas_action]
 
-def mktoolbar(dwin):
+def mktoolbar(dwin, rbs=None):
 		toolbar = QToolBar("File", dwin)
 		toolbar.setMovable(False)
 		toolbar.setFloatable(False)
@@ -69,7 +69,16 @@ def mktoolbar(dwin):
 			toolbar.addAction(a)
 			fmenu.addAction(a)
 			a.triggered.connect(fns[i])
-		dwin.addToolBar(toolbar)
+		if rbs is not None:
+			for rb in rbs:
+				txt = os.path.basename(rb)
+				act = QAction(txt, dwin)
+				act.setStatusTip('open '+rb)
+				act.triggered.connect(lambda x,t=rb: dwin.openroadbook1(t))
+				toolbar.addAction(act)
+				font = act.font()
+				font.setBold(True)
+				dwin.addToolBar(toolbar)
 
 
 class FileDropLineEdit(QLineEdit):
@@ -445,7 +454,7 @@ def setfeats(q):
 	q.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable|QDockWidget.DockWidgetFeature.DockWidgetFloatable)
 
 class DataWindow(QMainWindow):
-	def __init__(self, app):
+	def __init__(self, app, rbs=None):
 		super().__init__()
 		self.app = app
 		self.setWindowTitle("RoadBook")
@@ -528,7 +537,7 @@ class DataWindow(QMainWindow):
 
 		trades.raise_()
 
-		mktoolbar(self)
+		mktoolbar(self, rbs)
 
 		self.updateTitle()
 
@@ -568,6 +577,21 @@ class DataWindow(QMainWindow):
 		qm = QMessageBox
 		r = qm.question(self, '', msg, qm.StandardButton.Yes, qm.StandardButton.No)
 		return r == qm.StandardButton.Yes
+
+	def openroadbook1(self, s):
+		if self.rb and self.rb.dirty:
+			if not self.askuser('unsaved changed. sure to open another one?'):
+				return
+		if not RoadBook.isRoadBook(s):
+			QMessageBox.warning(
+            	self,
+            	"Not a roadBook",
+            	f"The selected directory does not contain a roadbook.")
+			return
+		rb = RoadBook()
+		rb.load(s)
+		self.changedata(rb)
+		self.updateTitle()
 
 	def openroadbook(self):
 		if self.rb and self.rb.dirty:

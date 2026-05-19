@@ -596,8 +596,12 @@ class RoadBook:
 
 	@staticmethod
 	def isRoadBook(path: str) ->bool:
-		p = os.path.join(path, TRADESFILE)
-		return os.path.exists(p)
+		try:
+			p1 = os.path.join(path, TRADESFILE)
+			p2 = os.path.join(path, ACCOUNTFILE)
+			return os.path.exists(p1) and os.path.exists(p2)
+		except:
+			return False
 
 	def accountpath(self, suff = "") -> str:
 		return os.path.join(self.dir, ACCOUNTFILE) + suff
