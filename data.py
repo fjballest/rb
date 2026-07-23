@@ -100,6 +100,7 @@ TRADEVIEWORDER = ["trade", "instrument", "setup", "dir", "out", "datein", "timei
 	"timeout", "lots", "euros", "notes", "has"]	#
 TRADEVIEWRDONLY = ["trade"]
 
+# old version of data
 @dataclass
 class Trade1:
 	trade: int = 0

@@ -68,7 +68,17 @@ class ObjectTableModel(QAbstractTableModel):
 		obj = self.objects[index.row()]
 		field = self.field_defs[index.column()]
 		value = getattr(obj, field.name)
-
+		if field.name == "XXXtimeout" and hasattr(obj, "timeout") and hasattr(obj, "timein"):
+			try:
+				mins = (obj.timeout.hour*60+obj.timeout.minute)
+				mins -= obj.timein.hour*60+obj.timein.minute
+				if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+					if mins > 60:
+						return f"{mins//60}h {mins%60}m"
+					return f"{mins}m"
+			except Exception as e:
+				print(e, file=sys.stderr)
+				pass
 		if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
 			return format_value(value)
 		if role == Qt.ItemDataRole.ForegroundRole:
