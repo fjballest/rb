@@ -3,7 +3,7 @@
 #
 from dataclasses import dataclass, field
 from datetime import date, time, datetime
-from typing import Optional, Set
+from typing import Optional, Set, List
 from enum import Enum, IntEnum
 import os
 import sys
@@ -21,6 +21,12 @@ INSTRUMENTSFILE = "activos.csv"
 GRAPHSDIR = "diarygraphs"
 VERSION = 2.0
 BCK = "~"
+
+def canonlist(l):
+	if len(l) <= 1:
+		return l
+	l = sorted(l)
+	return l[-1:] + l[:-1]
 
 class Dir(Enum):
 	Long = "Long"
@@ -142,7 +148,7 @@ class Trade:
 	stop: float  = 0.0
 	out: float  = 0.0
 	euros: Optional[float] = 0.0
-	graf: Optional[str] = ""
+	graf: Optional[List[str]] = field(default_factory=list)
 	notes: Optional[str] = ""
 	has: Optional[Set[str]] = field(default_factory= set)
 
@@ -159,7 +165,10 @@ class Trade:
 		t.timein = t1.timein
 		t.timeout = t1.timeout
 		t.euros = t1.euros
-		t.graf = t1.graf
+		if t1.graf is None or t1.graf == "":
+			t.graf = []
+		else:
+			t.graf = [t1.graf]
 		t.notes = t1.notes
 		if t1.mistakes is not None and len(t1.mistakes) > 0:
 			t.notes = f"{t.notes}. errs: {t1.mistakes}"
@@ -215,7 +224,8 @@ class Trade:
 			self.euros = self.lots * self.out
 		if self.instrument == "":
 			self.instrument = "DAX"
-
+		if len(self.graf) > 1:
+			self.graf = canonlist(self.graf)
 	def hour(self) -> int:
 		return self.timein.hour if self.timein else 0
 
@@ -641,17 +651,20 @@ class RoadBook:
 		with open(p, "w") as f:
 			f.write(NEWTRADES)
 
-	def mkgraphpath(self, t) -> str:
+	def mkgraphpath(self, t, nb = 0) -> str:
 		d = os.path.join(self.dir, GRAPHSDIR)
-		p = os.path.join(d, f"trade{t.trade}{t.instrument.lower()}.png")
+		if nb == 0:
+			p = os.path.join(d, f"trade{t.trade}{t.instrument.lower()}.png")
+		else:
+			p = os.path.join(d, f"trade{t.trade}{t.instrument.lower()}.{nb}.png")
 		return p
 
-	def graphpath(self, t) -> str:
-		if t.graf is not None and t.graf != "":
+	def graphpaths(self, t) -> list[str]:
+		if t.graf is not None and len(t.graf) > 0:
 			return t.graf
 		d = os.path.join(self.dir, GRAPHSDIR)
 		p = os.path.join(d, f"trade{t.trade}{t.instrument.lower()}.png")
-		return p
+		return [p]
 
 	def loadaccount(self, fname: str = None) -> tuple[object, list[dict]]:
 		if fname is None or fname == "":
@@ -765,10 +778,12 @@ class RoadBook:
 		if filtered and self.filteredtrades:
 			trades = self.filteredtrades
 		for t in trades:
-			if t.graf is None or t.graf == "":
-				npath = self.mkgraphpath(t)
-				if os.path.exists(npath):
-					t.graf = npath
+			if t.graf is None or len(t.graf) == 0:
+				t.graf = []
+				for nb in range(6):
+					npath = self.mkgraphpath(t, nb)
+					if os.path.exists(npath):
+						t.graf.append(npath)
 		write_objects_to_csv(fname, trades, Trade, rens, skips)
 
 
@@ -777,15 +792,18 @@ class RoadBook:
 		if filtered and self.filteredtrades:
 			trades = self.filteredtrades
 		for t in trades:
-			if t.graf is None or not os.path.exists(t.graf):
+			if t.graf is None or len(t.graf) == 0:
 				continue
-			npath = self.mkgraphpath(t)
-			try:
-				if os.path.samefile(t.graf, npath):
+			for i,g in enumerate(t.graf):
+				if not os.path.exists(t.graf):
 					continue
-			except:
-				pass
-			try:
-				shutil.copyfile(t.graf, npath)
-			except Exception as e:
-				print(f"failed to copy graphic {e}", file=sys.stderr)
+				npath = self.mkgraphpath(t, i)
+				try:
+					if os.path.samefile(g, npath):
+						continue
+				except:
+					pass
+				try:
+					shutil.copyfile(g, npath)
+				except Exception as e:
+					print(f"failed to copy graphic {e}", file=sys.stderr)

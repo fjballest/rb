@@ -7,20 +7,35 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QEvent, QTimer
 import os
+
+def canonlist(l):
+	if len(l) <= 1:
+		return l
+	l = sorted(l)
+	return l[-1:] + l[:-1]
+
 class ImageViewer(QMainWindow):
 	def __init__(self, file, parent=None, x=1400, y=1024):
 		super().__init__(parent)
 		self.movedTo = None
-		self.file_path = file
-		self.setWindowTitle(file)
+		self.file_path = ""
+		self.files = file
+		self.fileno = 0
+		if len(file) > 0 and file[0] != "":
+			file = canonlist(file)
+			self.file_path = file[0]
+		self.updateTitle()
 		self.resize(x, y)
 		self.scale_factor = 1.0
 		self.original_pixmap = None
 		self.fit_mode = False
 
+		# print(f"XXXX {file}", file=sys.stderr)
+
 		# --- Buttons ---
 		self.prev_button = QPushButton("Prev")
 		self.next_button = QPushButton("Next")
+		self.more_button = QPushButton("More")
 		self.zoom_in_button = QPushButton("Zoom +")
 		self.zoom_out_button = QPushButton("Zoom -")
 		self.fit_button = QPushButton("Fit")
@@ -29,6 +44,7 @@ class ImageViewer(QMainWindow):
 
 		self.prev_button.clicked.connect(lambda: self.moveTo(-1))
 		self.next_button.clicked.connect(lambda: self.moveTo(1))
+		self.more_button.clicked.connect(lambda: self.more())
 		self.zoom_in_button.clicked.connect(lambda: self.zoom(1.25))
 		self.zoom_out_button.clicked.connect(lambda: self.zoom(0.8))
 		self.fit_button.clicked.connect(self.enable_fit_mode)
@@ -53,6 +69,7 @@ class ImageViewer(QMainWindow):
 		button_layout = QHBoxLayout()
 		button_layout.addWidget(self.prev_button)
 		button_layout.addWidget(self.next_button)
+		button_layout.addWidget(self.more_button)
 		button_layout.addWidget(self.actual_button)
 		button_layout.addWidget(self.fit_button)
 		button_layout.addWidget(self.zoom_in_button)
@@ -65,14 +82,27 @@ class ImageViewer(QMainWindow):
 		layout.addLayout(button_layout)
 		layout.addWidget(self.scroll_area)
 		self.setCentralWidget(container)
-		self.setimage(self.file_path)
+		self.setimage(self.files)
 		QTimer.singleShot(0, lambda: self.enable_fit_mode(x = x, y = y))
+
+	def updateTitle(self):
+		if len(self.files) < 2:
+			self.setWindowTitle(self.file_path)
+		else:
+			nb = f" ({self.fileno+1} of {len(self.files)})"
+			self.setWindowTitle(self.file_path+nb)
 
 	def preview(self):
 		if self.file_path is not None:
 			os.system(f"open {self.file_path}")
 
-	def setimage(self, file):
+	def setimage(self, files, no=0):
+		self.files = files
+		no = no % len(files)
+		self.fileno = no
+		file = ""
+		if len(files) > 0:
+			file = files[no]
 		self.file_path = file
 		try:
 			pixmap = QPixmap(self.file_path)
@@ -82,9 +112,14 @@ class ImageViewer(QMainWindow):
 			pass
 		self.update_image()
 
+	def more(self):
+		self.setimage(self.files, self.fileno+1)
+		self.updateTitle()
+
 	def moveTo(self, delta):
 		if self.movedTo is not None:
 			self.movedTo(delta)
+		self.updateTitle()
 
 	# ---------- Zoom controls ----------
 	def zoom(self, factor):
@@ -128,13 +163,14 @@ class ImageViewer(QMainWindow):
 
 	# ---------- Image update ----------
 	def update_image(self):
-		scaled = self.original_pixmap.scaled(
-			self.original_pixmap.size() * self.scale_factor,
-			Qt.AspectRatioMode.KeepAspectRatio,
-			Qt.TransformationMode.SmoothTransformation
-		)
-		self.image_label.setPixmap(scaled)
-		self.image_label.adjustSize()
+		if self.original_pixmap:
+			scaled = self.original_pixmap.scaled(
+				self.original_pixmap.size() * self.scale_factor,
+				Qt.AspectRatioMode.KeepAspectRatio,
+				Qt.TransformationMode.SmoothTransformation
+			)
+			self.image_label.setPixmap(scaled)
+			self.image_label.adjustSize()
 
 	# ---------- Drag-to-pan ----------
 	def eventFilter(self, source, event):

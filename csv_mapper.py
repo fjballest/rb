@@ -39,6 +39,9 @@ def unwrap_optional(t):
 def is_string_set(t):
 	return get_origin(t) is set and get_args(t) == (str,)
 
+def is_string_list(t):
+	return get_origin(t) is list and get_args(t) == (str,)
+
 
 # noinspection PyDataclass
 def get_field_types(cls: Type) -> dict:
@@ -86,6 +89,11 @@ def parse_string_set(value: str) -> Set[str]:
 		return set()
 	return {v.strip() for v in value.split(SET_SEPARATOR) if v.strip()}
 
+def parse_string_list(value: str) -> List[str]:
+	if value == "":
+		return list()
+	return [v.strip() for v in value.split(SET_SEPARATOR) if v.strip()]
+
 def convert_value(value: str, target_type):
 	if value == "" or value is None:
 		return None
@@ -112,6 +120,9 @@ def convert_value(value: str, target_type):
 	# ---- set[str] ----
 	if is_string_set(target_type):
 		return parse_string_set(value)
+	# ---- list[str] ----
+	if is_string_list(target_type):
+		return parse_string_list(value)
 
 	# ---- primitives ----
 	if target_type is int:
@@ -210,6 +221,9 @@ def format_value(value) -> str:
 		return value.strftime("%H:%M")
 
 	if isinstance(value, set):
+		return SET_SEPARATOR.join(sorted(value))
+
+	if isinstance(value, list):
 		return SET_SEPARATOR.join(sorted(value))
 
 	return str(value)

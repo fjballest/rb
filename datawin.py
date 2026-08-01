@@ -94,7 +94,11 @@ class FileDropLineEdit(QLineEdit):
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
 			file_path = event.mimeData().urls()[0].toLocalFile()
-			self.setText(file_path)
+			old = self.text().strip()
+			oldl = old.split(';')
+			oldl.append(file_path)
+			oldl = [g for g in oldl if g != ""]
+			self.setText(';'.join(oldl))
 			event.acceptProposedAction()
 		else:
 			event.ignore()
@@ -178,11 +182,20 @@ class AccountEdit(QWidget):
 		self.fixedbox.setChecked(rb.account.fixed if rb else True)
 		self.cpbox.setChecked(rb.account.copygraphs if rb else True)
 
+def alreadyhere(a, b):
+	return re.sub('\..*', '', a) == re.sub('\..*', '', b)
+
+def canonlist(l):
+	if len(l) <= 1:
+		return l
+	l = sorted(l)
+	return l[-1:] + l[:-1]
+
 class TradeEdit(QDialog):
 	def __init__(self, rb, t=None, dirtied=None, filepath=None):
 		super(TradeEdit, self).__init__()
-		if type(filepath) != str:
-			filepath=None
+		if filepath == False or filepath == True:
+			filepath = None
 		self.setWindowTitle(f"Trade {t.trade}")
 		self.rb = rb
 		self.t = t
@@ -244,9 +257,9 @@ class TradeEdit(QDialog):
 
 		self.eurosbox = mkindouble("euros out", t.euros if t else None)
 		self.grafbox = FileDropLineEdit()
-		self.grafbox.setPlaceholderText("drop your PNG into this form")
-		if t and t.graf != "":
-			self.grafbox.setText(t.graf)
+		self.grafbox.setPlaceholderText("drop your PNGs into this form")
+		if t and t.graf is not None and len(t.graf) > 0:
+			self.grafbox.setText(';'.join(t.graf))
 
 		self.notesbox = mkintxt("your notes", t.notes if t else None)
 
@@ -293,13 +306,18 @@ class TradeEdit(QDialog):
 		self.buttonBox.rejected.connect(self.reject)
 		self.setAcceptDrops(True)
 		if filepath is not None:
-			self.grafbox.setText(filepath)
-			self.tOCR = TradeOCR.OCR(filepath, self.rb.setupNames())
+			fp = filepath
+			if type(filepath) is list:
+				self.grafbox.setText(";".join(filepath))
+				self.tOCR = TradeOCR.OCR(filepath[0], self.rb.setupNames())
+			else:
+				self.grafbox.setText(filepath)
+				self.tOCR = TradeOCR.OCR(filepath, self.rb.setupNames())
 			if self.tOCR is not None:
 				self.pnginfo()
 	def dragEnterEvent(self, event):
 		if event.mimeData().hasUrls():
-			self.grafbox.setPlaceholderText("Drop your PNG here")
+			self.grafbox.setPlaceholderText("Drop your PNGs here")
 			event.acceptProposedAction()
 		else:
 			event.ignore()
@@ -337,12 +355,22 @@ class TradeEdit(QDialog):
 
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
-			file_path = event.mimeData().urls()[0].toLocalFile()
-			self.grafbox.setText(file_path)
-			event.acceptProposedAction()
-			self.tOCR = TradeOCR.OCR(file_path, self.rb.setupNames())
-			if self.tOCR is not None:
-				self.pnginfo()
+			try:
+				file_path = event.mimeData().urls()[0].toLocalFile()
+				old = self.grafbox.text().strip()
+				oldl = old.split(';')
+				oldl.append(file_path)
+				oldl = [g for g in oldl if g != ""]
+				#print(f"XXXX old {old} oldl {oldl}", file=sys.stderr)
+				self.grafbox.setText(';'.join(oldl))
+				event.acceptProposedAction()
+				if len(old) < 2:
+					self.tOCR = TradeOCR.OCR(file_path, self.rb.setupNames())
+					if self.tOCR is not None:
+						self.pnginfo()
+			except Exception as e:
+				print(e, file=sys.stderr)
+				event.acceptProposedAction()
 		else:
 			event.ignore()
 
@@ -397,7 +425,8 @@ class TradeEdit(QDialog):
 				else:
 					if ptsstop != 0:
 						t.stop = ptsstop - ptsin
-		t.graf = getstr(self.grafbox.text())
+		t.graf = getstr(self.grafbox.text()).strip().split(';')
+		#print(f"XXXX edited graph {t.graf} {type(t.graf)}", file=sys.stderr)
 		t.notes = getstr(self.notesbox.toPlainText())
 		t.has = set(self.featuresGroup.checked_items())
 		t.inval()
@@ -417,8 +446,9 @@ class TradeEdit(QDialog):
 				t.rb = self.rb
 			if t.rb is None:
 				t.rb = self.rb
-			if t.graf:
-				self.maycopygraph(t)
+			#print(f"XXXX edited2 graph {t.graf} {type(t.graf)}", file=sys.stderr)
+			if t.graf is not None and len(t.graf) > 0:
+				self.maycopygraphs(t)
 			self.rb.defaultsfortrade(t)
 			self.rb.dirty = True
 			if self.dirtiedfn is not None:
@@ -434,21 +464,29 @@ class TradeEdit(QDialog):
 			return
 		super(TradeEdit, self).accept()
 
-	def maycopygraph(self, t):
-		src = t.graf
-		dst = self.rb.mkgraphpath(t)
-		t.graf = dst
-		try:
-			if src == dst or os.path.samefile(src, dst):
-				return
-		except:
-			pass
-		try:
-			shutil.copyfile(src, dst)
-			t.graf = dst
-		except Exception as e:
-			print(f"failed to copy graphics: {e}", file=sys.stderr)
-
+	def maycopygraphs(self, t):
+		dstl = []
+		if type(t.graf) is str:
+			print(f"bug: t.graf is str {t.graf}", file=sys.stderr)
+			t.graf = [t.graf]
+		t.graf = canonlist(t.graf)
+		for i, src in enumerate(t.graf):
+			dst = self.rb.mkgraphpath(t, i)
+			#print(f"XXXXX src {src} dst {dst}", file=sys.stderr)
+			if alreadyhere(src, dst):
+				dstl.append(src)
+				continue
+			dstl.append(dst)
+			try:
+				if src == dst or os.path.samefile(src, dst):
+					continue
+			except:
+				pass
+			try:
+				shutil.copyfile(src, dst)
+				t.graf = dstl
+			except Exception as e:
+				print(f"failed to copy graphics: {e}", file=sys.stderr)
 
 def setfeats(q):
 	q.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable|QDockWidget.DockWidgetFeature.DockWidgetFloatable)
@@ -659,7 +697,7 @@ class DataWindow(QMainWindow):
 	def tradegraphics(self, t):
 		if self.rb is None:
 			return
-		p = self.rb.graphpath(t)
+		p = self.rb.graphpaths(t)
 		if self.graphwindow is None:
 			self.mkgraph(p)
 		else:
