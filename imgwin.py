@@ -15,8 +15,11 @@ def canonlist(l):
 	return l[-1:] + l[:-1]
 
 class ImageViewer(QMainWindow):
-	def __init__(self, file, parent=None, x=1400, y=1024):
+	def __init__(self, file, parent=None, x=1400, y=1024, desc=''):
 		super().__init__(parent)
+		if desc is None:
+			desc=''
+		self.desc = desc
 		self.movedTo = None
 		self.file_path = ""
 		self.files = file
@@ -24,6 +27,8 @@ class ImageViewer(QMainWindow):
 		if len(file) > 0 and file[0] != "":
 			file = canonlist(file)
 			self.file_path = file[0]
+		self.notes = QLabel(self.desc)
+		self.notes.setWordWrap(True)
 		self.updateTitle()
 		self.resize(x, y)
 		self.scale_factor = 1.0
@@ -75,6 +80,7 @@ class ImageViewer(QMainWindow):
 		button_layout.addWidget(self.zoom_in_button)
 		button_layout.addWidget(self.zoom_out_button)
 		button_layout.addWidget(self.preview_button)
+		button_layout.addWidget(self.notes)
 		button_layout.addStretch()
 
 		container = QWidget()
@@ -91,12 +97,14 @@ class ImageViewer(QMainWindow):
 		else:
 			nb = f" ({self.fileno+1} of {len(self.files)})"
 			self.setWindowTitle(self.file_path+nb)
+		self.notes.setText(self.desc)
 
 	def preview(self):
 		if self.file_path is not None:
 			os.system(f"open {self.file_path}")
 
-	def setimage(self, files, no=0):
+	def setimage(self, files, no=0, desc=''):
+		self.desc = desc
 		self.files = files
 		no = no % len(files)
 		self.fileno = no
@@ -111,6 +119,10 @@ class ImageViewer(QMainWindow):
 		except:
 			pass
 		self.update_image()
+		try:
+			self.notes.setText(desc)
+		except:
+			pass
 
 	def more(self):
 		self.setimage(self.files, self.fileno+1)

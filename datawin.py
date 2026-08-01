@@ -690,8 +690,8 @@ class DataWindow(QMainWindow):
 		if self.graphwindow is not None and self.graphwindow.isVisible():
 			self.tradegraphics(t)
 
-	def mkgraph(self, p):
-		self.graphwindow = ImageViewer(p)
+	def mkgraph(self, p, desc=''):
+		self.graphwindow = ImageViewer(p, desc=desc)
 		self.graphwindow.movedTo = self.moveTo
 
 	def tradegraphics(self, t):
@@ -699,9 +699,8 @@ class DataWindow(QMainWindow):
 			return
 		p = self.rb.graphpaths(t)
 		if self.graphwindow is None:
-			self.mkgraph(p)
-		else:
-			self.graphwindow.setimage(p)
+			self.mkgraph(p, desc=t.notes)
+		self.graphwindow.setimage(p, desc=t.notes)
 		self.graphwindow.show()
 
 	def selectedfeature(self, f):
