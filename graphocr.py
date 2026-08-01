@@ -40,7 +40,7 @@ def s2f(s):
 
 def s2t(s):
 	try:
-		s = s.replace(',',':').replace('.',':')
+		s = s.replace(',',':').replace('.',':').replace('*',':')
 		return datetime.datetime.strptime(s, "%H:%M").time()
 	except:
 		#print("XXX time ", s, file=sys.stderr)
@@ -78,31 +78,30 @@ class TradeOCR:
 
 	# heuristics to get dates in vertical marks
 	def _dates(img):
-		img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+		#img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
 		results = reader.readtext(img)
 		tin=None
 		tout=None
+		saved=None
 		for (bbox, text, confidence) in results:
-			if 'IN' in text:
-				dprint('--r-->', text)
-				match = re.search(r'[\s_](\d\d[,.:]\d\d)', text)
-				if match:
-					x = match.group(1)
-					dprint('==r=> ', x)
+			dprint('--r-->', text)
+			match1 = re.search(r'(\d\d-\d\d-\d\d)', text)
+			match = re.search(r'(\d\d-\d\d-\d\d)\s+(\d\d[*.,:]\d\d)', text)
+			if match1 and not match:
+				saved = text
+				continue
+			if saved is not None:
+				match = re.search(r'(\d\d-\d\d-\d\d)\s+(\d\d[*.,:]\d\d)', text+' '+saved)
+			saved=None
+			if match:
+				x = match.group(2)
+				dprint('==r=> ', x)
+				if tin is None:
 					tin=s2t(x)
-					if tout is not None:
-						break
-				continue
-			if 'OUT' in text:
-				dprint('--r-->', text)
-				match = re.search(r'[\s_](\d\d[,.:]\d\d)', text)
-				if match:
-					x = match.group(1)
-					dprint('==r=> ', x)
+				else:
 					tout=s2t(x)
-					if tin is not None:
-						break
-				continue
+				if tout is not None:
+					break
 		if tout is None:
 			tout = tin
 		if tin is None:
@@ -163,16 +162,19 @@ class TradeOCR:
 				ptsstop = s2i(x)
 				ptsstop=abs(ptsstop)
 				ltext = ''
+				if long is None:
+					long = False
 				continue
 			match = re.search(r'Objetivo:\s*([+-]?\d+([,.]+\d+)?)', text)
 			if match:
 				x = match.group(1)
 				ptstp = s2i(x)
 				ltext = ''
-				long=(ptstp > 0)
+				if long is None:
+					long = True
 				ptstp=abs(ptstp)
 				continue
-			match = re.search(r'PyG Cerrado:\s*([+-]?\d+([,.]+\d+)?)', text)
+			match = re.search(r'PyG:\s*([+-]?\d+([,.]+\d+)?)', text)
 			if match:
 				x = match.group(1)
 				v = s2i(x)
@@ -195,7 +197,6 @@ class TradeOCR:
 				if not dotmatch:
 					ptstp /= 100
 				ltext = ''
-				long=(ptstp > 0)
 				ptstp=abs(ptstp)
 				continue
 			match = re.search(r'([+-]?\d+([,.]+\d+)?)\s*(pips|pts).*rdida', text)
