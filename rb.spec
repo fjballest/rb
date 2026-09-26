@@ -3,7 +3,7 @@
 
 a = Analysis(
     ['rb.py'],
-    pathex=[],
+    pathex=['/u/trade/pylg','.'],
     binaries=[],
     datas=[],
     hiddenimports=[],

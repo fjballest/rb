@@ -89,6 +89,7 @@ class Instrument:
 	instrument: str = ""
 	aka: Optional[str] = ""
 	currency: Optional[str] = ""
+	pipmoney: Optional[float] = 1.0
 	pip: Optional[float] = 1.0
 	stoppips: Optional[float] = 0
 	scale: Optional[float] = 0
@@ -99,7 +100,7 @@ class Instrument:
 	sreadpm: Optional[float] = 0
 
 def instrumentexample():
-	return Instrument("NASDAQ", "SP 500", "EURUSD", 0.0001, 144.3, 240000,
+	return Instrument("NASDAQ", "SP 500", "EURUSD", 1.0, 0.0001, 144.3, 240000,
 		243.4, 354.4, 354.4,  432, 432)
 
 TRADEVIEWORDER = ["trade", "instrument", "setup", "dir", "out", "datein", "timein",
@@ -293,12 +294,16 @@ class Trade:
 		if pts is None:
 			pts = self.points()
 		toeur = 1.0
+		mult = 1.0
+		i = self.instr()
+		if i is not None and i.ptsmoney is not None:
+			mult = i.ptsmoney
 		if self.currency == "EUR" or self.currency == "EURO":
-			return pts * self.lots * toeur
+			return pts * self.lots * toeur * mult
 		c = self.currency()
 		if c is not None and c.euros2 != 0:
 			toeur = 1/c.euros2
-		return pts * self.lots * toeur
+		return pts * self.lots * toeur * mult
 
 	def hasfeature(self, name) -> bool:
 		return self.has is not None and name in self.has
@@ -479,6 +484,10 @@ class RoadBook:
 	def defaultsforinstruments(self) -> None:
 		for i in self.instruments:
 			self.defaultcurrency(i.currency)
+			if i.pipmoney is None:
+				i.pipmoney = 1.0
+				if i.instrument == "NASDAQ":
+					i.pipmoney = 2.0
 
 	def defaultsfortrade(self, t):
 			t.rb = self

@@ -316,11 +316,14 @@ class TradeEdit(QDialog):
 			if self.tOCR is not None:
 				self.pnginfo()
 	def dragEnterEvent(self, event):
-		if event.mimeData().hasUrls():
-			self.grafbox.setPlaceholderText("Drop your PNGs here")
+		try:
+			if event.mimeData().hasUrls():
+				self.grafbox.setPlaceholderText("Drop your PNGs here")
+				event.acceptProposedAction()
+			else:
+				event.ignore()
+		except:
 			event.acceptProposedAction()
-		else:
-			event.ignore()
 
 	def pnginfo(self):
 		if self.tOCR is None:
@@ -356,10 +359,12 @@ class TradeEdit(QDialog):
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
 			try:
-				file_path = event.mimeData().urls()[0].toLocalFile()
+				file_paths = [x.toLocalFile() for x in event.mimeData().urls()]
+				file_path = field_paths[0]
 				old = self.grafbox.text().strip()
 				oldl = old.split(';')
-				oldl.append(file_path)
+				oldl += file_paths
+				# oldl.append(file_path)
 				oldl = [g for g in oldl if g != ""]
 				#print(f"XXXX old {old} oldl {oldl}", file=sys.stderr)
 				self.grafbox.setText(';'.join(oldl))
@@ -571,7 +576,7 @@ class DataWindow(QMainWindow):
 		self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, today)
 		self.tabifyDockWidget(self.setupcheckswidget, self.todaywidget)
 
-		self.featcheckswidget.raise_()
+		self.todaywidget.raise_()
 
 		trades.raise_()
 
@@ -676,9 +681,11 @@ class DataWindow(QMainWindow):
 	def edittrade(self, trade, filepath=None):
 		if trade.trade == 0:
 			trade.trade = self.rb.nextId()
-		w = TradeEdit(self.rb, trade, self.dirtiedTrades, filepath=filepath)
-		w.exec()
-
+		try:
+			w = TradeEdit(self.rb, trade, self.dirtiedTrades, filepath=filepath)
+			w.exec()
+		except Exception as e:
+			print(e, file=sys.stderr)
 	def selectedtrade(self, t):
 		if t and t.has is None:
 			t.has = set([])
@@ -796,7 +803,7 @@ class DataWindow(QMainWindow):
 		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=self.drop)
 		return tbl
 	def drop(self, x):
-		#print('XXX', x, file=sys.stderr)
+		print('XXX', x, file=sys.stderr)
 		pass
 
 	def mksetupstbl(self):

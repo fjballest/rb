@@ -354,11 +354,12 @@ class DTableView(QTableView):
 			event.acceptProposedAction()
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
-			file_path = event.mimeData().urls()[0].toLocalFile()
+			file_path = [x.toLocalFile() for x in event.mimeData().urls()]
 			if self.drop is not None:
 				try:
 					self.drop(file_path)
-				except:
+				except Exception as e:
+					print(e, file=sys.stderr)
 					pass
 			event.acceptProposedAction()
 		else:

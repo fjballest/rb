@@ -138,6 +138,8 @@ class TradeOCR:
 				first = False
 				if text.isupper():
 					instr=text
+					if instr.startswith('MNQ') or instr.startswith('NQ'):
+						instr="NASDAQ"
 			if 'DAX' in text and instr is None:
 				instr="DAX"
 			elif 'NASDAQ' in text and instr is None:
@@ -222,6 +224,31 @@ class TradeOCR:
 		dprint(to)
 		return to
 
+#
+#	python3 graphocr.py  /Users/nemo/Desktop/day260904.png
+#	to print just text (three letters together at least) and clean a bit
+#
+#
+#	python3 graphocr.py  -a /Users/nemo/Desktop/day260904.png
+#	to print all text found as-is
+#
 if __name__ == "__main__":
-	to = TradeOCR.OCR("/Users/nemo/Desktop/testing.png")
-	print(to)
+	args = [x for x in sys.argv[1:]]
+	clean = True
+	if len(args) > 0 and args[0] == '-a':
+		clean=False
+		args = args[1:]
+	for a in args:
+		print(a)
+		img = cv2.imread(a)
+		results = reader.readtext(img)
+		ltext = ''
+		for (bbox, text, confidence) in results:
+			if clean:
+				if not re.search(r'[a-zA-Z][a-zA-Z][a-zA-Z]', text):
+					continue
+				text = text.strip()
+				if text == ltext:
+					continue
+				ltext = text
+			print(text)
