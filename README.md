@@ -9,7 +9,7 @@ Uses PySide6 Qt for widgets.
 
 To build your exec just run
 
-pyinstaller -windowed rb.py
+pyinstaller --noconfirm rb.spec
 
 Or checkout [releases](https://github.com/fjballest/rb/releases) for binaries built at github.
 

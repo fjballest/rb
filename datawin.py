@@ -4,84 +4,37 @@
 import sys
 
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QStyle
-from PySide6.QtWidgets import QToolBar
 from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout,
 	QCheckBox, QLabel, QFileDialog, QPlainTextEdit
 )
 import traceback
-from filterwin import *
-from imgwin import *
-from objtbl import *
-from statswin import *
-from graphocr import *
-from functools import partial
-
-def create_file_actions(parent):
-	style = parent.style()
-
-	new_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_FileIcon),
-		"New",
-		parent,
-	)
-	new_action.setShortcut("Ctrl+N")
-	new_action.setToolTip("New RoadBook")
-	open_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton),
-		"Open",
-		parent,
-	)
-	open_action.setShortcut("Ctrl+O")
-	open_action.setToolTip("Open RoadBbook")
-
-	save_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
-		"Save",
-		parent,
-	)
-	save_action.setShortcut("Ctrl+S")
-	save_action.setToolTip("Save RoadBook")
-
-	saveas_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_DirLinkIcon),
-		"SaveAs",
-		parent,
-	)
-	saveas_action.setToolTip("Save RoadBook as")
-
-	return [new_action, open_action, save_action, saveas_action]
-
-def mktoolbar(dwin, rbs=None):
-		toolbar = QToolBar("File", dwin)
-		toolbar.setMovable(False)
-		toolbar.setFloatable(False)
-		toolbar.setIconSize(QSize(16, 16))
-		acts = create_file_actions(dwin)
-		fns = [dwin.newroadbook, dwin.openroadbook, dwin.saveroadbook,
-			dwin.saveroadbookas]
-		menu = dwin.menuBar()
-		fmenu = menu.addMenu("&File")
-
-		for i, a in enumerate(acts):
-			toolbar.addAction(a)
-			fmenu.addAction(a)
-			a.triggered.connect(fns[i])
-		if rbs is not None:
-			for rb in rbs:
-				txt = os.path.basename(rb)
-				act = QAction(txt, dwin)
-				act.setStatusTip('open '+rb)
-				act.triggered.connect(lambda x,t=rb: dwin.openroadbook1(t))
-				toolbar.addAction(act)
-				font = act.font()
-				font.setBold(True)
-				dwin.addToolBar(toolbar)
-
+import calendar
+from datetime import date, timedelta
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtGui import QDoubleValidator
+from PySide6.QtWidgets import (
+	QApplication, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
+	QGroupBox, QLineEdit, QMainWindow, QMessageBox, QTableView, QTimeEdit
+)
+from checklist import CheckBoxGroup
+from data import (
+	RoadBook, Trade, Setup, Feature, Instrument, Currency, Dir, TRADEVIEWORDER,
+	TRADEVIEWRDONLY, tradeexample,
+	setupexample, featureexample, instrumentexample, currencyexample
+)
+from calwin import TradeCalendar, daysign, tradeorder
+from filterwin import FilterWindow
+from imgwin import ImageViewer
+from menus import MainMenus, addrecent
+from objtbl import ObjectTable
+from stats import StatTotals, StatUnit, tradevalue
+from statswin import StatsWindow, TodayPanel
+from graphocr import TradeOCR
 
 class FileDropLineEdit(QLineEdit):
+	dropped = Signal(list)	# paths of the files dropped
+
 	def __init__(self, parent=None):
 		super().__init__(parent)
 		self.setAcceptDrops(True)
@@ -93,12 +46,7 @@ class FileDropLineEdit(QLineEdit):
 			event.ignore()
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
-			file_path = event.mimeData().urls()[0].toLocalFile()
-			old = self.text().strip()
-			oldl = old.split(';')
-			oldl.append(file_path)
-			oldl = [g for g in oldl if g != ""]
-			self.setText(';'.join(oldl))
+			self.dropped.emit([x.toLocalFile() for x in event.mimeData().urls()])
 			event.acceptProposedAction()
 		else:
 			event.ignore()
@@ -124,13 +72,13 @@ def mkintxt(txt, v=None):
 def nborzero(q):
 	try:
 		return float(q)
-	except:
+	except Exception:
 		return 0.0
 
 def getstr(txt):
 	try:
 		return str(txt).strip().replace("\n", " ")
-	except:
+	except Exception:
 		return ""
 
 class AccountEdit(QWidget):
@@ -150,7 +98,6 @@ class AccountEdit(QWidget):
 		self.cpbox.checkStateChanged.connect(self.edited)
 		self.cpbox.setChecked(True)
 
-		#layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 		layout.addRow(QLabel("Account"), self.accbox)
 		layout.addRow(QLabel("Neutral"), self.neutbox)
 		layout.addRow(QLabel("Fixed"), self.fixedbox)
@@ -167,11 +114,16 @@ class AccountEdit(QWidget):
 		fx = self.fixedbox.isChecked()
 		cp = self.cpbox.isChecked()
 		if acc != a.account or neu != a.neutral or fx != a.fixed or cp  != a.copygraphs:
+			neutralchanged = neu != a.neutral
 			rb.account.account = acc
 			rb.account.neutral = neu
 			rb.account.fixed = fx
 			rb.account.copygraphs = cp
 			self.dwin.dirtied()
+			if neutralchanged:
+				# the day and group colours depend on it
+				self.dwin.tradestbl.refresh()
+				self.dwin.refreshcalendar()
 
 	def refresh(self):
 		rb = self.dwin.rb
@@ -182,25 +134,17 @@ class AccountEdit(QWidget):
 		self.fixedbox.setChecked(rb.account.fixed if rb else True)
 		self.cpbox.setChecked(rb.account.copygraphs if rb else True)
 
-def alreadyhere(a, b):
-	return re.sub('\..*', '', a) == re.sub('\..*', '', b)
-
-def canonlist(l):
-	if len(l) <= 1:
-		return l
-	l = sorted(l)
-	return l[-1:] + l[:-1]
-
 class TradeEdit(QDialog):
-	def __init__(self, rb, t=None, dirtied=None, filepath=None):
+	changed = Signal()	# the trade was saved into the roadbook
+
+	def __init__(self, rb, t=None, filepath=None):
 		super(TradeEdit, self).__init__()
 		if filepath == False or filepath == True:
 			filepath = None
-		self.setWindowTitle(f"Trade {t.trade}")
+		self.setWindowTitle(f"Trade {t.trade}" if t else "Trade")
 		self.rb = rb
 		self.t = t
 		self.tOCR = None
-		self.dirtiedfn = dirtied
 		if t is not None and t.trade <= 0:
 			t.trade = rb.nextId()
 		self.formGroupBox = QGroupBox("Data:")
@@ -220,7 +164,6 @@ class TradeEdit(QDialog):
 			self.lastsetup = t.setup
 		ed = self.setupbox.lineEdit()
 		ed.editingFinished.connect(lambda: self.setupchanged(ed.text()))
-		#self.setupbox.currentTextChanged.connect(self.setupchanged)
 		td = date.today()
 		qt = QDate(td.year, td.month, td.day)
 		self.datebox = QDateEdit(date=qt,calendarPopup=True)
@@ -257,6 +200,7 @@ class TradeEdit(QDialog):
 
 		self.eurosbox = mkindouble("euros out", t.euros if t else None)
 		self.grafbox = FileDropLineEdit()
+		self.grafbox.dropped.connect(self.adddropped)
 		self.grafbox.setPlaceholderText("drop your PNGs into this form")
 		if t and t.graf is not None and len(t.graf) > 0:
 			self.grafbox.setText(';'.join(t.graf))
@@ -306,15 +250,9 @@ class TradeEdit(QDialog):
 		self.buttonBox.rejected.connect(self.reject)
 		self.setAcceptDrops(True)
 		if filepath is not None:
-			fp = filepath
-			if type(filepath) is list:
-				self.grafbox.setText(";".join(filepath))
-				self.tOCR = TradeOCR.OCR(filepath[0], self.rb.setupNames())
-			else:
-				self.grafbox.setText(filepath)
-				self.tOCR = TradeOCR.OCR(filepath, self.rb.setupNames())
-			if self.tOCR is not None:
-				self.pnginfo()
+			if type(filepath) is not list:
+				filepath = [filepath]
+			self.adddropped(filepath)
 	def dragEnterEvent(self, event):
 		try:
 			if event.mimeData().hasUrls():
@@ -322,8 +260,56 @@ class TradeEdit(QDialog):
 				event.acceptProposedAction()
 			else:
 				event.ignore()
-		except:
+		except Exception:
 			event.acceptProposedAction()
+
+	def ocr(self, path):
+		# the first call loads the OCR engine, which takes a few seconds
+		QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+		try:
+			return TradeOCR.OCR(path, self.rb.setupNames())
+		finally:
+			QApplication.restoreOverrideCursor()
+
+	def ocrscore(self, o):
+		"""how much trade data the OCR found; a known instrument counts most"""
+		if o is None:
+			return -1
+		score = 0
+		if o.instr and self.rb.findInstrument(o.instr) is not None:
+			score += 3
+		for v in (o.ptstp, o.ptsstop, o.success, o.size, o.tin):
+			if v is not None:
+				score += 1
+		return score
+
+	def ocrbest(self, paths):
+		"""OCR the images and put first the one with most trade data.
+		Returns the reordered paths and that image's OCR."""
+		best, bestscore, bestocr = 0, -1, None
+		for i, p in enumerate(paths):
+			o = self.ocr(p)
+			score = self.ocrscore(o)
+			if score > bestscore:
+				best, bestscore, bestocr = i, score, o
+		return [paths[best]] + paths[:best] + paths[best+1:], bestocr
+
+	def grafs(self):
+		return [g for g in getstr(self.grafbox.text()).split(';') if g.strip()]
+
+	def adddropped(self, paths):
+		"""add dropped images to the trade; when it had none yet,
+		the one with most data recognised is the primary one and fills the form"""
+		paths = [p for p in paths if p]
+		old = self.grafs()
+		paths = [p for p in paths if p not in old]
+		if not paths:
+			return
+		if not old:
+			paths, self.tOCR = self.ocrbest(paths)
+			if self.tOCR is not None:
+				self.pnginfo()
+		self.grafbox.setText(';'.join(old + paths))
 
 	def pnginfo(self):
 		if self.tOCR is None:
@@ -359,20 +345,8 @@ class TradeEdit(QDialog):
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
 			try:
-				file_paths = [x.toLocalFile() for x in event.mimeData().urls()]
-				file_path = field_paths[0]
-				old = self.grafbox.text().strip()
-				oldl = old.split(';')
-				oldl += file_paths
-				# oldl.append(file_path)
-				oldl = [g for g in oldl if g != ""]
-				#print(f"XXXX old {old} oldl {oldl}", file=sys.stderr)
-				self.grafbox.setText(';'.join(oldl))
 				event.acceptProposedAction()
-				if len(old) < 2:
-					self.tOCR = TradeOCR.OCR(file_path, self.rb.setupNames())
-					if self.tOCR is not None:
-						self.pnginfo()
+				self.adddropped([x.toLocalFile() for x in event.mimeData().urls()])
 			except Exception as e:
 				print(e, file=sys.stderr)
 				event.acceptProposedAction()
@@ -428,10 +402,10 @@ class TradeEdit(QDialog):
 					t.tp = 0
 					t.stop = ptsout - ptsin
 				else:
+					t.tp = ptsin - ptsout
 					if ptsstop != 0:
 						t.stop = ptsstop - ptsin
-		t.graf = getstr(self.grafbox.text()).strip().split(';')
-		#print(f"XXXX edited graph {t.graf} {type(t.graf)}", file=sys.stderr)
+		t.graf = self.grafs()
 		t.notes = getstr(self.notesbox.toPlainText())
 		t.has = set(self.featuresGroup.checked_items())
 		t.inval()
@@ -447,17 +421,13 @@ class TradeEdit(QDialog):
 			if self.t is not None:
 				self.t.copy_from(t)
 				t = self.t
-			if not hasattr(t, 'rb') or t.rb is None:
-				t.rb = self.rb
 			if t.rb is None:
 				t.rb = self.rb
-			#print(f"XXXX edited2 graph {t.graf} {type(t.graf)}", file=sys.stderr)
 			if t.graf is not None and len(t.graf) > 0:
 				self.maycopygraphs(t)
 			self.rb.defaultsfortrade(t)
 			self.rb.dirty = True
-			if self.dirtiedfn is not None:
-				self.dirtiedfn()
+			self.changed.emit()
 		except Exception as e:
 			print(f"failed to add: {e}", file=sys.stderr)
 		return t
@@ -470,28 +440,8 @@ class TradeEdit(QDialog):
 		super(TradeEdit, self).accept()
 
 	def maycopygraphs(self, t):
-		dstl = []
-		if type(t.graf) is str:
-			print(f"bug: t.graf is str {t.graf}", file=sys.stderr)
-			t.graf = [t.graf]
-		t.graf = canonlist(t.graf)
-		for i, src in enumerate(t.graf):
-			dst = self.rb.mkgraphpath(t, i)
-			#print(f"XXXXX src {src} dst {dst}", file=sys.stderr)
-			if alreadyhere(src, dst):
-				dstl.append(src)
-				continue
-			dstl.append(dst)
-			try:
-				if src == dst or os.path.samefile(src, dst):
-					continue
-			except:
-				pass
-			try:
-				shutil.copyfile(src, dst)
-				t.graf = dstl
-			except Exception as e:
-				print(f"failed to copy graphics: {e}", file=sys.stderr)
+		for e in self.rb.storegraphs(t):
+			print(e, file=sys.stderr)
 
 def setfeats(q):
 	q.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable|QDockWidget.DockWidgetFeature.DockWidgetFloatable)
@@ -516,10 +466,17 @@ class DataWindow(QMainWindow):
 		self.instrumentstbl = self.mkinstrumentstbl()
 		self.currenciestbl = self.mkcurrenciestbl()
 		self.accounttbl = AccountEdit(self)
+		self.calendar = TradeCalendar()
+		self.calendar.tradeSelected.connect(self.calendartrade)
+		self.calendar.tradeActivated.connect(self.calendaropen)
+		self.calendar.monthChanged.connect(self.calendarmonth)
 
 		trades = QDockWidget("Trades", self)
 		setfeats(trades)
 		trades.setWidget(self.tradestbl)
+		caldock = QDockWidget("Calendar", self)
+		setfeats(caldock)
+		caldock.setWidget(self.calendar)
 		setups = QDockWidget("Setups", self)
 		setfeats(setups)
 		setups.setWidget(self.setupstbl)
@@ -543,7 +500,9 @@ class DataWindow(QMainWindow):
 
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, trades)
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, setups)
-		self.tabifyDockWidget(trades, setups)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, caldock)
+		self.tabifyDockWidget(trades, caldock)
+		self.tabifyDockWidget(caldock, setups)
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, features)
 		self.tabifyDockWidget(setups, features)
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, instruments)
@@ -553,14 +512,16 @@ class DataWindow(QMainWindow):
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, account)
 		self.tabifyDockWidget(currencies, account)
 
-		self.featchecks = CheckBoxGroup([], dirtied=self.dirtied)
+		self.featchecks = CheckBoxGroup([])
+		self.featchecks.dirtied.connect(self.dirtied)
 		checks = QDockWidget("Trade Features", self)
 		setfeats(checks)
 		checks.setWidget(self.featchecks)
 		self.featcheckswidget = checks
 		self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, checks)
 
-		self.setupchecks = CheckBoxGroup([], dirtied=self.dirtied)
+		self.setupchecks = CheckBoxGroup([])
+		self.setupchecks.dirtied.connect(self.dirtied)
 		checks = QDockWidget("Feature Setups", self)
 		setfeats(checks)
 		checks.setWidget(self.setupchecks)
@@ -579,10 +540,21 @@ class DataWindow(QMainWindow):
 		self.todaywidget.raise_()
 
 		trades.raise_()
+		self.tradesdock = trades
 
-		mktoolbar(self, rbs)
+		self.leftdocks = [trades, caldock, setups, features, instruments, currencies, account]
+		self.rightdocks = [self.featcheckswidget, self.setupcheckswidget, self.todaywidget]
+		self.menus = MainMenus(self, rbs)
 
 		self.updateTitle()
+		# once the event loop runs, the window and its first roadbook are in place
+		QTimer.singleShot(0, self.shrinkrightdock)
+
+	def shrinkrightdock(self):
+		# docks are never made narrower than their minimum, so ask for 1 pixel
+		# on the right and give the rest to the trades on the left
+		self.resizeDocks([self.tradesdock, self.todaywidget], [self.width(), 1],
+			Qt.Orientation.Horizontal)
 
 	def moveTo(self, delta):
 		# move to next prev callback
@@ -629,7 +601,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"Not a roadBook",
-            	f"The selected directory does not contain a roadbook.")
+            	"The selected directory does not contain a roadbook.")
 			return
 		rb = RoadBook()
 		rb.load(s)
@@ -648,7 +620,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"Not a roadBook",
-            	f"The selected directory does not contain a roadbook.")
+            	"The selected directory does not contain a roadbook.")
 			return
 		rb = RoadBook()
 		rb.load(file_path)
@@ -660,7 +632,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"No roadBook",
-            	f"Do not have a roadbook to save")
+            	"Do not have a roadbook to save")
 			return
 		self.rb.save()
 		self.updateTitle()
@@ -670,7 +642,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"No roadBook",
-            	f"Do not have a roadbook to save")
+            	"Do not have a roadbook to save")
 			return
 		file_path, _ = QFileDialog.getSaveFileName(
 			self, "Save (Filtered) Roadbook as", "", "")
@@ -682,13 +654,72 @@ class DataWindow(QMainWindow):
 		if trade.trade == 0:
 			trade.trade = self.rb.nextId()
 		try:
-			w = TradeEdit(self.rb, trade, self.dirtiedTrades, filepath=filepath)
+			w = TradeEdit(self.rb, trade, filepath=filepath)
+			w.changed.connect(self.dirtiedTrades)
 			w.exec()
 		except Exception as e:
 			print(e, file=sys.stderr)
+	def calendartrade(self, t):
+		"""a day was clicked in the calendar: select its first trade"""
+		self.tradestbl.selectobj(t)
+
+	def calendaropen(self, t):
+		"""a day was double clicked: select its first trade and show the trades"""
+		self.tradestbl.selectobj(t)
+		self.tradesdock.raise_()
+
+	def calendarmonth(self, y, m):
+		"""the calendar moved to another month: show that month in the trades table"""
+		M = self.tradestbl.model
+		ts = [t for t in M.ordered() if t.datein and (t.datein.year, t.datein.month) == (y, m)]
+		if not ts:
+			return
+		M.collapseexcept(ts)
+		row = M.rowofgroup((y, m))
+		if row >= 0:
+			self.tradestbl.view.scrollTo(M.index(row, 0), QTableView.ScrollHint.PositionAtTop)
+
+	def initialgroups(self):
+		"""open only the last year, month and week of trades; when that week
+		just started (its last trade is on Monday or Tuesday), the week before too"""
+		M = self.tradestbl.model
+		ts = [t for t in M.ordered() if t.datein]
+		if not ts:
+			return
+		keep = [ts[-1]]
+		d = ts[-1].datein
+		if d.weekday() <= 1:
+			monday = d - timedelta(days=d.weekday())
+			before = [t for t in ts if t.datein < monday]
+			if before:
+				keep.append(before[-1])
+		M.collapseexcept(keep)
+		QTimer.singleShot(0, self.tradestbl.view.scrollToBottom)
+
+	def refreshcalendar(self):
+		if self.rb is None:
+			return
+		trades = self.rb.filteredtrades if self.rb.filteredtrades is not None else self.rb.trades
+		self.calendar.settrades(trades, self.rb.account.neutral if self.rb.account else 0)
+
+	def tradegroups(self, t):
+		"""year, month and week of a trade, for the trades table"""
+		d = t.datein or date.min
+		y, m = d.year, d.month
+		w = d.isocalendar()[1]
+		return [((y,), str(y)), ((y, m), calendar.month_name[m]), ((y, m, w), f"Week {w}")]
+
+	def groupinfo(self, trades):
+		v = sum(tradevalue(t, StatUnit.Euros) for t in trades)
+		neutral = self.rb.account.neutral if self.rb and self.rb.account else 0
+		n = len(trades)
+		return f"{n} trade{'s' if n != 1 else ''}, {v:+.0f}€", daysign(v, neutral)
+
 	def selectedtrade(self, t):
 		if t and t.has is None:
 			t.has = set([])
+		if t:
+			self.calendar.showdate(t.datein)
 		fset = t.has if t else []
 		self.featcheckswidget.setWindowTitle(f"Trade {t.trade} Features")
 		self.featchecks.updateitems = fset
@@ -699,7 +730,8 @@ class DataWindow(QMainWindow):
 
 	def mkgraph(self, p, desc=''):
 		self.graphwindow = ImageViewer(p, desc=desc)
-		self.graphwindow.movedTo = self.moveTo
+		self.graphwindow.moved.connect(self.moveTo)
+		self.graphwindow.jumped.connect(self.tradestbl.edge)
 
 	def tradegraphics(self, t):
 		if self.rb is None:
@@ -707,7 +739,7 @@ class DataWindow(QMainWindow):
 		p = self.rb.graphpaths(t)
 		if self.graphwindow is None:
 			self.mkgraph(p, desc=t.notes)
-		self.graphwindow.setimage(p, desc=t.notes)
+		self.graphwindow.setimage(p, desc=t.notes or '')
 		self.graphwindow.show()
 
 	def selectedfeature(self, f):
@@ -716,7 +748,6 @@ class DataWindow(QMainWindow):
 		fset = f.setups if f else []
 		x = f"{f.feature} Setups" if f else "Setups"
 		self.setupchecks.updating(fset)
-		self.setupchecks.dirtied = self.dirtied
 		self.setupcheckswidget.setWindowTitle(x)
 		self.setupchecks.set_items(self.rb.setupNames(), fset)
 		self.setupcheckswidget.raise_()
@@ -726,7 +757,8 @@ class DataWindow(QMainWindow):
 
 
 	def mkfilter(self):
-		self.filterwindow = FilterWindow(self.rb, self.setfilter)
+		self.filterwindow = FilterWindow(self.rb)
+		self.filterwindow.filterChanged.connect(self.setfilter)
 
 	def setfilter(self, flt):
 		if flt is None:
@@ -737,6 +769,7 @@ class DataWindow(QMainWindow):
 			self.rb.filteredtrades = flt.apply(self.rb.trades)
 			self.updateinfo()
 			self.tradestbl.changedata(self.rb.filteredtrades)
+		self.refreshcalendar()
 		if self.statswindow:
 			self.statswindow.plotchanged()
 
@@ -763,11 +796,33 @@ class DataWindow(QMainWindow):
 		self.dirtied()
 		self.updatetoday()
 		self.updateinfo()
+		self.refreshcalendar()
 		if self.statswindow:
 			self.statswindow.plotchanged()
 
 
+	def tables(self):
+		return [self.tradestbl, self.setupstbl, self.featurestbl, self.instrumentstbl, self.currenciestbl]
+
+	def findintable(self):
+		"""find in the table with the focus, else the one shown, else the trades"""
+		# tabbed docks behind another one are still "visible"
+		shown = [t for t in self.tables() if t.isVisible() and not t.visibleRegion().isEmpty()]
+		focus = QApplication.focusWidget()
+		for tbl in shown:
+			if focus is not None and tbl.isAncestorOf(focus):
+				tbl.find()
+				return
+		if shown:
+			shown[0].find()
+			return
+		self.tradesdock.show()
+		self.tradesdock.raise_()
+		self.tradestbl.find()
+
 	def updateTitle(self):
+		if hasattr(self, "menus"):
+			self.menus.save.setEnabled(bool(self.rb and self.rb.dir))
 		if self.rb and self.rb.dirty and self.rb.dir:
 			self.setWindowTitle(f"RoadBook {self.rb.dir} (unsaved)")
 		elif self.rb and self.rb.dir:
@@ -791,27 +846,80 @@ class DataWindow(QMainWindow):
 		return self.info
 
 	def mktradestbl(self):
-		t = tradeexample()
-		t.edit = self.edittrade
-		t.selected = self.selectedtrade
-		t.graphics = self.tradegraphics
-		t.filter = self.filter
-		t.stats = self.stats
-		t.dirtied = self.dirtied
-		t.edited = self.dirtiedTrades
-		t.info = self.infofn
-		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=self.drop)
+		tbl = ObjectTable(tradeexample(), [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY,
+			drop=True, editor=self.edittrade, info=self.infofn,
+			extrabuttons=("Graphics", "Filter", "Stats"),
+			groupby=self.tradegroups, sortkey=tradeorder, groupinfo=self.groupinfo)
+		tbl.selected.connect(self.selectedtrade)
+		tbl.graphicsRequested.connect(self.tradegraphics)
+		tbl.filterRequested.connect(self.filter)
+		tbl.statsRequested.connect(self.stats)
+		tbl.dirtied.connect(self.dirtied)
+		tbl.dirtied.connect(self.refreshcalendar)
+		tbl.edited.connect(self.dirtiedTrades)
+		tbl.fieldChanged.connect(self.tradeFieldChanged)
 		return tbl
-	def drop(self, x):
-		print('XXX', x, file=sys.stderr)
-		pass
+
+	def mknamestbl(self, example, factory, renamed, canremove=None):
+		"""table for setups, features, instruments or currencies"""
+		tbl = ObjectTable(example, [], factory, hasedit=False, uniquekey=True, canremove=canremove)
+		tbl.dirtied.connect(self.dirtied)
+		tbl.renamed.connect(renamed)
+		tbl.removed.connect(self.refreshfilter)
+		tbl.fieldChanged.connect(self.nameFieldChanged)
+		return tbl
+
+	def tradeFieldChanged(self, t, name):
+		"""a trade cell was edited or replaced: add the instrument, setup
+		or features it now names if the roadbook does not have them"""
+		if self.rb is None or name not in ("instrument", "setup", "has"):
+			return
+		self.rb.defaultinstr(t.instrument)
+		self.rb.defaultsetup(t.setup)
+		self.rb.defaultfeatures(t.has, t.setup)
+		self.refreshnames()
+		self.dirtiedTrades()
+
+	def nameFieldChanged(self, o, name):
+		"""same for the setups of a feature and the currency of an instrument"""
+		if self.rb is None:
+			return
+		if name == "setups":
+			self.rb.defaultsetups(o.setups)
+		elif name == "currency":
+			self.rb.defaultcurrency(o.currency)
+		else:
+			return
+		self.refreshnames()
+
+	def refreshnames(self):
+		"""show setups, features, instruments or currencies added to the roadbook"""
+		rb = self.rb
+		added = False
+		for tbl, objs in [(self.setupstbl, rb.setups), (self.featurestbl, rb.features),
+				(self.instrumentstbl, rb.instruments), (self.currenciestbl, rb.currencies)]:
+			if tbl.model.rowCount() != len(objs):
+				tbl.changedata(objs)
+				added = True
+		if added:
+			self.featchecks.set_items(rb.featureNames())
+			self.refreshfilter()
+
+	def refreshfilter(self):
+		if self.filterwindow is not None:
+			self.filterwindow.refresh()
+
+	def canremove(self, what, name, used):
+		if self.rb is None:
+			return True
+		if used(name):
+			QMessageBox.warning(self, f"{what} in use", f"{what} {name} is in use")
+			return False
+		return True
 
 	def mksetupstbl(self):
-		s = setupexample()
-		s.dirtied = self.dirtied
-		s.renamed = self.renamedSetup
-		s.removing = self.removingSetup
-		return ObjectTable(s, [], lambda: Setup(), hasedit=False )
+		return self.mknamestbl(setupexample(), lambda: Setup(), self.renamedSetup,
+			lambda o: self.canremove("Setup", o.setup, self.rb.setupUsed))
 	def renamedSetup(self, oname, nname):
 		if self.rb is None:
 			return
@@ -824,24 +932,11 @@ class DataWindow(QMainWindow):
 				self.filterwindow.refresh()
 		except Exception as e:
 			print(e, file=sys.stderr)
-	def removingSetup(self, o, done=False):
-		name = o.setup
-		if done and self.filterwindow is not None:
-			self.filterwindow.refresh()
-			return
-		if self.rb is None:
-			return True
-		if self.rb.setupUsed(name):
-			QMessageBox.warning(self,"Setup in use", f"Setup {name} is in use")
-			return False
-		return True
 	def mkfeaturestbl(self):
-		f = featureexample()
-		f.selected = self.selectedfeature
-		f.dirtied = self.dirtied
-		f.renamed = self.renamedFeature
-		f.removing = self.removingFeature
-		return ObjectTable(f, [], lambda: Feature(), hasedit=False  )
+		tbl = self.mknamestbl(featureexample(), lambda: Feature(), self.renamedFeature,
+			lambda o: self.canremove("Feature", o.feature, self.rb.featureUsed))
+		tbl.selected.connect(self.selectedfeature)
+		return tbl
 	def renamedFeature(self, oname, nname):
 		if self.rb is None:
 			return
@@ -851,30 +946,14 @@ class DataWindow(QMainWindow):
 		self.dirtied()
 		try:
 			self.tradestbl.refresh()
-			print("refreshD", file=sys.stderr)
 			self.featchecks.set_items(self.rb.featureNames())
-			print("refreshE", file=sys.stderr)
 			if self.filterwindow is not None:
 				self.filterwindow.refresh()
 		except Exception as e:
 			print(e, file=sys.stderr)
-	def removingFeature(self, o, done=False):
-		name = o.feature
-		if done and self.filterwindow is not None:
-			self.filterwindow.refresh()
-			return
-		if self.rb is None:
-			return True
-		if self.rb.featureUsed(name):
-			QMessageBox.warning(self,"Feature in use", f"Feature {name} is in use")
-			return False
-		return True
 	def mkinstrumentstbl(self):
-		i = instrumentexample()
-		i.dirtied = self.dirtied
-		i.renamed = self.renamedInstrument
-		i.removing = self.removingInstrument
-		return ObjectTable(i, [], lambda: Instrument(), hasedit=False )
+		return self.mknamestbl(instrumentexample(), lambda: Instrument(), self.renamedInstrument,
+			lambda o: self.canremove("Instrument", o.instrument, self.rb.instrumentUsed))
 	def renamedInstrument(self, oname, nname):
 		if self.rb is None:
 			return
@@ -884,22 +963,8 @@ class DataWindow(QMainWindow):
 		self.tradestbl.refresh()
 		if self.filterwindow is not None:
 			self.filterwindow.refresh()
-	def removingInstrument(self, o, done=False):
-		name = o.instrument
-		if done and self.filterwindow is not None:
-			self.filterwindow.refresh()
-			return
-		if self.rb is None:
-			return True
-		if self.rb.instrumentUsed(name):
-			QMessageBox.warning(self,"Instrument in use", f"Instrument {name} is in use")
-			return False
-		return True
 	def mkcurrenciestbl(self):
-		c = currencyexample()
-		c.dirtied = self.dirtied
-		c.renamed = self.renamedCurrency
-		return ObjectTable(c, [], lambda: Currency(), hasedit=False  )
+		return self.mknamestbl(currencyexample(), lambda: Currency(), self.renamedCurrency)
 	def renamedCurrency(self, oname, nname):
 		if self.rb is None:
 			return
@@ -913,6 +978,7 @@ class DataWindow(QMainWindow):
 		try:
 			self.updateinfo()
 			self.tradestbl.changedata(r.trades)
+			self.initialgroups()
 			self.setupstbl.changedata(r.setups)
 			self.featurestbl.changedata(r.features)
 			self.instrumentstbl.changedata(r.instruments)
@@ -921,6 +987,10 @@ class DataWindow(QMainWindow):
 			self.updateTitle()
 			self.accounttbl.refresh()
 			self.updatetoday()
+			self.refreshcalendar()
+			if r.dir:
+				addrecent(r.dir)
+				self.menus.updaterecent()
 		except Exception as e:
 			print("failed: ", e, file=sys.stderr)
 			traceback.print_exc()

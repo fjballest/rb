@@ -1,8 +1,10 @@
 
 
-from datawin import *
-from data import *
-from graphocr import *
+import os
+import sys
+from datawin import DataWindow
+from menus import recentrbs
+from data import RoadBook
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QLoggingCategory, QStandardPaths
 #
@@ -43,8 +45,9 @@ if __name__ == "__main__":
 	rbs = locaterbs()
 	win = DataWindow(app, rbs)
 	win.show()
-	p = None
-	if len(rbs) > 0:
+	# the last roadbook used, else one found on disk, preferably named rb
+	p = next((x for x in recentrbs() if RoadBook.isRoadBook(x)), None)
+	if p is None and len(rbs) > 0:
 		for rb in rbs:
 			if os.path.basename(rb) == 'rb':
 				p = rb

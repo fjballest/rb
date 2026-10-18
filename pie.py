@@ -2,14 +2,9 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout
 from PySide6.QtCharts import (
 	QChart,
 	QChartView,
-	QBarSeries,
 	QPieSeries,
-	QBarSet,
-	QBarCategoryAxis,
-	QValueAxis,
 )
-from PySide6.QtGui import QPainter, QColor
-from PySide6.QtCore import Qt, QMargins
+from PySide6.QtGui import QPainter
 
 
 class PieWidget(QWidget):

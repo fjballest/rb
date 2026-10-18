@@ -1,14 +1,15 @@
-import sys
 from PySide6.QtWidgets import (
-	QApplication, QMainWindow, QFileDialog,
-	QLabel, QScrollArea, QPushButton,
-	QWidget, QVBoxLayout, QHBoxLayout
+	QMainWindow, QLabel, QScrollArea,
+	QPushButton, QWidget, QVBoxLayout,
+	QHBoxLayout
 )
-from PySide6.QtGui import QPixmap, QFont
-from PySide6.QtCore import Qt, QEvent
-from checklist import *
-from stats import *
-import os
+from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QRadioButton
+from stats import (
+	Filter, StatKind, StatPlot, StatTotals, StatUnit, tradevaluetots,
+	perday, perweek, permonth, perresult, perhour, perdayofweek, persetup, perinstrument
+)
 from functools import partial
 from plot import XYPlotWidget
 from bar import XYBarWidget
@@ -243,7 +244,7 @@ class StatsWindow(QMainWindow):
 		ln1 += f"average {t.average:.0f} {self.unit.name}"
 		ln2 = f"{t.nok:4} OK {t.okpcent:.0f}%\ttotal {t.totalok:.0f} {self.unit.name}\taverage {t.averageok:.0f} {self.unit.name}"
 		ln3 = f"{t.nko:4} KO {t.kopcent:.0f}%\ttotal {t.totalko:.0f} {self.unit.name}\taverage {t.averageko:.0f} {self.unit.name}"
-		ln4 = f"{t.nneutral:4} KO {t.neutralpcent:.0f}%\ttotal {t.totalneutral:.0f} {self.unit.name}\taverage {t.averageneutral:.0f} {self.unit.name}"
+		ln4 = f"{t.nneutral:4} Neutral {t.neutralpcent:.0f}%\ttotal {t.totalneutral:.0f} {self.unit.name}\taverage {t.averageneutral:.0f} {self.unit.name}"
 		myFont=QFont()
 		myFont.setBold(True)
 		for ln in [ln1, ln2, ln3, ln4]:
@@ -297,11 +298,11 @@ class StatsWindow(QMainWindow):
 			h = QWidget()
 			hlayout = QHBoxLayout(h)
 			hlayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-			if self.plot_bs[2].isChecked():
+			if self.plot_bs[5].isChecked():
 				w = self.mkstat(StatPlot.WeekPlot, StatKind.Tot)
 				if w is not None:
 					hlayout.addWidget(w)
-			if self.plot_bs[3].isChecked():
+			if self.plot_bs[6].isChecked():
 				w = self.mkstat(StatPlot.MonthPlot, StatKind.Tot)
 				if w is not None:
 					hlayout.addWidget(w)
