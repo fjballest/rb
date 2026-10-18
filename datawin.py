@@ -183,7 +183,7 @@ class AccountEdit(QWidget):
 		self.cpbox.setChecked(rb.account.copygraphs if rb else True)
 
 def alreadyhere(a, b):
-	return re.sub('\..*', '', a) == re.sub('\..*', '', b)
+	return re.sub(r'\..*', '', a) == re.sub(r'\..*', '', b)
 
 def canonlist(l):
 	if len(l) <= 1:
@@ -196,7 +196,7 @@ class TradeEdit(QDialog):
 		super(TradeEdit, self).__init__()
 		if filepath == False or filepath == True:
 			filepath = None
-		self.setWindowTitle(f"Trade {t.trade}")
+		self.setWindowTitle(f"Trade {t.trade}" if t else "Trade")
 		self.rb = rb
 		self.t = t
 		self.tOCR = None
@@ -360,7 +360,7 @@ class TradeEdit(QDialog):
 		if event.mimeData().hasUrls():
 			try:
 				file_paths = [x.toLocalFile() for x in event.mimeData().urls()]
-				file_path = field_paths[0]
+				file_path = file_paths[0]
 				old = self.grafbox.text().strip()
 				oldl = old.split(';')
 				oldl += file_paths
@@ -428,6 +428,7 @@ class TradeEdit(QDialog):
 					t.tp = 0
 					t.stop = ptsout - ptsin
 				else:
+					t.tp = ptsin - ptsout
 					if ptsstop != 0:
 						t.stop = ptsstop - ptsin
 		t.graf = getstr(self.grafbox.text()).strip().split(';')

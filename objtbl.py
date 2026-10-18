@@ -82,6 +82,16 @@ class ObjectTableModel(QAbstractTableModel):
 		if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
 			return format_value(value)
 		if role == Qt.ItemDataRole.ForegroundRole:
+			if hasattr(obj, "result") and callable(obj.result):
+				try:
+					r = obj.result()
+					if r > 0:
+						return QColor('green')
+					if r < 0:
+						return QColor('red')
+					return None
+				except Exception:
+					pass
 			x = 0
 			if hasattr(obj, "euros"):
 				x = obj.euros

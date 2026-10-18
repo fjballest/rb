@@ -153,6 +153,7 @@ class Trade:
 	notes: Optional[str] = ""
 	has: Optional[Set[str]] = field(default_factory= set)
 
+	@staticmethod
 	def old2new(t1):
 		if t1.pts is None or t1.pts == 0.0:
 			t1.pts = t1.points()
@@ -213,7 +214,7 @@ class Trade:
 		self.notes = o.notes
 		self.has = o.has
 
-	def __postinit__(self):
+	def __post_init__(self):
 		self.rb = None
 	def inval(self)-> None:
 		pass
@@ -225,6 +226,10 @@ class Trade:
 			self.euros = self.lots * self.out
 		if self.instrument == "":
 			self.instrument = "DAX"
+		if self.graf is None:
+			self.graf = []
+		if self.has is None:
+			self.has = set()
 		if len(self.graf) > 1:
 			self.graf = canonlist(self.graf)
 	def hour(self) -> int:
@@ -268,7 +273,7 @@ class Trade:
 		if self.instrument is None or self.instrument == "":
 			return None
 		if self.rb is None:
-			raise "roadbook not set in trade"
+			raise RuntimeError("roadbook not set in trade")
 		return self.rb.findInstrument(self.instrument)
 
 	def ptsnorm(self, pts = None) -> float:
@@ -296,12 +301,10 @@ class Trade:
 		toeur = 1.0
 		mult = 1.0
 		i = self.instr()
-		if i is not None and i.ptsmoney is not None:
-			mult = i.ptsmoney
-		if self.currency == "EUR" or self.currency == "EURO":
-			return pts * self.lots * toeur * mult
+		if i is not None and i.pipmoney is not None:
+			mult = i.pipmoney
 		c = self.currency()
-		if c is not None and c.euros2 != 0:
+		if c is not None and c.name not in ("EUR", "EURO") and c.euros2:
 			toeur = 1/c.euros2
 		return pts * self.lots * toeur * mult
 
@@ -403,7 +406,7 @@ class RoadBook:
 				rr.append(f.feature)
 		return rr
 	def currencyNames(self):
-		return [c.currency for c in self.currencies]
+		return [c.name for c in self.currencies]
 
 	def setupUsed(self, name):
 		for t in self.trades:
@@ -446,7 +449,7 @@ class RoadBook:
 				i.currency = nname
 		c = self.findCurrency(oname)
 		if c is not None:
-			c.currency = nname
+			c.name = nname
 
 	def rensetup(self, oname: str, nname: str) -> None:
 		"""rename and update all data"""
@@ -568,7 +571,7 @@ class RoadBook:
 		if dirpath is None:
 			dirpath = self.dir
 		if dirpath is None:
-			raise "no directory set"
+			raise ValueError("no directory set")
 		self.dir = dirpath
 		_, errs = self.loadaccount()
 
@@ -593,7 +596,7 @@ class RoadBook:
 		if dirpath is None:
 			dirpath = self.dir
 		if dirpath is None:
-			raise "no directory set"
+			raise ValueError("no directory set")
 		if self.dir is None:
 			self.dir = dirpath
 		saved = self.dir
@@ -636,6 +639,7 @@ class RoadBook:
 	def tradespath(self, suff = "") -> str:
 		return os.path.join(self.dir, TRADESFILE) + suff
 
+	@staticmethod
 	def mknew(file_path: str) -> None:
 		gdir = os.path.join(file_path, GRAPHSDIR)
 		os.makedirs(gdir, exist_ok = True)
@@ -682,7 +686,7 @@ class RoadBook:
 		for e in errors:
 			e["file"] = fname
 		if len(aa) == 0:
-			raise "no account"
+			raise ValueError(f"no account in {fname}")
 		self.account = aa[0]
 		return self.account, errors
 
@@ -804,7 +808,7 @@ class RoadBook:
 			if t.graf is None or len(t.graf) == 0:
 				continue
 			for i,g in enumerate(t.graf):
-				if not os.path.exists(t.graf):
+				if not os.path.exists(g):
 					continue
 				npath = self.mkgraphpath(t, i)
 				try:

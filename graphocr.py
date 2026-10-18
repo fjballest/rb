@@ -122,6 +122,7 @@ class TradeOCR:
 		size=None
 		tin=None
 		tout=None
+		ltext=''
 		try:
 			mt = os.path.getmtime(path)
 			at = datetime.datetime.fromtimestamp(mt)
