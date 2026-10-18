@@ -1001,3 +1001,9 @@ class ObjectTable(QWidget):
 		index = self.model.prev(self.view.currentIndex())
 		if index.isValid():
 			self.gocell(index)
+
+	def edge(self, last):
+		"""select the first or (last True) the last object, in the order shown"""
+		objs = self.model.ordered()
+		if objs:
+			self.selectobj(objs[-1] if last else objs[0])

@@ -731,6 +731,7 @@ class DataWindow(QMainWindow):
 	def mkgraph(self, p, desc=''):
 		self.graphwindow = ImageViewer(p, desc=desc)
 		self.graphwindow.moved.connect(self.moveTo)
+		self.graphwindow.jumped.connect(self.tradestbl.edge)
 
 	def tradegraphics(self, t):
 		if self.rb is None:

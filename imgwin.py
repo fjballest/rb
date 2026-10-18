@@ -3,13 +3,16 @@ from PySide6.QtWidgets import (
 	QPushButton, QWidget, QVBoxLayout,
 	QHBoxLayout, QSizePolicy
 )
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtCore import Qt, QEvent, QTimer, Signal
 import os
+
+DCLICKZOOM = 2.0	# each zooming double click doubles the size
 from data import canonlist
 
 class ImageViewer(QMainWindow):
 	moved = Signal(int)	# asks to show the next (+1) or previous (-1) trade
+	jumped = Signal(bool)	# asks to show the first (False) or last (True) trade
 
 	def __init__(self, file, parent=None, x=1400, y=1024, desc=''):
 		super().__init__(parent)
@@ -36,6 +39,7 @@ class ImageViewer(QMainWindow):
 		self.original_pixmap = None
 		# how a new image is scaled: "fit" the window, "real" size, or "zoom" keeps scale_factor
 		self.mode = "fit"
+		self.dstep = 0		# double clicks: zoom in, zoom in again, then fit
 
 
 		# --- Buttons ---
@@ -56,6 +60,14 @@ class ImageViewer(QMainWindow):
 		self.fit_button.clicked.connect(self.enable_fit_mode)
 		self.actual_button.clicked.connect(self.actual_size)
 		self.preview_button.clicked.connect(self.preview)
+
+		# keys: left/right go through the graphs of the trade, up/down to the
+		# previous/next trade, home/end to the first/last one. Shortcuts, so the
+		# scroll area and the buttons don't take the arrows for themselves
+		for key, fn in ((Qt.Key.Key_Left, self.less), (Qt.Key.Key_Right, self.more),
+				(Qt.Key.Key_Up, lambda: self.moveTo(-1)), (Qt.Key.Key_Down, lambda: self.moveTo(1)),
+				(Qt.Key.Key_Home, lambda: self.jumpTo(False)), (Qt.Key.Key_End, lambda: self.jumpTo(True))):
+			QShortcut(QKeySequence(key), self, fn)
 
 		# --- Image label ---
 		self.image_label = QLabel()
@@ -110,7 +122,7 @@ class ImageViewer(QMainWindow):
 		if desc is not None:
 			self.desc = desc
 		self.files = files
-		no = no % len(files)
+		no = no % len(files) if files else 0
 		self.fileno = no
 		file = ""
 		if len(files) > 0:
@@ -134,8 +146,16 @@ class ImageViewer(QMainWindow):
 		self.setimage(self.files, self.fileno+1)
 		self.updateTitle()
 
+	def less(self):
+		self.setimage(self.files, self.fileno-1)
+		self.updateTitle()
+
 	def moveTo(self, delta):
 		self.moved.emit(delta)
+		self.updateTitle()
+
+	def jumpTo(self, last):
+		self.jumped.emit(last)
 		self.updateTitle()
 
 	# ---------- Zoom controls ----------
@@ -145,6 +165,27 @@ class ImageViewer(QMainWindow):
 		self.mode = "zoom"
 		self.scale_factor *= factor
 		self.update_image()
+
+	def zoomat(self, factor, pos):
+		"""zoom by factor keeping the image point at viewport pos where it is"""
+		if not self.original_pixmap:
+			return
+		h = self.scroll_area.horizontalScrollBar()
+		v = self.scroll_area.verticalScrollBar()
+		old = self.scale_factor
+		x = (pos.x() + h.value()) / old
+		y = (pos.y() + v.value()) / old
+		self.zoom(factor)
+		h.setValue(round(x * self.scale_factor - pos.x()))
+		v.setValue(round(y * self.scale_factor - pos.y()))
+
+	def doubleclick(self, pos):
+		"""cycle: zoom in, zoom in again, back to fit"""
+		if self.dstep < 2:
+			self.dstep += 1
+			self.zoomat(DCLICKZOOM, pos)
+		else:
+			self.enable_fit_mode()
 
 	def actual_size(self):
 		if not self.original_pixmap:
@@ -157,12 +198,14 @@ class ImageViewer(QMainWindow):
 		if not self.original_pixmap:
 			return
 		self.mode = "fit"
+		self.dstep = 0
 		self.update_fit_scale(x = x, y = y)
 		self.update_image()
 
 	# ---------- Fit logic ----------
 	def update_fit_scale(self, x=None, y=None):
-		viewport = self.scroll_area.viewport().size()
+		# the size without scroll bars, which go away once the image fits
+		viewport = self.scroll_area.maximumViewportSize()
 		img = self.original_pixmap.size()
 		if x is None or y is None:
 			x = viewport.width()
@@ -192,6 +235,10 @@ class ImageViewer(QMainWindow):
 	# ---------- Drag-to-pan ----------
 	def eventFilter(self, source, event):
 		if source is self.scroll_area.viewport():
+			if event.type() == QEvent.Type.MouseButtonDblClick and \
+					event.button() == Qt.MouseButton.LeftButton:
+				self.doubleclick(event.position().toPoint())
+				return True
 			if (event.type() == QEvent.Type.MouseButtonPress and event.buttons() &
 					Qt.MouseButton.LeftButton):
 				self._drag_pos = event.pos()
