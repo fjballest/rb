@@ -821,6 +821,7 @@ class DataWindow(QMainWindow):
 		tbl.statsRequested.connect(self.stats)
 		tbl.dirtied.connect(self.dirtied)
 		tbl.edited.connect(self.dirtiedTrades)
+		tbl.fieldChanged.connect(self.tradeFieldChanged)
 		return tbl
 
 	def mknamestbl(self, example, factory, renamed, canremove=None):
@@ -829,7 +830,44 @@ class DataWindow(QMainWindow):
 		tbl.dirtied.connect(self.dirtied)
 		tbl.renamed.connect(renamed)
 		tbl.removed.connect(self.refreshfilter)
+		tbl.fieldChanged.connect(self.nameFieldChanged)
 		return tbl
+
+	def tradeFieldChanged(self, t, name):
+		"""a trade cell was edited or replaced: add the instrument, setup
+		or features it now names if the roadbook does not have them"""
+		if self.rb is None or name not in ("instrument", "setup", "has"):
+			return
+		self.rb.defaultinstr(t.instrument)
+		self.rb.defaultsetup(t.setup)
+		self.rb.defaultfeatures(t.has, t.setup)
+		self.refreshnames()
+		self.dirtiedTrades()
+
+	def nameFieldChanged(self, o, name):
+		"""same for the setups of a feature and the currency of an instrument"""
+		if self.rb is None:
+			return
+		if name == "setups":
+			self.rb.defaultsetups(o.setups)
+		elif name == "currency":
+			self.rb.defaultcurrency(o.currency)
+		else:
+			return
+		self.refreshnames()
+
+	def refreshnames(self):
+		"""show setups, features, instruments or currencies added to the roadbook"""
+		rb = self.rb
+		added = False
+		for tbl, objs in [(self.setupstbl, rb.setups), (self.featurestbl, rb.features),
+				(self.instrumentstbl, rb.instruments), (self.currenciestbl, rb.currencies)]:
+			if tbl.model.rowCount() != len(objs):
+				tbl.changedata(objs)
+				added = True
+		if added:
+			self.featchecks.set_items(rb.featureNames())
+			self.refreshfilter()
 
 	def refreshfilter(self):
 		if self.filterwindow is not None:

@@ -3,17 +3,20 @@
 
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QItemSelectionModel
 from dataclasses import fields, is_dataclass
-from csv_mapper import convert_value, format_value
+from csv_mapper import convert_value, format_value, is_optional, unwrap_optional
+import re
 import sys
-from PySide6.QtGui import QColor, QFont
-from PySide6.QtWidgets import QLabel
-from find import FindDialog
+from PySide6.QtGui import QColor, QFont, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+	QLabel, QStyledItemDelegate, QStyleOptionViewItem, QStyle, QApplication
+)
+from find import FindReplaceDialog
 
 from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout, QTableView,
 	QPushButton
 )
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import QTimer, Signal, QPersistentModelIndex
 
 def findfield(flds, n):
 	for i, f in enumerate(flds):
@@ -28,6 +31,7 @@ class ObjectTableModel(QAbstractTableModel):
 	removed = Signal(object)	# the user deleted this object
 	selected = Signal(object)
 	graphicsRequested = Signal(object)
+	fieldChanged = Signal(object, str)	# obj and the name of the field set in it
 
 	def __init__(self, obj0, objects, order, rdonly, object_factory,
 			uniquekey=False, editor=None, canremove=None):
@@ -117,13 +121,18 @@ class ObjectTableModel(QAbstractTableModel):
 		obj = self.objects[index.row()]
 		field = self.field_defs[index.column()]
 
+		ftype = field.type
+		if is_optional(ftype):
+			ftype = unwrap_optional(ftype)
 		try:
-			converted = convert_value(value, field.type)
+			converted = convert_value(value, ftype)
 		except Exception:
 			return False
 		renaming = index.column() == 0 and self.uniquekey
 		old = None
 		if renaming:
+			if not converted:
+				return False	# names can't be blank
 			for i, r in enumerate(self.objects):
 				if i == index.row():
 					continue
@@ -139,6 +148,7 @@ class ObjectTableModel(QAbstractTableModel):
 		self.dirtied.emit()
 		if renaming and not old:
 			self.renamed.emit(None, converted)
+		self.fieldChanged.emit(obj, field.name)
 
 		self.dataChanged.emit(index, index,
 					  [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
@@ -253,86 +263,109 @@ class ObjectTableModel(QAbstractTableModel):
 		row = row % len(self.objects)
 		return self.index(row, col)
 
-	def findNext(self, index, txt, cs):
-		row = index.row()
-		col = index.column()
-		if row < 0:
-			row = 0
-		if col < 0:
-			col = 0
-		col = col+1
-		if col >= len(self.field_defs):
-			row += 1
-			col = 0
-		if row >= len(self.objects):
-			row = 0
-		found = False
-		if not cs:
-			txt = txt.lower()
-		for i in range(len(self.objects)):
-			if 0 <= row < len(self.objects):
-				obj = self.objects[row]
-				j = col
-			while obj and j < len(self.field_defs):
-				field = self.field_defs[j]
-				value = getattr(obj, field.name)
-				value = f"{value}"
-				if not cs:
-					value = value.lower()
-				found = txt in value
-				if found:
-					break
-				j = j + 1
-			if found:
-				break
-			row = row+1
-			row = row % len(self.objects)
-			col = 0
-		if found:
-			return self.index(row, j)
+	# ----- Find and replace -----
+	# cells are searched by the text they show, row by row
+
+	@staticmethod
+	def pattern(txt, cs, words):
+		p = re.escape(txt)
+		if words:
+			p = r"\b" + p + r"\b"
+		return re.compile(p, 0 if cs else re.IGNORECASE)
+
+	def celltext(self, row, col):
+		return format_value(getattr(self.objects[row], self.field_defs[col].name))
+
+	def matches(self, index, pat):
+		return index.isValid() and pat.search(self.celltext(index.row(), index.column())) is not None
+
+	def find(self, index, pat, backward=False):
+		"""the next (or previous) cell after index matching pat, wrapping around"""
+		ncols = len(self.field_defs)
+		n = len(self.objects) * ncols
+		if n == 0:
+			return None
+		if index.isValid():
+			pos = index.row()*ncols + index.column()
+		else:
+			pos = n if backward else -1
+		step = -1 if backward else 1
+		for k in range(1, n+1):
+			p = (pos + k*step) % n
+			if pat.search(self.celltext(p // ncols, p % ncols)):
+				return self.index(p // ncols, p % ncols)
 		return None
 
-	def findPrev(self, index, txt, cs):
-		row = index.row()
-		col = index.column()
-		if row < 0:
-			row = 0
-		if col < 0:
-			col = 0
-		col = col-1
-		if col < 0:
-			col = len(self.field_defs)-1
-			row -= 1
-		if row < 0:
-			#row = len(self.objects)-1
-			row = 0
-		if row < 0:
-			return None
-		found = False
-		if not cs:
-			txt = txt.lower()
-		for i in range(len(self.objects)):
-			if 0 <= row < len(self.objects):
-				obj = self.objects[row]
-				j = col
-			while obj and j >= 0:
-				field = self.field_defs[j]
-				value = getattr(obj, field.name)
-				value = f"{value}"
-				if not cs:
-					value = value.lower()
-				found = txt in value
-				if found:
-					break
-				j = j - 1
-			if found:
-				break
-			row = row - 1 + len(self.objects)
-			row = row % len(self.objects)
-			col = len(self.field_defs)-1
-		if found:
-			return self.index(row, j)
-		return None
+	def replace(self, index, pat, rtxt):
+		"""replace matches in the cell at index; False if the new value is refused"""
+		if self.field_defs[index.column()].name in self.rdonly:
+			return False
+		new = pat.sub(lambda _: rtxt, self.celltext(index.row(), index.column()))
+		return self.setData(index, new)
+
+	def replaceall(self, pat, rtxt):
+		"""replace in every cell; returns how many cells changed and how many were refused"""
+		done = skipped = 0
+		for row in range(len(self.objects)):
+			for col in range(len(self.field_defs)):
+				index = self.index(row, col)
+				if not self.matches(index, pat):
+					continue
+				if self.replace(index, pat, rtxt):
+					done += 1
+				else:
+					skipped += 1
+		return done, skipped
+
+class HighlightDelegate(QStyledItemDelegate):
+	"""paints cells marking the text that matches pat; the found cell is marked stronger"""
+	def __init__(self, parent=None):
+		super().__init__(parent)
+		self.pat = None
+		self.current = QPersistentModelIndex()
+
+	def paint(self, painter, option, index):
+		text = index.data(Qt.ItemDataRole.DisplayRole)
+		if self.pat is None or not text or self.pat.search(text) is None:
+			super().paint(painter, option, index)
+			return
+		opt = QStyleOptionViewItem(option)
+		self.initStyleOption(opt, index)
+		opt.text = ""
+		widget = opt.widget
+		style = widget.style() if widget else QApplication.style()
+		style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
+		rect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, widget)
+		margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, None, widget) + 1
+		rect = rect.adjusted(margin, 0, -margin, 0)
+		selected = opt.state & QStyle.StateFlag.State_Selected
+		fg = index.data(Qt.ItemDataRole.ForegroundRole)
+		if selected:
+			fg = opt.palette.color(opt.palette.ColorRole.HighlightedText)
+		elif fg is None:
+			fg = opt.palette.color(opt.palette.ColorRole.Text)
+		mark = QColor("orange") if QPersistentModelIndex(index) == self.current else QColor("yellow")
+		fm = opt.fontMetrics
+		painter.save()
+		painter.setClipRect(rect)
+		painter.setFont(opt.font)
+		x = rect.left()
+		top = rect.top() + (rect.height() - fm.height()) // 2
+		base = top + fm.ascent()
+		pos = 0
+		for m in self.pat.finditer(text):
+			for part, hit in ((text[pos:m.start()], False), (m.group(0), True)):
+				w = fm.horizontalAdvance(part)
+				if hit:
+					painter.fillRect(x, top, w, fm.height(), mark)
+				painter.setPen(QColor("black") if hit else fg)
+				painter.drawText(x, base, part)
+				x += w
+			pos = m.end()
+		painter.setPen(fg)
+		painter.drawText(x, base, text[pos:])
+		painter.restore()
+
 
 class DTableView(QTableView):
 	def __init__(self, drop=None):
@@ -375,6 +408,7 @@ class ObjectTable(QWidget):
 	removed = Signal(object)
 	selected = Signal(object)
 	graphicsRequested = Signal(object)
+	fieldChanged = Signal(object, str)
 	filterRequested = Signal()
 	statsRequested = Signal()
 
@@ -383,6 +417,7 @@ class ObjectTable(QWidget):
 			uniquekey=False, editor=None, canremove=None, info=None, extrabuttons=()):
 		super().__init__(parent)
 		self.info = info
+		self.finddlg = None
 		if order is None:
 			order = []
 		if rdonly is None:
@@ -394,9 +429,11 @@ class ObjectTable(QWidget):
 			fake = True
 		self.model = ObjectTableModel(obj, objects, order, rdonly, object_factory,
 			uniquekey=uniquekey, editor=editor, canremove=canremove)
-		for name in ("dirtied", "renamed", "edited", "removed", "selected", "graphicsRequested"):
+		for name in ("dirtied", "renamed", "edited", "removed", "selected", "graphicsRequested", "fieldChanged"):
 			getattr(self.model, name).connect(getattr(self, name))
 		self.view = DTableView(self.add_row if drop else None)
+		self.marker = HighlightDelegate(self.view)
+		self.view.setItemDelegate(self.marker)
 		self.view.setModel(self.model)
 		self.view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
 		self.view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
@@ -419,6 +456,7 @@ class ObjectTable(QWidget):
 
 		find_btn = QPushButton("Find")
 		find_btn.clicked.connect(self.find)
+		QShortcut(QKeySequence.StandardKey.Find, self, self.find)
 
 		btn_layout = QHBoxLayout()
 		btn_layout.addWidget(add_btn)
@@ -527,10 +565,79 @@ class ObjectTable(QWidget):
 			self.infolabel.setText(self.info())
 
 	def find(self):
-		f = FindDialog(self)
-		f.find_next.connect(self.find_next)
-		f.find_prev.connect(self.find_prev)
-		f.show()
+		if self.finddlg is None:
+			f = FindReplaceDialog(self)
+			f.find_next.connect(lambda t, cs, w: self.find_next(t, cs, w))
+			f.find_prev.connect(lambda t, cs, w: self.find_prev(t, cs, w))
+			f.replace_one.connect(self.replace_one)
+			f.replace_all.connect(self.replace_all)
+			f.finished.connect(lambda _: self.highlight(None))
+			self.finddlg = f
+		self.finddlg.setStatus("")
+		self.finddlg.show()
+		self.finddlg.raise_()
+		self.finddlg.activateWindow()
+
+	def highlight(self, pat, index=None):
+		"""mark the text matching pat in the table, None to stop marking"""
+		self.marker.pat = pat
+		self.marker.current = QPersistentModelIndex(index) if index is not None else QPersistentModelIndex()
+		self.view.viewport().update()
+
+	def gocell(self, index):
+		self.view.setCurrentIndex(index)
+		self.view.selectionModel().select(index,
+			QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+		self.view.scrollTo(index)
+
+	def status(self, txt):
+		if self.finddlg is not None:
+			self.finddlg.setStatus(txt)
+
+	def find_next(self, txt, cs, words=False, backward=False):
+		if txt == "":
+			return False
+		pat = ObjectTableModel.pattern(txt, cs, words)
+		index = self.model.find(self.view.currentIndex(), pat, backward)
+		self.highlight(pat, index)
+		if index is None:
+			self.status(f"'{txt}' not found")
+			return False
+		self.status(f"found in row {index.row()+1}, {self.model.field_defs[index.column()].name}")
+		self.gocell(index)
+		return True
+
+	def find_prev(self, txt, cs, words=False):
+		return self.find_next(txt, cs, words, backward=True)
+
+	def replace_one(self, txt, rtxt, cs, words=False):
+		"""replace in the current cell when it matches, then go to the next match"""
+		if txt == "":
+			return
+		pat = ObjectTableModel.pattern(txt, cs, words)
+		index = self.view.currentIndex()
+		if not self.model.matches(index, pat):
+			self.find_next(txt, cs, words)
+			return
+		if not self.model.replace(index, pat, rtxt):
+			self.status("can't replace that one (read only, invalid, or name already used)")
+			return
+		self.view.resizeColumnsToContents()
+		if self.find_next(txt, cs, words):
+			self.status("replaced one; " + self.finddlg.status.text())
+		else:
+			self.status("replaced one; no more found")
+
+	def replace_all(self, txt, rtxt, cs, words=False):
+		if txt == "":
+			return
+		pat = ObjectTableModel.pattern(txt, cs, words)
+		done, skipped = self.model.replaceall(pat, rtxt)
+		self.view.resizeColumnsToContents()
+		msg = f"replaced {done}"
+		if skipped:
+			msg += f", {skipped} refused (read only, invalid, or name already used)"
+		self.status(msg)
 
 	def next(self):
 		selmodel = self.view.selectionModel()
@@ -544,21 +651,6 @@ class ObjectTable(QWidget):
 		selmodel = self.view.selectionModel()
 		old = self.view.currentIndex()
 		index = self.model.prev(old)
-		if index:
-			self.view.setCurrentIndex(index)
-			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-
-	def find_next(self, txt, cs):
-		selmodel = self.view.selectionModel()
-		old = self.view.currentIndex()
-		index = self.model.findNext(old, txt, cs)
-		if index:
-			self.view.setCurrentIndex(index)
-			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-	def find_prev(self, txt, cs):
-		selmodel = self.view.selectionModel()
-		old = self.view.currentIndex()
-		index = self.model.findPrev(old, txt, cs)
 		if index:
 			self.view.setCurrentIndex(index)
 			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)

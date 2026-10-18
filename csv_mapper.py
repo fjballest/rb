@@ -16,7 +16,7 @@ Features:
 
 import csv
 import os
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, MISSING
 from datetime import datetime, date, time
 from typing import get_origin, get_args, Union, List, Tuple, Type, Set
 from enum import Enum
@@ -49,6 +49,14 @@ def get_field_types(cls: Type) -> dict:
 	if is_dataclass(cls):
 		return {f.name: f.type for f in fields(cls)}
 	return cls.__annotations__
+
+
+def get_defaulted(cls: Type) -> set:
+	"""names of the dataclass fields that have a default value"""
+	if not is_dataclass(cls):
+		return set()
+	return {f.name for f in fields(cls)
+		if f.default is not MISSING or f.default_factory is not MISSING}
 
 
 # =========================
@@ -164,6 +172,7 @@ def load_objects_from_csv(
 	errors = []
 
 	field_types = get_field_types(cls)
+	defaulted = get_defaulted(cls)
 
 	with open(csv_path, newline="", encoding="utf-8") as f:
 		reader = csv.DictReader(f, delimiter=CSV_SEP)
@@ -184,6 +193,8 @@ def load_objects_from_csv(
 						kwargs[name] = None if raw == "" else convert_value(raw, inner)
 					else:
 						if raw == "":
+							if name in defaulted:
+								continue	# an empty cell takes the field default
 							raise ValueError("Required value missing")
 						kwargs[name] = convert_value(raw, field_type)
 				except Exception as e:
