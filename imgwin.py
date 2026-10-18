@@ -28,7 +28,8 @@ class ImageViewer(QMainWindow):
 		self.resize(x, y)
 		self.scale_factor = 1.0
 		self.original_pixmap = None
-		self.fit_mode = False
+		# how a new image is scaled: "fit" the window, "real" size, or "zoom" keeps scale_factor
+		self.mode = "fit"
 
 
 		# --- Buttons ---
@@ -83,7 +84,8 @@ class ImageViewer(QMainWindow):
 		layout.addWidget(self.scroll_area)
 		self.setCentralWidget(container)
 		self.setimage(self.files)
-		QTimer.singleShot(0, lambda: self.enable_fit_mode(x = x, y = y))
+		# fit again once shown, when the scroll area has its real size
+		QTimer.singleShot(0, self.enable_fit_mode)
 
 	def updateTitle(self):
 		if len(self.files) < 2:
@@ -97,8 +99,10 @@ class ImageViewer(QMainWindow):
 		if self.file_path is not None:
 			os.system(f"open {self.file_path}")
 
-	def setimage(self, files, no=0, desc=''):
-		self.desc = desc
+	def setimage(self, files, no=0, desc=None):
+		"""show files[no]; desc None keeps the notes of the trade being shown"""
+		if desc is not None:
+			self.desc = desc
 		self.files = files
 		no = no % len(files)
 		self.fileno = no
@@ -106,17 +110,18 @@ class ImageViewer(QMainWindow):
 		if len(files) > 0:
 			file = files[no]
 		self.file_path = file
-		try:
-			pixmap = QPixmap(self.file_path)
-			if not pixmap.isNull():
-				self.original_pixmap = pixmap
-		except Exception:
-			pass
+		self.notes.setText(self.desc)
+		pixmap = QPixmap(self.file_path)
+		self.original_pixmap = None if pixmap.isNull() else pixmap
+		if self.original_pixmap is None:
+			self.image_label.clear()
+			self.image_label.setText(f"no image {self.file_path}")
+			return
+		if self.mode == "fit":
+			self.update_fit_scale()
+		elif self.mode == "real":
+			self.scale_factor = 1.0
 		self.update_image()
-		try:
-			self.notes.setText(desc)
-		except Exception:
-			pass
 
 	def more(self):
 		self.setimage(self.files, self.fileno+1)
@@ -130,21 +135,21 @@ class ImageViewer(QMainWindow):
 	def zoom(self, factor):
 		if not self.original_pixmap:
 			return
-		self.fit_mode = False   # 👈 disable auto-fit
+		self.mode = "zoom"
 		self.scale_factor *= factor
 		self.update_image()
 
 	def actual_size(self):
 		if not self.original_pixmap:
 			return
-		self.fit_mode = False
+		self.mode = "real"
 		self.scale_factor = 1.0
 		self.update_image()
 
 	def enable_fit_mode(self, x=None, y=None):
 		if not self.original_pixmap:
 			return
-		self.fit_mode = True
+		self.mode = "fit"
 		self.update_fit_scale(x = x, y = y)
 		self.update_image()
 
@@ -162,7 +167,7 @@ class ImageViewer(QMainWindow):
 
 	def resizeEvent(self, event):
 		super().resizeEvent(event)
-		if self.fit_mode and self.original_pixmap:
+		if self.mode == "fit" and self.original_pixmap:
 			self.update_fit_scale()
 			self.update_image()
 

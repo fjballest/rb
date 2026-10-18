@@ -16,7 +16,7 @@ import os
 import re
 import shutil
 from datetime import date
-from PySide6.QtCore import QSize, Signal
+from PySide6.QtCore import QSize, QTimer, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
 	QApplication, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
@@ -590,10 +590,19 @@ class DataWindow(QMainWindow):
 		self.todaywidget.raise_()
 
 		trades.raise_()
+		self.tradesdock = trades
 
 		mktoolbar(self, rbs)
 
 		self.updateTitle()
+		# once the event loop runs, the window and its first roadbook are in place
+		QTimer.singleShot(0, self.shrinkrightdock)
+
+	def shrinkrightdock(self):
+		# docks are never made narrower than their minimum, so ask for 1 pixel
+		# on the right and give the rest to the trades on the left
+		self.resizeDocks([self.tradesdock, self.todaywidget], [self.width(), 1],
+			Qt.Orientation.Horizontal)
 
 	def moveTo(self, delta):
 		# move to next prev callback
@@ -719,7 +728,7 @@ class DataWindow(QMainWindow):
 		p = self.rb.graphpaths(t)
 		if self.graphwindow is None:
 			self.mkgraph(p, desc=t.notes)
-		self.graphwindow.setimage(p, desc=t.notes)
+		self.graphwindow.setimage(p, desc=t.notes or '')
 		self.graphwindow.show()
 
 	def selectedfeature(self, f):
