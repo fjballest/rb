@@ -16,7 +16,7 @@ import os
 import re
 import shutil
 from datetime import date
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
 	QApplication, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
@@ -201,7 +201,9 @@ def alreadyhere(a, b):
 	return re.sub(r'\..*', '', a) == re.sub(r'\..*', '', b)
 
 class TradeEdit(QDialog):
-	def __init__(self, rb, t=None, dirtied=None, filepath=None):
+	changed = Signal()	# the trade was saved into the roadbook
+
+	def __init__(self, rb, t=None, filepath=None):
 		super(TradeEdit, self).__init__()
 		if filepath == False or filepath == True:
 			filepath = None
@@ -209,7 +211,6 @@ class TradeEdit(QDialog):
 		self.rb = rb
 		self.t = t
 		self.tOCR = None
-		self.dirtiedfn = dirtied
 		if t is not None and t.trade <= 0:
 			t.trade = rb.nextId()
 		self.formGroupBox = QGroupBox("Data:")
@@ -466,8 +467,7 @@ class TradeEdit(QDialog):
 				self.maycopygraphs(t)
 			self.rb.defaultsfortrade(t)
 			self.rb.dirty = True
-			if self.dirtiedfn is not None:
-				self.dirtiedfn()
+			self.changed.emit()
 		except Exception as e:
 			print(f"failed to add: {e}", file=sys.stderr)
 		return t
@@ -562,14 +562,16 @@ class DataWindow(QMainWindow):
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, account)
 		self.tabifyDockWidget(currencies, account)
 
-		self.featchecks = CheckBoxGroup([], dirtied=self.dirtied)
+		self.featchecks = CheckBoxGroup([])
+		self.featchecks.dirtied.connect(self.dirtied)
 		checks = QDockWidget("Trade Features", self)
 		setfeats(checks)
 		checks.setWidget(self.featchecks)
 		self.featcheckswidget = checks
 		self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, checks)
 
-		self.setupchecks = CheckBoxGroup([], dirtied=self.dirtied)
+		self.setupchecks = CheckBoxGroup([])
+		self.setupchecks.dirtied.connect(self.dirtied)
 		checks = QDockWidget("Feature Setups", self)
 		setfeats(checks)
 		checks.setWidget(self.setupchecks)
@@ -691,7 +693,8 @@ class DataWindow(QMainWindow):
 		if trade.trade == 0:
 			trade.trade = self.rb.nextId()
 		try:
-			w = TradeEdit(self.rb, trade, self.dirtiedTrades, filepath=filepath)
+			w = TradeEdit(self.rb, trade, filepath=filepath)
+			w.changed.connect(self.dirtiedTrades)
 			w.exec()
 		except Exception as e:
 			print(e, file=sys.stderr)
@@ -708,7 +711,7 @@ class DataWindow(QMainWindow):
 
 	def mkgraph(self, p, desc=''):
 		self.graphwindow = ImageViewer(p, desc=desc)
-		self.graphwindow.movedTo = self.moveTo
+		self.graphwindow.moved.connect(self.moveTo)
 
 	def tradegraphics(self, t):
 		if self.rb is None:
@@ -725,7 +728,6 @@ class DataWindow(QMainWindow):
 		fset = f.setups if f else []
 		x = f"{f.feature} Setups" if f else "Setups"
 		self.setupchecks.updating(fset)
-		self.setupchecks.dirtied = self.dirtied
 		self.setupcheckswidget.setWindowTitle(x)
 		self.setupchecks.set_items(self.rb.setupNames(), fset)
 		self.setupcheckswidget.raise_()
@@ -735,7 +737,8 @@ class DataWindow(QMainWindow):
 
 
 	def mkfilter(self):
-		self.filterwindow = FilterWindow(self.rb, self.setfilter)
+		self.filterwindow = FilterWindow(self.rb)
+		self.filterwindow.filterChanged.connect(self.setfilter)
 
 	def setfilter(self, flt):
 		if flt is None:
@@ -800,24 +803,40 @@ class DataWindow(QMainWindow):
 		return self.info
 
 	def mktradestbl(self):
-		t = tradeexample()
-		t.edit = self.edittrade
-		t.selected = self.selectedtrade
-		t.graphics = self.tradegraphics
-		t.filter = self.filter
-		t.stats = self.stats
-		t.dirtied = self.dirtied
-		t.edited = self.dirtiedTrades
-		t.info = self.infofn
-		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=True)
+		tbl = ObjectTable(tradeexample(), [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY,
+			drop=True, editor=self.edittrade, info=self.infofn,
+			extrabuttons=("Graphics", "Filter", "Stats"))
+		tbl.selected.connect(self.selectedtrade)
+		tbl.graphicsRequested.connect(self.tradegraphics)
+		tbl.filterRequested.connect(self.filter)
+		tbl.statsRequested.connect(self.stats)
+		tbl.dirtied.connect(self.dirtied)
+		tbl.edited.connect(self.dirtiedTrades)
 		return tbl
 
+	def mknamestbl(self, example, factory, renamed, canremove=None):
+		"""table for setups, features, instruments or currencies"""
+		tbl = ObjectTable(example, [], factory, hasedit=False, uniquekey=True, canremove=canremove)
+		tbl.dirtied.connect(self.dirtied)
+		tbl.renamed.connect(renamed)
+		tbl.removed.connect(self.refreshfilter)
+		return tbl
+
+	def refreshfilter(self):
+		if self.filterwindow is not None:
+			self.filterwindow.refresh()
+
+	def canremove(self, what, name, used):
+		if self.rb is None:
+			return True
+		if used(name):
+			QMessageBox.warning(self, f"{what} in use", f"{what} {name} is in use")
+			return False
+		return True
+
 	def mksetupstbl(self):
-		s = setupexample()
-		s.dirtied = self.dirtied
-		s.renamed = self.renamedSetup
-		s.removing = self.removingSetup
-		return ObjectTable(s, [], lambda: Setup(), hasedit=False )
+		return self.mknamestbl(setupexample(), lambda: Setup(), self.renamedSetup,
+			lambda o: self.canremove("Setup", o.setup, self.rb.setupUsed))
 	def renamedSetup(self, oname, nname):
 		if self.rb is None:
 			return
@@ -830,24 +849,11 @@ class DataWindow(QMainWindow):
 				self.filterwindow.refresh()
 		except Exception as e:
 			print(e, file=sys.stderr)
-	def removingSetup(self, o, done=False):
-		name = o.setup
-		if done and self.filterwindow is not None:
-			self.filterwindow.refresh()
-			return
-		if self.rb is None:
-			return True
-		if self.rb.setupUsed(name):
-			QMessageBox.warning(self,"Setup in use", f"Setup {name} is in use")
-			return False
-		return True
 	def mkfeaturestbl(self):
-		f = featureexample()
-		f.selected = self.selectedfeature
-		f.dirtied = self.dirtied
-		f.renamed = self.renamedFeature
-		f.removing = self.removingFeature
-		return ObjectTable(f, [], lambda: Feature(), hasedit=False  )
+		tbl = self.mknamestbl(featureexample(), lambda: Feature(), self.renamedFeature,
+			lambda o: self.canremove("Feature", o.feature, self.rb.featureUsed))
+		tbl.selected.connect(self.selectedfeature)
+		return tbl
 	def renamedFeature(self, oname, nname):
 		if self.rb is None:
 			return
@@ -862,23 +868,9 @@ class DataWindow(QMainWindow):
 				self.filterwindow.refresh()
 		except Exception as e:
 			print(e, file=sys.stderr)
-	def removingFeature(self, o, done=False):
-		name = o.feature
-		if done and self.filterwindow is not None:
-			self.filterwindow.refresh()
-			return
-		if self.rb is None:
-			return True
-		if self.rb.featureUsed(name):
-			QMessageBox.warning(self,"Feature in use", f"Feature {name} is in use")
-			return False
-		return True
 	def mkinstrumentstbl(self):
-		i = instrumentexample()
-		i.dirtied = self.dirtied
-		i.renamed = self.renamedInstrument
-		i.removing = self.removingInstrument
-		return ObjectTable(i, [], lambda: Instrument(), hasedit=False )
+		return self.mknamestbl(instrumentexample(), lambda: Instrument(), self.renamedInstrument,
+			lambda o: self.canremove("Instrument", o.instrument, self.rb.instrumentUsed))
 	def renamedInstrument(self, oname, nname):
 		if self.rb is None:
 			return
@@ -888,22 +880,8 @@ class DataWindow(QMainWindow):
 		self.tradestbl.refresh()
 		if self.filterwindow is not None:
 			self.filterwindow.refresh()
-	def removingInstrument(self, o, done=False):
-		name = o.instrument
-		if done and self.filterwindow is not None:
-			self.filterwindow.refresh()
-			return
-		if self.rb is None:
-			return True
-		if self.rb.instrumentUsed(name):
-			QMessageBox.warning(self,"Instrument in use", f"Instrument {name} is in use")
-			return False
-		return True
 	def mkcurrenciestbl(self):
-		c = currencyexample()
-		c.dirtied = self.dirtied
-		c.renamed = self.renamedCurrency
-		return ObjectTable(c, [], lambda: Currency(), hasedit=False  )
+		return self.mknamestbl(currencyexample(), lambda: Currency(), self.renamedCurrency)
 	def renamedCurrency(self, oname, nname):
 		if self.rb is None:
 			return

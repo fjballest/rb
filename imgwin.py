@@ -4,17 +4,18 @@ from PySide6.QtWidgets import (
 	QHBoxLayout
 )
 from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QEvent, QTimer
+from PySide6.QtCore import Qt, QEvent, QTimer, Signal
 import os
 from data import canonlist
 
 class ImageViewer(QMainWindow):
+	moved = Signal(int)	# asks to show the next (+1) or previous (-1) trade
+
 	def __init__(self, file, parent=None, x=1400, y=1024, desc=''):
 		super().__init__(parent)
 		if desc is None:
 			desc=''
 		self.desc = desc
-		self.movedTo = None
 		self.file_path = ""
 		self.files = file
 		self.fileno = 0
@@ -122,8 +123,7 @@ class ImageViewer(QMainWindow):
 		self.updateTitle()
 
 	def moveTo(self, delta):
-		if self.movedTo is not None:
-			self.movedTo(delta)
+		self.moved.emit(delta)
 		self.updateTitle()
 
 	# ---------- Zoom controls ----------

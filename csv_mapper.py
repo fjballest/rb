@@ -15,6 +15,7 @@ Features:
 """
 
 import csv
+import os
 from dataclasses import fields, is_dataclass
 from datetime import datetime, date, time
 from typing import get_origin, get_args, Union, List, Tuple, Type, Set
@@ -242,25 +243,39 @@ def write_objects_to_csv(
 	r = [x for x in field_names if not x in skip]
 	field_names = r
 
-	with open(csv_path, "w", newline="", encoding="utf-8") as f:
-		hdrnames = [f.upper() for f in field_names]
-		if renames is not None:
-			hdrnames = [name for name in field_names]
-			for i, n in enumerate(hdrnames):
-				if n in renames:
-					hdrnames[i] = renames[n]
-				hdrnames[i] = hdrnames[i].upper()
+	# write a temp file next to the target and rename it over the target,
+	# so a crash or a full disk never leaves a half written CSV behind
+	tmp_path = csv_path + ".tmp"
+	try:
+		with open(tmp_path, "w", newline="", encoding="utf-8") as f:
+			_write_rows(f, objects, field_names, renames)
+			f.flush()
+			os.fsync(f.fileno())
+		os.replace(tmp_path, csv_path)
+	finally:
+		if os.path.exists(tmp_path):
+			os.remove(tmp_path)
 
-		writer = csv.DictWriter(f, fieldnames=hdrnames, delimiter=CSV_SEP)
-		writer.writeheader()
-		if not objects:
-			return
-		writer = csv.DictWriter(f, fieldnames=field_names,
-			quotechar='"',
-			quoting = csv.QUOTE_ALL,
-			delimiter=CSV_SEP)
-		for obj in objects:
-			writer.writerow({
-				name: format_value(getattr(obj, name))
-				for name in field_names
-			})
+
+def _write_rows(f, objects, field_names, renames):
+	hdrnames = [n.upper() for n in field_names]
+	if renames is not None:
+		hdrnames = [name for name in field_names]
+		for i, n in enumerate(hdrnames):
+			if n in renames:
+				hdrnames[i] = renames[n]
+			hdrnames[i] = hdrnames[i].upper()
+
+	writer = csv.DictWriter(f, fieldnames=hdrnames, delimiter=CSV_SEP)
+	writer.writeheader()
+	if not objects:
+		return
+	writer = csv.DictWriter(f, fieldnames=field_names,
+		quotechar='"',
+		quoting = csv.QUOTE_ALL,
+		delimiter=CSV_SEP)
+	for obj in objects:
+		writer.writerow({
+			name: format_value(getattr(obj, name))
+			for name in field_names
+		})

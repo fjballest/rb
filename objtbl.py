@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout, QTableView,
 	QPushButton
 )
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Signal
 
 def findfield(flds, n):
 	for i, f in enumerate(flds):
@@ -22,8 +22,23 @@ def findfield(flds, n):
 	return -1
 
 class ObjectTableModel(QAbstractTableModel):
-	def __init__(self, obj0, objects, order, rdonly, object_factory):
+	dirtied = Signal()		# a cell was edited
+	renamed = Signal(object, object)	# key column: old value (None for a new row), new value
+	edited = Signal()		# the user added or deleted rows
+	removed = Signal(object)	# the user deleted this object
+	selected = Signal(object)
+	graphicsRequested = Signal(object)
+
+	def __init__(self, obj0, objects, order, rdonly, object_factory,
+			uniquekey=False, editor=None, canremove=None):
+		"""uniquekey: column 0 is a unique name, and changing it emits renamed.
+		editor(obj, filepath) edits a new or existing object in a dialog.
+		canremove(obj) returns False to veto deleting obj.
+		"""
 		super().__init__()
+		self.uniquekey = uniquekey
+		self.editor = editor
+		self.canremove = canremove
 
 		if objects and not is_dataclass(objects[0]):
 			raise TypeError("Objects must be dataclass instances")
@@ -106,30 +121,24 @@ class ObjectTableModel(QAbstractTableModel):
 			converted = convert_value(value, field.type)
 		except Exception:
 			return False
-		isnew = None
-		if index.column() == 0 and hasattr(self.obj0, 'renamed'):
+		renaming = index.column() == 0 and self.uniquekey
+		old = None
+		if renaming:
 			for i, r in enumerate(self.objects):
 				if i == index.row():
 					continue
-				old = getattr(self.objects[i], field.name, None)
-				if old and old == converted:
+				other = getattr(r, field.name, None)
+				if other and other == converted:
 					# already in use
 					return False
-			try:
-				old = getattr(obj, field.name, None)
-				if old:
-					self.obj0.renamed(old, converted)
-				isnew = not old
-			except Exception:
-				pass
+			old = getattr(obj, field.name, None)
+			if old:
+				# before the change, so the roadbook can still find it by its old name
+				self.renamed.emit(old, converted)
 		setattr(obj, field.name, converted)
-		if hasattr(self.obj0, 'dirtied'):
-			try:
-				self.obj0.dirtied()
-			except Exception:
-				pass
-		if isnew is not None:
-			self.obj0.renamed(None, converted)
+		self.dirtied.emit()
+		if renaming and not old:
+			self.renamed.emit(None, converted)
 
 		self.dataChanged.emit(index, index,
 					  [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
@@ -167,31 +176,26 @@ class ObjectTableModel(QAbstractTableModel):
 	# ----- Row removal -----
 
 	def removeRows(self, row, count=1, parent=QModelIndex(), usrdel=False):
-		fn = None
-		if usrdel and 0 <= row < len(self.objects) and hasattr(self.obj0, "removing"):
-			fn = self.obj0.removing
+		o = None
+		if usrdel and 0 <= row < len(self.objects):
 			o = self.objects[row]
-			if not fn(o, False):
+			if self.canremove is not None and not self.canremove(o):
 				return False
 		self.beginRemoveRows(parent, row, row + count - 1)
 		del self.objects[row: row + count]
 		self.endRemoveRows()
-		if fn:
-			fn(o, True)
-		o = self.obj0
-		if usrdel and hasattr(o, "edited") and callable(o.edited):
-			o.edited()
+		if usrdel:
+			self.removed.emit(o)
+			self.edited.emit()
 		return True
 
 	def newRow(self, row, filepath=None):
 		t = self.object_factory()
-		o = self.obj0
-		if hasattr(o, "edit") and callable(o.edit):
-			o.edit(t, filepath)
+		if self.editor is not None:
+			self.editor(t, filepath)
 			if t.checkOut() is None:
 				self.insertRows(row, trade=t)
-			if hasattr(o, "edited") and callable(o.edited):
-				o.edited()
+			self.edited.emit()
 			return
 		self.insertRows(row)
 
@@ -199,23 +203,18 @@ class ObjectTableModel(QAbstractTableModel):
 	def editRow(self, row):
 		if row < 0 or row >= len(self.objects):
 			return
-		o = self.obj0
-		if hasattr(o, "edit") and callable(o.edit):
-			o.edit(self.objects[row])
+		if self.editor is not None:
+			self.editor(self.objects[row], None)
 
 	def graphics(self, row):
 		if row < 0 or row >= len(self.objects):
 			return
-		o = self.obj0
-		if hasattr(o, "graphics") and callable(o.graphics):
-			o.graphics(self.objects[row])
+		self.graphicsRequested.emit(self.objects[row])
 
 	def selChanged(self, row):
 		if row < 0 or row >= len(self.objects):
 			return
-		o = self.obj0
-		if hasattr(o, "selected") and callable(o.selected):
-			o.selected(self.objects[row])
+		self.selected.emit(self.objects[row])
 
 	def changedata(self, objects):
 		"""replace all data with a new set"""
@@ -364,9 +363,26 @@ class DTableView(QTableView):
 
 
 class ObjectTable(QWidget):
+	"""editable table for a list of dataclass objects, using obj as the example row.
+	The model signals are repeated here; see ObjectTableModel for
+	uniquekey, editor and canremove. drop adds a row when files are dropped.
+	info() returns the text for the label next to the buttons.
+	extrabuttons may name "Graphics", "Filter" and "Stats".
+	"""
+	dirtied = Signal()
+	renamed = Signal(object, object)
+	edited = Signal()
+	removed = Signal(object)
+	selected = Signal(object)
+	graphicsRequested = Signal(object)
+	filterRequested = Signal()
+	statsRequested = Signal()
+
 	def __init__(self, obj, objects, object_factory,
-			order=None, rdonly=None, hasedit=True, parent=None, drop=None):
+			order=None, rdonly=None, hasedit=True, parent=None, drop=False,
+			uniquekey=False, editor=None, canremove=None, info=None, extrabuttons=()):
 		super().__init__(parent)
+		self.info = info
 		if order is None:
 			order = []
 		if rdonly is None:
@@ -376,10 +392,11 @@ class ObjectTable(QWidget):
 		if len(objects) == 0:
 			objects.append(obj)
 			fake = True
-		self.model = ObjectTableModel(obj, objects, order, rdonly, object_factory)
-		if drop is not None:
-			drop = self.add_row
-		self.view = DTableView(drop)
+		self.model = ObjectTableModel(obj, objects, order, rdonly, object_factory,
+			uniquekey=uniquekey, editor=editor, canremove=canremove)
+		for name in ("dirtied", "renamed", "edited", "removed", "selected", "graphicsRequested"):
+			getattr(self.model, name).connect(getattr(self, name))
+		self.view = DTableView(self.add_row if drop else None)
 		self.view.setModel(self.model)
 		self.view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
 		self.view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
@@ -411,24 +428,24 @@ class ObjectTable(QWidget):
 			edit_btn.clicked.connect(self.edit_row)
 			btn_layout.addWidget(edit_btn)
 		btn_layout.addWidget(find_btn)
-		if hasattr(obj, "graphics"):
+		if "Graphics" in extrabuttons:
 			g_btn = QPushButton("Graphics")
 			g_btn.clicked.connect(self.graphics)
 			btn_layout.addWidget(g_btn)
-		if hasattr(obj, "filter"):
+		if "Filter" in extrabuttons:
 			f_btn = QPushButton("Filter")
-			f_btn.clicked.connect(obj.filter)
+			f_btn.clicked.connect(lambda: self.filterRequested.emit())
 			btn_layout.addWidget(f_btn)
-		if hasattr(obj, "stats"):
+		if "Stats" in extrabuttons:
 			s_btn = QPushButton("Stats")
-			s_btn.clicked.connect(obj.stats)
+			s_btn.clicked.connect(lambda: self.statsRequested.emit())
 			btn_layout.addWidget(s_btn)
 		self.infolabel = None
 
 
 		btn_layout.addStretch()
-		if hasattr(obj, "info"):
-			self.infolabel = QLabel(obj.info())
+		if self.info is not None:
+			self.infolabel = QLabel(self.info())
 			myFont=QFont()
 			myFont.setBold(True)
 			self.infolabel.setFont(myFont)
@@ -464,7 +481,7 @@ class ObjectTable(QWidget):
 		self.model.refresh()
 		self.view.resizeColumnsToContents()
 		if self.infolabel is not None:
-			self.infolabel.setText(self.obj0.info())
+			self.infolabel.setText(self.info())
 		if oldi:
 			if 0 <= oldi.row() <= self.model.rowCount():
 				self.view.setCurrentIndex(oldi)
@@ -507,7 +524,7 @@ class ObjectTable(QWidget):
 		self.model.changedata(objects)
 		self.view.resizeColumnsToContents()
 		if self.infolabel is not None:
-			self.infolabel.setText(self.obj0.info())
+			self.infolabel.setText(self.info())
 
 	def find(self):
 		f = FindDialog(self)

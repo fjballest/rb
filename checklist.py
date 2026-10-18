@@ -1,5 +1,5 @@
 from PySide6.QtCore import QSize
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import QListView
 from PySide6.QtWidgets import (
@@ -19,19 +19,17 @@ class ListViewSz(QListView):
 		return s
 
 class CheckBoxGroup(QWidget):
+	dirtied = Signal()	# the set given to updating() was changed
+
 	def __init__(self,
 			items=None, checked_items=None, checkedneg_items=None,
-			wsetall=False, w3state=False, title=None,
-			dirtied=None
+			wsetall=False, w3state=False, title=None
 		):
 		super().__init__()
 
 		layout = QVBoxLayout(self)
 		self.updateitems = None
 		self.w3state = w3state
-		self.dirtied = dirtied
-		if self.dirtied is None:
-			self.dirtied = lambda: True
 
 		# ---- List view + model ----
 		self.view = ListViewSz()
@@ -103,7 +101,7 @@ class CheckBoxGroup(QWidget):
 
 	def changed(self):
 		if self.updateitems is not None:
-			self.dirtied()
+			self.dirtied.emit()
 			self.updateitems.clear()
 			for x in self.checked_items():
 				self.updateitems.add(x)

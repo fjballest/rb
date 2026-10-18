@@ -335,6 +335,24 @@ def tradeexample():
 		"/path/to/plot", "apoyo 4H, sin muros, fuerza, sem flojo. 1H sin fuerza: no reentrar",
 		{"Apertura","Apoyo D","Apoyo4H","Desp.Corr","Pullback", "Sin Muros;Willy OK"})
 
+@dataclass
+class Table:
+	"""one CSV file of a roadbook, loaded into the RoadBook attribute attr"""
+	attr: str
+	file: str
+	cls: type
+	key: object	# sort key used on load
+	renames: Optional[dict] = None	# CSV header names that differ from field names
+
+# in load order: instruments refer to currencies and trades to everything else
+TABLES = [
+	Table("currencies", CURRENCIESFILE, Currency, lambda c: c.name),
+	Table("instruments", INSTRUMENTSFILE, Instrument, lambda i: i.instrument.lower()),
+	Table("setups", SETUPSFILE, Setup, lambda s: s.setup.lower()),
+	Table("features", FEATURESFILE, Feature, lambda f: f.feature.lower()),
+	Table("trades", TRADESFILE, Trade, lambda t: t.datein, {"datein": "date", "has": "with"}),
+]
+
 def copyfile(src: str, dst: str) -> None:
 	try:
 		shutil.copyfile(src, dst)
@@ -571,18 +589,9 @@ class RoadBook:
 		if dirpath is None:
 			raise ValueError("no directory set")
 		self.dir = dirpath
-		_, errs = self.loadaccount()
-
-		_, ierrs = self.loadcurrencies()
-		errs = errs +  ierrs
-		_, ierrs = self.loadinstruments()
-		errs = errs +  ierrs
-		_, ierrs = self.loadsetups()
-		errs = errs +  ierrs
-		_, ierrs = self.loadfeatures()
-		errs = errs +  ierrs
-		_, ierrs = self.loadtrades()
-		errs = errs +  ierrs
+		errs = self.loadaccount()
+		for tbl in TABLES:
+			errs += self.loadtable(tbl)
 		self.dirty = False
 		return errs
 
@@ -603,11 +612,8 @@ class RoadBook:
 		try:
 			os.makedirs(gdir, exist_ok = True)
 			self.saveaccount()
-			self.savecurrencies()
-			self.saveinstruments()
-			self.savesetups()
-			self.savefeatures()
-			self.savetrades(filtered=filtered)
+			for tbl in TABLES:
+				self.savetable(tbl, filtered=filtered)
 			if not savingas:
 				self.dirty = False
 			elif self.account and self.account.copygraphs:
@@ -624,43 +630,19 @@ class RoadBook:
 		except Exception:
 			return False
 
-	def accountpath(self, suff = "") -> str:
-		return os.path.join(self.dir, ACCOUNTFILE) + suff
-	def currenciespath(self, suff = "") -> str:
-		return os.path.join(self.dir, CURRENCIESFILE) + suff
-	def instrumentspath(self, suff = "") -> str:
-		return os.path.join(self.dir, INSTRUMENTSFILE) + suff
-	def setupspath(self, suff = "") -> str:
-		return os.path.join(self.dir, SETUPSFILE) + suff
-	def featurespath(self, suff = "") -> str:
-		return os.path.join(self.dir, FEATURESFILE) + suff
-	def tradespath(self, suff = "") -> str:
-		return os.path.join(self.dir, TRADESFILE) + suff
+	def path(self, fname: str) -> str:
+		return os.path.join(self.dir, fname)
 
 	@staticmethod
 	def mknew(file_path: str) -> None:
 		gdir = os.path.join(file_path, GRAPHSDIR)
 		os.makedirs(gdir, exist_ok = True)
-		rb = RoadBook()
-		rb.dir = file_path
-		p = rb.accountpath()
-		with open(p, "w") as f:
-			f.write(NEWACCOUNT)
-		p = rb.currenciespath()
-		with open(p, "w") as f:
-			f.write(NEWCURRENCIES)
-		p = rb.instrumentspath()
-		with open(p, "w") as f:
-			f.write(NEWINSTRUMENTS)
-		p = rb.setupspath()
-		with open(p, "w") as f:
-			f.write(NEWSETUPS)
-		p = rb.featurespath()
-		with open(p, "w") as f:
-			f.write(NEWFEATURES)
-		p = rb.tradespath()
-		with open(p, "w") as f:
-			f.write(NEWTRADES)
+		files = [(ACCOUNTFILE, NEWACCOUNT), (CURRENCIESFILE, NEWCURRENCIES),
+			(INSTRUMENTSFILE, NEWINSTRUMENTS), (SETUPSFILE, NEWSETUPS),
+			(FEATURESFILE, NEWFEATURES), (TRADESFILE, NEWTRADES)]
+		for fname, data in files:
+			with open(os.path.join(file_path, fname), "w") as f:
+				f.write(data)
 
 	def mkgraphpath(self, t, nb = 0) -> str:
 		d = os.path.join(self.dir, GRAPHSDIR)
@@ -677,117 +659,57 @@ class RoadBook:
 		p = os.path.join(d, f"trade{t.trade}{t.instrument.lower()}.png")
 		return [p]
 
-	def loadaccount(self, fname: str = None) -> tuple[object, list[dict]]:
-		if fname is None or fname == "":
-			fname = self.accountpath()
+	def loadaccount(self) -> list[dict]:
+		fname = self.path(ACCOUNTFILE)
 		aa, errors = load_objects_from_csv(fname, Account)
 		for e in errors:
 			e["file"] = fname
 		if len(aa) == 0:
 			raise ValueError(f"no account in {fname}")
 		self.account = aa[0]
-		return self.account, errors
+		return errors
 
-	def loadcurrencies(self, fname: str = None) -> tuple[list[object], list[dict]]:
-		if fname is None or fname == "":
-			fname = self.currenciespath()
-		cs, errors = load_objects_from_csv(fname, Currency)
-		for e in errors:
-			e["file"] = fname
-		cs = sorted(cs, key = lambda t: t.name)
-		self.currencies = cs
-		return cs, errors
-
-	def savecurrencies(self, fname: str = None) -> None:
-		if fname is None or fname == "":
-			fname = self.currenciespath()
-		copyfile(fname, fname+BCK)
-		write_objects_to_csv(fname, self.currencies, Currency)
-
-	def loadinstruments(self, fname: str = None) -> tuple[list[object], list[dict]]:
-		if fname is None or fname == "":
-			fname = self.instrumentspath()
-		ii, errors = load_objects_from_csv(fname, Instrument)
-		for e in errors:
-			e["file"] = fname
-		ii = sorted(ii, key = lambda t: t.instrument.lower())
-		self.instruments = ii
-		self.defaultsforinstruments()
-		return ii, errors
-
-	def saveaccount(self, fname: str = None) -> None:
-		if fname is None or fname == "":
-			fname = self.accountpath()
+	def saveaccount(self) -> None:
+		fname = self.path(ACCOUNTFILE)
 		copyfile(fname, fname+BCK)
 		write_objects_to_csv(fname, [self.account], Account)
 
-	def saveinstruments(self, fname: str = None) -> None:
-		if fname is None or fname == "":
-			fname = self.instrumentspath()
-		copyfile(fname, fname+BCK)
-		write_objects_to_csv(fname, self.instruments, Instrument)
-
-	def loadsetups(self, fname: str = None) -> tuple[list[object], list[dict]]:
-		if fname is None or fname == "":
-			fname = self.setupspath()
-		ss, errors = load_objects_from_csv(fname, Setup)
+	def loadtable(self, tbl: "Table") -> list[dict]:
+		"""load one CSV file into its list attribute and return the errors"""
+		fname = self.path(tbl.file)
+		cls = tbl.cls
+		oldtrades = tbl.attr == "trades" and self.account.version < VERSION
+		if oldtrades:
+			cls = Trade1
+		objs, errors = load_objects_from_csv(fname, cls, tbl.renames)
 		for e in errors:
 			e["file"] = fname
-		ss = sorted(ss, key = lambda t: t.setup.lower())
-		self.setups = ss
-		return ss, errors
-
-	def savesetups(self, fname: str = None) -> None:
-		if fname is None or fname == "":
-			fname = self.setupspath()
-		copyfile(fname, fname+BCK)
-		write_objects_to_csv(fname, self.setups, Setup)
-
-	def loadfeatures(self, fname: str = None) -> tuple[list[object], list[dict]]:
-		if fname is None or fname == "":
-			fname = self.featurespath()
-		fs, errors = load_objects_from_csv(fname, Feature)
-		for e in errors:
-			e["file"] = fname
-		fs = sorted(fs, key = lambda t: t.feature.lower())
-		self.features = fs
-		self.defaultsforfeatures()
-		return fs, errors
-
-	def savefeatures(self, fname: str = None) -> None:
-		if fname is None or fname == "":
-			fname = self.featurespath()
-		copyfile(fname, fname+BCK)
-		write_objects_to_csv(fname, self.features, Feature)
-
-	def loadtrades(self, fname: str = None) -> tuple[list[object], list[dict]]:
-		if fname is None or fname == "":
-			fname = self.tradespath()
-		rens = {"datein":"date", "has":"with"}
-		x = Trade
-		if self.account.version < VERSION:
-			x = Trade1
-		ts, errors = load_objects_from_csv(fname, x, rens)
-		for e in errors:
-			e["file"] = fname
-		if self.account.version != VERSION:
+		if tbl.attr == "trades" and self.account.version != VERSION:
 			self.account.version = VERSION
-			nts = [Trade.old2new(x) for x in ts]
-			ts = nts
-		ts = sorted(ts, key = lambda t: t.datein)
-		self.trades = ts
-		self.defaultsfortrades()
-		return ts, errors
+			if oldtrades:
+				objs = [Trade.old2new(t) for t in objs]
+		objs = sorted(objs, key=tbl.key)
+		setattr(self, tbl.attr, objs)
+		if tbl.attr == "instruments":
+			self.defaultsforinstruments()
+		elif tbl.attr == "features":
+			self.defaultsforfeatures()
+		elif tbl.attr == "trades":
+			self.defaultsfortrades()
+		return errors
 
-	def savetrades(self, fname: str = None, filtered=False) -> None:
-		if fname is None or fname == "":
-			fname = self.tradespath()
+	def savetable(self, tbl: "Table", filtered=False) -> None:
+		fname = self.path(tbl.file)
 		copyfile(fname, fname+BCK)
-		rens = {"datein":"date", "has":"with"}
-		skips = {"pts"}
-		trades = self.trades
-		if filtered and self.filteredtrades:
-			trades = self.filteredtrades
+		objs = getattr(self, tbl.attr)
+		if tbl.attr == "trades":
+			if filtered and self.filteredtrades:
+				objs = self.filteredtrades
+			self.findgraphs(objs)
+		write_objects_to_csv(fname, objs, tbl.cls, tbl.renames)
+
+	def findgraphs(self, trades) -> None:
+		"""set graf for trades without one, using PNGs named after the trade"""
 		for t in trades:
 			if t.graf is None or len(t.graf) == 0:
 				t.graf = []
@@ -795,7 +717,6 @@ class RoadBook:
 					npath = self.mkgraphpath(t, nb)
 					if os.path.exists(npath):
 						t.graf.append(npath)
-		write_objects_to_csv(fname, trades, Trade, rens, skips)
 
 
 	def savegraphs(self, filtered=False) -> None:
