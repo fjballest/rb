@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
 	QMainWindow, QLabel, QScrollArea,
 	QPushButton, QWidget, QVBoxLayout,
-	QHBoxLayout
+	QHBoxLayout, QSizePolicy
 )
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QEvent, QTimer, Signal
@@ -24,6 +24,12 @@ class ImageViewer(QMainWindow):
 			self.file_path = file[0]
 		self.notes = QLabel(self.desc)
 		self.notes.setWordWrap(True)
+		# always three lines high, so the buttons beside it don't move with the notes
+		fm = self.notes.fontMetrics()
+		m = self.notes.contentsMargins()
+		self.notes.setFixedHeight(3*fm.lineSpacing() + m.top() + m.bottom() + 2)
+		self.notes.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+		self.notes.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
 		self.updateTitle()
 		self.resize(x, y)
 		self.scale_factor = 1.0
@@ -75,8 +81,7 @@ class ImageViewer(QMainWindow):
 		button_layout.addWidget(self.zoom_in_button)
 		button_layout.addWidget(self.zoom_out_button)
 		button_layout.addWidget(self.preview_button)
-		button_layout.addWidget(self.notes)
-		button_layout.addStretch()
+		button_layout.addWidget(self.notes, 1)
 
 		container = QWidget()
 		layout = QVBoxLayout(container)
@@ -94,6 +99,7 @@ class ImageViewer(QMainWindow):
 			nb = f" ({self.fileno+1} of {len(self.files)})"
 			self.setWindowTitle(self.file_path+nb)
 		self.notes.setText(self.desc)
+		self.notes.setToolTip(self.desc)	# all of it, when it needs more than three lines
 
 	def preview(self):
 		if self.file_path is not None:
@@ -111,6 +117,7 @@ class ImageViewer(QMainWindow):
 			file = files[no]
 		self.file_path = file
 		self.notes.setText(self.desc)
+		self.notes.setToolTip(self.desc)
 		pixmap = QPixmap(self.file_path)
 		self.original_pixmap = None if pixmap.isNull() else pixmap
 		if self.original_pixmap is None:
