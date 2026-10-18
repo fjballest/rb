@@ -13,12 +13,13 @@ from PySide6.QtWidgets import (
 )
 import traceback
 import os
-from datetime import date
+import calendar
+from datetime import date, timedelta
 from PySide6.QtCore import QSize, QTimer, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
 	QApplication, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
-	QGroupBox, QLineEdit, QMainWindow, QMessageBox, QTimeEdit
+	QGroupBox, QLineEdit, QMainWindow, QMessageBox, QTableView, QTimeEdit
 )
 from checklist import CheckBoxGroup
 from data import (
@@ -26,10 +27,11 @@ from data import (
 	TRADEVIEWRDONLY, tradeexample,
 	setupexample, featureexample, instrumentexample, currencyexample
 )
+from calwin import TradeCalendar, daysign, tradeorder
 from filterwin import FilterWindow
 from imgwin import ImageViewer
 from objtbl import ObjectTable
-from stats import StatTotals
+from stats import StatTotals, StatUnit, tradevalue
 from statswin import StatsWindow, TodayPanel
 from graphocr import TradeOCR
 
@@ -177,11 +179,16 @@ class AccountEdit(QWidget):
 		fx = self.fixedbox.isChecked()
 		cp = self.cpbox.isChecked()
 		if acc != a.account or neu != a.neutral or fx != a.fixed or cp  != a.copygraphs:
+			neutralchanged = neu != a.neutral
 			rb.account.account = acc
 			rb.account.neutral = neu
 			rb.account.fixed = fx
 			rb.account.copygraphs = cp
 			self.dwin.dirtied()
+			if neutralchanged:
+				# the day and group colours depend on it
+				self.dwin.tradestbl.refresh()
+				self.dwin.refreshcalendar()
 
 	def refresh(self):
 		rb = self.dwin.rb
@@ -524,10 +531,17 @@ class DataWindow(QMainWindow):
 		self.instrumentstbl = self.mkinstrumentstbl()
 		self.currenciestbl = self.mkcurrenciestbl()
 		self.accounttbl = AccountEdit(self)
+		self.calendar = TradeCalendar()
+		self.calendar.tradeSelected.connect(self.calendartrade)
+		self.calendar.tradeActivated.connect(self.calendaropen)
+		self.calendar.monthChanged.connect(self.calendarmonth)
 
 		trades = QDockWidget("Trades", self)
 		setfeats(trades)
 		trades.setWidget(self.tradestbl)
+		caldock = QDockWidget("Calendar", self)
+		setfeats(caldock)
+		caldock.setWidget(self.calendar)
 		setups = QDockWidget("Setups", self)
 		setfeats(setups)
 		setups.setWidget(self.setupstbl)
@@ -551,7 +565,9 @@ class DataWindow(QMainWindow):
 
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, trades)
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, setups)
-		self.tabifyDockWidget(trades, setups)
+		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, caldock)
+		self.tabifyDockWidget(trades, caldock)
+		self.tabifyDockWidget(caldock, setups)
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, features)
 		self.tabifyDockWidget(setups, features)
 		self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, instruments)
@@ -706,9 +722,67 @@ class DataWindow(QMainWindow):
 			w.exec()
 		except Exception as e:
 			print(e, file=sys.stderr)
+	def calendartrade(self, t):
+		"""a day was clicked in the calendar: select its first trade"""
+		self.tradestbl.selectobj(t)
+
+	def calendaropen(self, t):
+		"""a day was double clicked: select its first trade and show the trades"""
+		self.tradestbl.selectobj(t)
+		self.tradesdock.raise_()
+
+	def calendarmonth(self, y, m):
+		"""the calendar moved to another month: show that month in the trades table"""
+		M = self.tradestbl.model
+		ts = [t for t in M.ordered() if t.datein and (t.datein.year, t.datein.month) == (y, m)]
+		if not ts:
+			return
+		M.collapseexcept(ts)
+		row = M.rowofgroup((y, m))
+		if row >= 0:
+			self.tradestbl.view.scrollTo(M.index(row, 0), QTableView.ScrollHint.PositionAtTop)
+
+	def initialgroups(self):
+		"""open only the last year, month and week of trades; when that week
+		just started (its last trade is on Monday or Tuesday), the week before too"""
+		M = self.tradestbl.model
+		ts = [t for t in M.ordered() if t.datein]
+		if not ts:
+			return
+		keep = [ts[-1]]
+		d = ts[-1].datein
+		if d.weekday() <= 1:
+			monday = d - timedelta(days=d.weekday())
+			before = [t for t in ts if t.datein < monday]
+			if before:
+				keep.append(before[-1])
+		M.collapseexcept(keep)
+		QTimer.singleShot(0, self.tradestbl.view.scrollToBottom)
+
+	def refreshcalendar(self):
+		if self.rb is None:
+			return
+		trades = self.rb.filteredtrades if self.rb.filteredtrades is not None else self.rb.trades
+		self.calendar.settrades(trades, self.rb.account.neutral if self.rb.account else 0)
+
+	def tradegroups(self, t):
+		"""year, month and week of a trade, for the trades table"""
+		d = t.datein or date.min
+		y, m = d.year, d.month
+		w = d.isocalendar()[1]
+		return [((y,), str(y)), ((y, m), calendar.month_name[m]), ((y, m, w), f"Week {w}")]
+
+	def groupinfo(self, trades):
+		v = sum(tradevalue(t, StatUnit.Euros) for t in trades)
+		neutral = self.rb.account.neutral if self.rb and self.rb.account else 0
+		n = len(trades)
+		return f"{n} trade{'s' if n != 1 else ''}, {v:+.0f}€", daysign(v, neutral)
+
 	def selectedtrade(self, t):
 		if t and t.has is None:
 			t.has = set([])
+		if t:
+			self.calendar.showdate(t.datein)
 		fset = t.has if t else []
 		self.featcheckswidget.setWindowTitle(f"Trade {t.trade} Features")
 		self.featchecks.updateitems = fset
@@ -757,6 +831,7 @@ class DataWindow(QMainWindow):
 			self.rb.filteredtrades = flt.apply(self.rb.trades)
 			self.updateinfo()
 			self.tradestbl.changedata(self.rb.filteredtrades)
+		self.refreshcalendar()
 		if self.statswindow:
 			self.statswindow.plotchanged()
 
@@ -783,6 +858,7 @@ class DataWindow(QMainWindow):
 		self.dirtied()
 		self.updatetoday()
 		self.updateinfo()
+		self.refreshcalendar()
 		if self.statswindow:
 			self.statswindow.plotchanged()
 
@@ -813,12 +889,14 @@ class DataWindow(QMainWindow):
 	def mktradestbl(self):
 		tbl = ObjectTable(tradeexample(), [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY,
 			drop=True, editor=self.edittrade, info=self.infofn,
-			extrabuttons=("Graphics", "Filter", "Stats"))
+			extrabuttons=("Graphics", "Filter", "Stats"),
+			groupby=self.tradegroups, sortkey=tradeorder, groupinfo=self.groupinfo)
 		tbl.selected.connect(self.selectedtrade)
 		tbl.graphicsRequested.connect(self.tradegraphics)
 		tbl.filterRequested.connect(self.filter)
 		tbl.statsRequested.connect(self.stats)
 		tbl.dirtied.connect(self.dirtied)
+		tbl.dirtied.connect(self.refreshcalendar)
 		tbl.edited.connect(self.dirtiedTrades)
 		tbl.fieldChanged.connect(self.tradeFieldChanged)
 		return tbl
@@ -941,6 +1019,7 @@ class DataWindow(QMainWindow):
 		try:
 			self.updateinfo()
 			self.tradestbl.changedata(r.trades)
+			self.initialgroups()
 			self.setupstbl.changedata(r.setups)
 			self.featurestbl.changedata(r.features)
 			self.instrumentstbl.changedata(r.instruments)
@@ -949,6 +1028,7 @@ class DataWindow(QMainWindow):
 			self.updateTitle()
 			self.accounttbl.refresh()
 			self.updatetoday()
+			self.refreshcalendar()
 		except Exception as e:
 			print("failed: ", e, file=sys.stderr)
 			traceback.print_exc()
