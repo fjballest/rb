@@ -3,7 +3,7 @@
 
 a = Analysis(
     ['rb.py'],
-    pathex=['/u/trade/pylg','.'],
+    pathex=['.'],
     binaries=[],
     datas=[],
     hiddenimports=[],
@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['ndowed','icon.icns'],
+    icon=['icon.ico'],
 )
 coll = COLLECT(
     exe,

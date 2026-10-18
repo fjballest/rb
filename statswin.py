@@ -1,14 +1,15 @@
-import sys
 from PySide6.QtWidgets import (
-	QApplication, QMainWindow, QFileDialog,
-	QLabel, QScrollArea, QPushButton,
-	QWidget, QVBoxLayout, QHBoxLayout
+	QMainWindow, QLabel, QScrollArea,
+	QPushButton, QWidget, QVBoxLayout,
+	QHBoxLayout
 )
-from PySide6.QtGui import QPixmap, QFont
-from PySide6.QtCore import Qt, QEvent
-from checklist import *
-from stats import *
-import os
+from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QRadioButton
+from stats import (
+	Filter, StatKind, StatPlot, StatTotals, StatUnit, tradevaluetots,
+	perday, perweek, permonth, perresult, perhour, perdayofweek, persetup, perinstrument
+)
 from functools import partial
 from plot import XYPlotWidget
 from bar import XYBarWidget

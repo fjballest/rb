@@ -1,8 +1,9 @@
 
 
-from datawin import *
-from data import *
-from graphocr import *
+import os
+import sys
+from datawin import DataWindow
+from data import RoadBook
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QLoggingCategory, QStandardPaths
 #

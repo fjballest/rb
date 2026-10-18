@@ -5,12 +5,13 @@ from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QItemSelectionM
 from dataclasses import fields, is_dataclass
 from csv_mapper import convert_value, format_value
 import sys
-from PySide6.QtGui import *
-from find import *
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import QLabel
+from find import FindDialog
 
 from PySide6.QtWidgets import (
-	QWidget, QVBoxLayout, QHBoxLayout, QDateEdit,
-	QTableView, QPushButton
+	QWidget, QVBoxLayout, QHBoxLayout, QTableView,
+	QPushButton
 )
 from PySide6.QtCore import QTimer
 
@@ -68,17 +69,6 @@ class ObjectTableModel(QAbstractTableModel):
 		obj = self.objects[index.row()]
 		field = self.field_defs[index.column()]
 		value = getattr(obj, field.name)
-		if field.name == "XXXtimeout" and hasattr(obj, "timeout") and hasattr(obj, "timein"):
-			try:
-				mins = (obj.timeout.hour*60+obj.timeout.minute)
-				mins -= obj.timein.hour*60+obj.timein.minute
-				if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
-					if mins > 60:
-						return f"{mins//60}h {mins%60}m"
-					return f"{mins}m"
-			except Exception as e:
-				print(e, file=sys.stderr)
-				pass
 		if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
 			return format_value(value)
 		if role == Qt.ItemDataRole.ForegroundRole:
@@ -130,13 +120,13 @@ class ObjectTableModel(QAbstractTableModel):
 				if old:
 					self.obj0.renamed(old, converted)
 				isnew = not old
-			except:
+			except Exception:
 				pass
 		setattr(obj, field.name, converted)
 		if hasattr(self.obj0, 'dirtied'):
 			try:
 				self.obj0.dirtied()
-			except:
+			except Exception:
 				pass
 		if isnew is not None:
 			self.obj0.renamed(None, converted)
@@ -271,7 +261,6 @@ class ObjectTableModel(QAbstractTableModel):
 			row = 0
 		if col < 0:
 			col = 0
-		#print(f"find {row} {col}...", file=sys.stderr)
 		col = col+1
 		if col >= len(self.field_defs):
 			row += 1
@@ -311,7 +300,6 @@ class ObjectTableModel(QAbstractTableModel):
 			row = 0
 		if col < 0:
 			col = 0
-		#print(f"find {row} {col}...", file=sys.stderr)
 		col = col-1
 		if col < 0:
 			col = len(self.field_defs)-1
@@ -370,7 +358,6 @@ class DTableView(QTableView):
 					self.drop(file_path)
 				except Exception as e:
 					print(e, file=sys.stderr)
-					pass
 			event.acceptProposedAction()
 		else:
 			event.ignore()
@@ -451,10 +438,6 @@ class ObjectTable(QWidget):
 		layout.addLayout(btn_layout)
 		layout.addWidget(self.view)
 
-#		self.setContextMenuPolicy(Qt.CustomContextMenu)
-#		self.customContextMenuRequested.connect(self.openmenu)
-
-#		self.view.doubleClicked.connect(self.clicked2)
 		self.model.rowsInserted.connect(lambda: QTimer.singleShot(0, self.view.scrollToBottom))
 
 	def keypress(self, event):
@@ -495,13 +478,8 @@ class ObjectTable(QWidget):
 		row = indexes[0].row()
 		self.model.selChanged(row)
 
-
-	def cellact(self, r, c):
-		#print(r, c, file=sys.stderr)
-		pass
-
 	def contextMenuEvent(self, _):
-		#print(ev, file=sys.stderr)
+		# swallow it, so the main window does not pop up its dock menu
 		pass
 
 	def add_row(self, filepath=None):
@@ -531,18 +509,10 @@ class ObjectTable(QWidget):
 		if self.infolabel is not None:
 			self.infolabel.setText(self.obj0.info())
 
-	def openmenu(self, item):
-		row = self.view.indexAt(item)
-		print(self.view.currentRow(), file=sys.stderr)
-		print(self.view.currentColumn(), file=sys.stderr)
-		print(row.row(), row.column(), file=sys.stderr)
-
 	def find(self):
 		f = FindDialog(self)
 		f.find_next.connect(self.find_next)
 		f.find_prev.connect(self.find_prev)
-		#f.replace_one.connect(self.replace1)
-		#f.replace_all.connect(self.replaceall)
 		f.show()
 
 	def next(self):
@@ -563,13 +533,6 @@ class ObjectTable(QWidget):
 
 	def find_next(self, txt, cs):
 		selmodel = self.view.selectionModel()
-		indexes = selmodel.selectedRows()
-		#row = 0
-		#col = 0
-		#if indexes:
-		#	row = indexes[0].row()
-		#	col = indexes[0].column()
-		#old = self.model.index(row, col)
 		old = self.view.currentIndex()
 		index = self.model.findNext(old, txt, cs)
 		if index:
@@ -577,19 +540,8 @@ class ObjectTable(QWidget):
 			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 	def find_prev(self, txt, cs):
 		selmodel = self.view.selectionModel()
-		indexes = selmodel.selectedRows()
-		#row = 0
-		#col = 0
-		#if indexes:
-		#	row = indexes[0].row()
-		#	col = indexes[0].column()
-		#old = self.model.index(row, col)
 		old = self.view.currentIndex()
 		index = self.model.findPrev(old, txt, cs)
 		if index:
 			self.view.setCurrentIndex(index)
 			selmodel.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-	def replace1(self, txt, rtxt, cs):
-		pass
-	def replaceall(self, txt, rtxt, cs):
-		pass

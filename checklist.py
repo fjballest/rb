@@ -1,7 +1,7 @@
 from PySide6.QtCore import QSize
 from PySide6.QtCore import Qt
-from PySide6.QtGui import *
-from PySide6.QtWidgets import *
+from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import QListView
 from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout,
 	QPushButton, QLabel

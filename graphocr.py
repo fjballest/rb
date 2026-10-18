@@ -1,12 +1,9 @@
-import cv2
-import pytesseract
 import re
 import os
 import sys
-import easyocr
 import datetime
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import functools
 print = functools.partial(print, flush=True)
@@ -20,30 +17,39 @@ def dprint(*args, **xargs):
 	sys.stdout.flush()
 	print(*args, file=sys.stderr, **xargs)
 
-reader = easyocr.Reader(['en'])  # add 'es' if needed
+_reader = None
+
+def reader():
+	"""OCR engine, loaded on first use because it takes a while to start."""
+	global _reader
+	if _reader is None:
+		import easyocr
+		_reader = easyocr.Reader(['en'])  # add 'es' if needed
+	return _reader
+
+def imread(path):
+	import cv2
+	return cv2.imread(path)
 
 def s2i(s):
 	try:
 		s = s.replace(',','.').replace('..','.').replace('_','-')
 		return round(float(s))
-	except:
-		#print("XXX float", s, file=sys.stderr)
+	except Exception:
 		return 0
 
 def s2f(s):
 	try:
 		s = s.replace(',','.').replace('..','.').replace('_','-')
 		return float(s)
-	except:
-		#print("XXX float ", s, file=sys.stderr)
+	except Exception:
 		return 0
 
 def s2t(s):
 	try:
 		s = s.replace(',',':').replace('.',':').replace('*',':')
 		return datetime.datetime.strptime(s, "%H:%M").time()
-	except:
-		#print("XXX time ", s, file=sys.stderr)
+	except Exception:
 		return None
 
 def findsetup(s, ss):
@@ -79,7 +85,7 @@ class TradeOCR:
 	# heuristics to get dates in vertical marks
 	def _dates(img):
 		#img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
-		results = reader.readtext(img)
+		results = reader().readtext(img)
 		tin=None
 		tout=None
 		saved=None
@@ -126,11 +132,11 @@ class TradeOCR:
 		try:
 			mt = os.path.getmtime(path)
 			at = datetime.datetime.fromtimestamp(mt)
-		except:
+		except Exception:
 			pass
 		# Read text from image
-		img = cv2.imread(path)
-		results = reader.readtext(img)
+		img = imread(path)
+		results = reader().readtext(img)
 
 		dprint(f"setups: {setups}")
 		for (bbox, text, confidence) in results:
@@ -241,8 +247,8 @@ if __name__ == "__main__":
 		args = args[1:]
 	for a in args:
 		print(a)
-		img = cv2.imread(a)
-		results = reader.readtext(img)
+		img = imread(a)
+		results = reader().readtext(img)
 		ltext = ''
 		for (bbox, text, confidence) in results:
 			if clean:

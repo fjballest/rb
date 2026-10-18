@@ -1,14 +1,13 @@
-import sys
 from PySide6.QtWidgets import (
-	QApplication, QMainWindow, QFileDialog,
-	QLabel, QScrollArea, QPushButton,
+	QMainWindow, QLabel, QPushButton,
 	QWidget, QVBoxLayout, QHBoxLayout
 )
-from PySide6.QtGui import QPixmap
-from PySide6.QtCore import Qt, QEvent, QDate
-from checklist import *
-from stats import *
-import os
+from PySide6.QtCore import QDate
+from checklist import CheckBoxGroup
+from datetime import date
+from PySide6.QtWidgets import QDateEdit, QRadioButton
+from data import Dir, Result, WDay
+from stats import Filter
 WDAYS = [d.name for d in WDay]
 HOURS = [f"{h}" for h in range(6,20)]
 

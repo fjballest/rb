@@ -1,6 +1,9 @@
 
-from enum import Enum, IntEnum, IntFlag, auto
-from data import *
+from enum import IntEnum, IntFlag, auto
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Set
+from data import Dir, Result, Trade, WDay
 
 class StatKind(IntFlag):
 	Tot = auto()

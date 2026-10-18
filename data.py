@@ -10,7 +10,7 @@ import sys
 import shutil
 from csv_mapper import load_objects_from_csv,write_objects_to_csv
 
-from newdata import *
+from newdata import NEWACCOUNT, NEWCURRENCIES, NEWFEATURES, NEWINSTRUMENTS, NEWSETUPS, NEWTRADES
 
 ACCOUNTFILE = "account.csv"
 SETUPSFILE = "setups.csv"
@@ -338,7 +338,7 @@ def tradeexample():
 def copyfile(src: str, dst: str) -> None:
 	try:
 		shutil.copyfile(src, dst)
-	except:
+	except Exception:
 		pass
 
 class RoadBook:
@@ -529,8 +529,6 @@ class RoadBook:
 		if ns is None:
 			ns = Setup(name)
 			self.setups.append(ns)
-			#print(f"dflt setup {name}", file=sys.stderr)
-			#traceback.print_stack()
 
 	def defaultcurrency(self, name: str) -> None:
 		"""add a default for currency name if not there"""
@@ -623,7 +621,7 @@ class RoadBook:
 			p1 = os.path.join(path, TRADESFILE)
 			p2 = os.path.join(path, ACCOUNTFILE)
 			return os.path.exists(p1) and os.path.exists(p2)
-		except:
+		except Exception:
 			return False
 
 	def accountpath(self, suff = "") -> str:
@@ -814,7 +812,7 @@ class RoadBook:
 				try:
 					if os.path.samefile(g, npath):
 						continue
-				except:
+				except Exception:
 					pass
 				try:
 					shutil.copyfile(g, npath)

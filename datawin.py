@@ -12,12 +12,28 @@ from PySide6.QtWidgets import (
 	QCheckBox, QLabel, QFileDialog, QPlainTextEdit
 )
 import traceback
-from filterwin import *
-from imgwin import *
-from objtbl import *
-from statswin import *
-from graphocr import *
-from functools import partial
+import os
+import re
+import shutil
+from datetime import date
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QDoubleValidator
+from PySide6.QtWidgets import (
+	QApplication, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
+	QGroupBox, QLineEdit, QMainWindow, QMessageBox, QTimeEdit
+)
+from checklist import CheckBoxGroup
+from data import (
+	RoadBook, Trade, canonlist, Setup, Feature, Instrument, Currency, Dir,
+	TRADEVIEWORDER, TRADEVIEWRDONLY,
+	tradeexample, setupexample, featureexample, instrumentexample, currencyexample
+)
+from filterwin import FilterWindow
+from imgwin import ImageViewer
+from objtbl import ObjectTable
+from stats import StatTotals
+from statswin import StatsWindow, TodayPanel
+from graphocr import TradeOCR
 
 def create_file_actions(parent):
 	style = parent.style()
@@ -124,13 +140,13 @@ def mkintxt(txt, v=None):
 def nborzero(q):
 	try:
 		return float(q)
-	except:
+	except Exception:
 		return 0.0
 
 def getstr(txt):
 	try:
 		return str(txt).strip().replace("\n", " ")
-	except:
+	except Exception:
 		return ""
 
 class AccountEdit(QWidget):
@@ -150,7 +166,6 @@ class AccountEdit(QWidget):
 		self.cpbox.checkStateChanged.connect(self.edited)
 		self.cpbox.setChecked(True)
 
-		#layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 		layout.addRow(QLabel("Account"), self.accbox)
 		layout.addRow(QLabel("Neutral"), self.neutbox)
 		layout.addRow(QLabel("Fixed"), self.fixedbox)
@@ -185,12 +200,6 @@ class AccountEdit(QWidget):
 def alreadyhere(a, b):
 	return re.sub(r'\..*', '', a) == re.sub(r'\..*', '', b)
 
-def canonlist(l):
-	if len(l) <= 1:
-		return l
-	l = sorted(l)
-	return l[-1:] + l[:-1]
-
 class TradeEdit(QDialog):
 	def __init__(self, rb, t=None, dirtied=None, filepath=None):
 		super(TradeEdit, self).__init__()
@@ -220,7 +229,6 @@ class TradeEdit(QDialog):
 			self.lastsetup = t.setup
 		ed = self.setupbox.lineEdit()
 		ed.editingFinished.connect(lambda: self.setupchanged(ed.text()))
-		#self.setupbox.currentTextChanged.connect(self.setupchanged)
 		td = date.today()
 		qt = QDate(td.year, td.month, td.day)
 		self.datebox = QDateEdit(date=qt,calendarPopup=True)
@@ -306,13 +314,12 @@ class TradeEdit(QDialog):
 		self.buttonBox.rejected.connect(self.reject)
 		self.setAcceptDrops(True)
 		if filepath is not None:
-			fp = filepath
 			if type(filepath) is list:
 				self.grafbox.setText(";".join(filepath))
-				self.tOCR = TradeOCR.OCR(filepath[0], self.rb.setupNames())
+				self.tOCR = self.ocr(filepath[0])
 			else:
 				self.grafbox.setText(filepath)
-				self.tOCR = TradeOCR.OCR(filepath, self.rb.setupNames())
+				self.tOCR = self.ocr(filepath)
 			if self.tOCR is not None:
 				self.pnginfo()
 	def dragEnterEvent(self, event):
@@ -322,8 +329,16 @@ class TradeEdit(QDialog):
 				event.acceptProposedAction()
 			else:
 				event.ignore()
-		except:
+		except Exception:
 			event.acceptProposedAction()
+
+	def ocr(self, path):
+		# the first call loads the OCR engine, which takes a few seconds
+		QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+		try:
+			return TradeOCR.OCR(path, self.rb.setupNames())
+		finally:
+			QApplication.restoreOverrideCursor()
 
 	def pnginfo(self):
 		if self.tOCR is None:
@@ -364,13 +379,11 @@ class TradeEdit(QDialog):
 				old = self.grafbox.text().strip()
 				oldl = old.split(';')
 				oldl += file_paths
-				# oldl.append(file_path)
 				oldl = [g for g in oldl if g != ""]
-				#print(f"XXXX old {old} oldl {oldl}", file=sys.stderr)
 				self.grafbox.setText(';'.join(oldl))
 				event.acceptProposedAction()
 				if len(old) < 2:
-					self.tOCR = TradeOCR.OCR(file_path, self.rb.setupNames())
+					self.tOCR = self.ocr(file_path)
 					if self.tOCR is not None:
 						self.pnginfo()
 			except Exception as e:
@@ -431,8 +444,7 @@ class TradeEdit(QDialog):
 					t.tp = ptsin - ptsout
 					if ptsstop != 0:
 						t.stop = ptsstop - ptsin
-		t.graf = getstr(self.grafbox.text()).strip().split(';')
-		#print(f"XXXX edited graph {t.graf} {type(t.graf)}", file=sys.stderr)
+		t.graf = [g for g in getstr(self.grafbox.text()).split(';') if g.strip()]
 		t.notes = getstr(self.notesbox.toPlainText())
 		t.has = set(self.featuresGroup.checked_items())
 		t.inval()
@@ -448,11 +460,8 @@ class TradeEdit(QDialog):
 			if self.t is not None:
 				self.t.copy_from(t)
 				t = self.t
-			if not hasattr(t, 'rb') or t.rb is None:
-				t.rb = self.rb
 			if t.rb is None:
 				t.rb = self.rb
-			#print(f"XXXX edited2 graph {t.graf} {type(t.graf)}", file=sys.stderr)
 			if t.graf is not None and len(t.graf) > 0:
 				self.maycopygraphs(t)
 			self.rb.defaultsfortrade(t)
@@ -478,7 +487,6 @@ class TradeEdit(QDialog):
 		t.graf = canonlist(t.graf)
 		for i, src in enumerate(t.graf):
 			dst = self.rb.mkgraphpath(t, i)
-			#print(f"XXXXX src {src} dst {dst}", file=sys.stderr)
 			if alreadyhere(src, dst):
 				dstl.append(src)
 				continue
@@ -486,7 +494,7 @@ class TradeEdit(QDialog):
 			try:
 				if src == dst or os.path.samefile(src, dst):
 					continue
-			except:
+			except Exception:
 				pass
 			try:
 				shutil.copyfile(src, dst)
@@ -630,7 +638,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"Not a roadBook",
-            	f"The selected directory does not contain a roadbook.")
+            	"The selected directory does not contain a roadbook.")
 			return
 		rb = RoadBook()
 		rb.load(s)
@@ -649,7 +657,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"Not a roadBook",
-            	f"The selected directory does not contain a roadbook.")
+            	"The selected directory does not contain a roadbook.")
 			return
 		rb = RoadBook()
 		rb.load(file_path)
@@ -661,7 +669,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"No roadBook",
-            	f"Do not have a roadbook to save")
+            	"Do not have a roadbook to save")
 			return
 		self.rb.save()
 		self.updateTitle()
@@ -671,7 +679,7 @@ class DataWindow(QMainWindow):
 			QMessageBox.warning(
             	self,
             	"No roadBook",
-            	f"Do not have a roadbook to save")
+            	"Do not have a roadbook to save")
 			return
 		file_path, _ = QFileDialog.getSaveFileName(
 			self, "Save (Filtered) Roadbook as", "", "")
@@ -801,11 +809,8 @@ class DataWindow(QMainWindow):
 		t.dirtied = self.dirtied
 		t.edited = self.dirtiedTrades
 		t.info = self.infofn
-		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=self.drop)
+		tbl = ObjectTable(t, [], lambda: Trade(), TRADEVIEWORDER, TRADEVIEWRDONLY, drop=True)
 		return tbl
-	def drop(self, x):
-		print('XXX', x, file=sys.stderr)
-		pass
 
 	def mksetupstbl(self):
 		s = setupexample()
@@ -852,9 +857,7 @@ class DataWindow(QMainWindow):
 		self.dirtied()
 		try:
 			self.tradestbl.refresh()
-			print("refreshD", file=sys.stderr)
 			self.featchecks.set_items(self.rb.featureNames())
-			print("refreshE", file=sys.stderr)
 			if self.filterwindow is not None:
 				self.filterwindow.refresh()
 		except Exception as e:

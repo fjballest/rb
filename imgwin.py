@@ -1,18 +1,12 @@
-import sys
 from PySide6.QtWidgets import (
-	QApplication, QMainWindow, QFileDialog,
-	QLabel, QScrollArea, QPushButton,
-	QWidget, QVBoxLayout, QHBoxLayout
+	QMainWindow, QLabel, QScrollArea,
+	QPushButton, QWidget, QVBoxLayout,
+	QHBoxLayout
 )
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QEvent, QTimer
 import os
-
-def canonlist(l):
-	if len(l) <= 1:
-		return l
-	l = sorted(l)
-	return l[-1:] + l[:-1]
+from data import canonlist
 
 class ImageViewer(QMainWindow):
 	def __init__(self, file, parent=None, x=1400, y=1024, desc=''):
@@ -35,7 +29,6 @@ class ImageViewer(QMainWindow):
 		self.original_pixmap = None
 		self.fit_mode = False
 
-		# print(f"XXXX {file}", file=sys.stderr)
 
 		# --- Buttons ---
 		self.prev_button = QPushButton("Prev")
@@ -116,12 +109,12 @@ class ImageViewer(QMainWindow):
 			pixmap = QPixmap(self.file_path)
 			if not pixmap.isNull():
 				self.original_pixmap = pixmap
-		except:
+		except Exception:
 			pass
 		self.update_image()
 		try:
 			self.notes.setText(desc)
-		except:
+		except Exception:
 			pass
 
 	def more(self):
