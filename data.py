@@ -6,6 +6,7 @@ from datetime import date, time, datetime
 from typing import Optional, Set, List
 from enum import Enum, IntEnum
 import os
+import re
 import sys
 import shutil
 from csv_mapper import load_objects_from_csv,write_objects_to_csv
@@ -22,11 +23,19 @@ GRAPHSDIR = "diarygraphs"
 VERSION = 2.0
 BCK = "~"
 
+def graphindex(path: str) -> int:
+	"""n for a graph named like trade12dax.n.png, 0 for any other name"""
+	m = re.search(r"\.(\d+)\.png$", path, re.IGNORECASE)
+	return int(m.group(1)) if m else 0
+
 def canonlist(l):
-	if len(l) <= 1:
+	"""graphs in their right order: the primary one first.
+	Roadbooks saved by older versions have the list sorted by name,
+	which puts trade12dax.1.png before trade12dax.png; fix that order.
+	Lists not sorted by name were saved in the right order already."""
+	if len(l) <= 1 or l != sorted(l):
 		return l
-	l = sorted(l)
-	return l[-1:] + l[:-1]
+	return sorted(l, key=graphindex)
 
 class Dir(Enum):
 	Long = "Long"
@@ -707,6 +716,36 @@ class RoadBook:
 				objs = self.filteredtrades
 			self.findgraphs(objs)
 		write_objects_to_csv(fname, objs, tbl.cls, tbl.renames)
+
+	def storegraphs(self, t) -> list[str]:
+		"""copy the graphs of t that are not yet in the roadbook graphs
+		directory there, named after the trade, keeping their order.
+		Graphs already in that directory are left as they are.
+		Returns the error messages."""
+		gdir = os.path.realpath(self.path(GRAPHSDIR))
+		os.makedirs(gdir, exist_ok=True)
+		taken = {os.path.realpath(g) for g in t.graf}
+		errs = []
+		graf = []
+		for src in t.graf:
+			if os.path.dirname(os.path.realpath(src)) == gdir:
+				graf.append(src)
+				continue
+			nb = 0
+			while True:
+				dst = self.mkgraphpath(t, nb)
+				if os.path.realpath(dst) not in taken and not os.path.exists(dst):
+					break
+				nb += 1
+			try:
+				shutil.copyfile(src, dst)
+				taken.add(os.path.realpath(dst))
+				graf.append(dst)
+			except Exception as e:
+				errs.append(f"failed to copy {src}: {e}")
+				graf.append(src)
+		t.graf = graf
+		return errs
 
 	def findgraphs(self, trades) -> None:
 		"""set graf for trades without one, using PNGs named after the trade"""

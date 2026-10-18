@@ -236,7 +236,7 @@ def format_value(value) -> str:
 		return SET_SEPARATOR.join(sorted(value))
 
 	if isinstance(value, list):
-		return SET_SEPARATOR.join(sorted(value))
+		return SET_SEPARATOR.join(value)
 
 	return str(value)
 

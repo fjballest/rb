@@ -13,8 +13,6 @@ from PySide6.QtWidgets import (
 )
 import traceback
 import os
-import re
-import shutil
 from datetime import date
 from PySide6.QtCore import QSize, QTimer, Signal
 from PySide6.QtGui import QDoubleValidator
@@ -24,9 +22,9 @@ from PySide6.QtWidgets import (
 )
 from checklist import CheckBoxGroup
 from data import (
-	RoadBook, Trade, canonlist, Setup, Feature, Instrument, Currency, Dir,
-	TRADEVIEWORDER, TRADEVIEWRDONLY,
-	tradeexample, setupexample, featureexample, instrumentexample, currencyexample
+	RoadBook, Trade, Setup, Feature, Instrument, Currency, Dir, TRADEVIEWORDER,
+	TRADEVIEWRDONLY, tradeexample,
+	setupexample, featureexample, instrumentexample, currencyexample
 )
 from filterwin import FilterWindow
 from imgwin import ImageViewer
@@ -98,6 +96,8 @@ def mktoolbar(dwin, rbs=None):
 
 
 class FileDropLineEdit(QLineEdit):
+	dropped = Signal(list)	# paths of the files dropped
+
 	def __init__(self, parent=None):
 		super().__init__(parent)
 		self.setAcceptDrops(True)
@@ -109,12 +109,7 @@ class FileDropLineEdit(QLineEdit):
 			event.ignore()
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
-			file_path = event.mimeData().urls()[0].toLocalFile()
-			old = self.text().strip()
-			oldl = old.split(';')
-			oldl.append(file_path)
-			oldl = [g for g in oldl if g != ""]
-			self.setText(';'.join(oldl))
+			self.dropped.emit([x.toLocalFile() for x in event.mimeData().urls()])
 			event.acceptProposedAction()
 		else:
 			event.ignore()
@@ -197,9 +192,6 @@ class AccountEdit(QWidget):
 		self.fixedbox.setChecked(rb.account.fixed if rb else True)
 		self.cpbox.setChecked(rb.account.copygraphs if rb else True)
 
-def alreadyhere(a, b):
-	return re.sub(r'\..*', '', a) == re.sub(r'\..*', '', b)
-
 class TradeEdit(QDialog):
 	changed = Signal()	# the trade was saved into the roadbook
 
@@ -266,6 +258,7 @@ class TradeEdit(QDialog):
 
 		self.eurosbox = mkindouble("euros out", t.euros if t else None)
 		self.grafbox = FileDropLineEdit()
+		self.grafbox.dropped.connect(self.adddropped)
 		self.grafbox.setPlaceholderText("drop your PNGs into this form")
 		if t and t.graf is not None and len(t.graf) > 0:
 			self.grafbox.setText(';'.join(t.graf))
@@ -315,14 +308,9 @@ class TradeEdit(QDialog):
 		self.buttonBox.rejected.connect(self.reject)
 		self.setAcceptDrops(True)
 		if filepath is not None:
-			if type(filepath) is list:
-				self.grafbox.setText(";".join(filepath))
-				self.tOCR = self.ocr(filepath[0])
-			else:
-				self.grafbox.setText(filepath)
-				self.tOCR = self.ocr(filepath)
-			if self.tOCR is not None:
-				self.pnginfo()
+			if type(filepath) is not list:
+				filepath = [filepath]
+			self.adddropped(filepath)
 	def dragEnterEvent(self, event):
 		try:
 			if event.mimeData().hasUrls():
@@ -340,6 +328,46 @@ class TradeEdit(QDialog):
 			return TradeOCR.OCR(path, self.rb.setupNames())
 		finally:
 			QApplication.restoreOverrideCursor()
+
+	def ocrscore(self, o):
+		"""how much trade data the OCR found; a known instrument counts most"""
+		if o is None:
+			return -1
+		score = 0
+		if o.instr and self.rb.findInstrument(o.instr) is not None:
+			score += 3
+		for v in (o.ptstp, o.ptsstop, o.success, o.size, o.tin):
+			if v is not None:
+				score += 1
+		return score
+
+	def ocrbest(self, paths):
+		"""OCR the images and put first the one with most trade data.
+		Returns the reordered paths and that image's OCR."""
+		best, bestscore, bestocr = 0, -1, None
+		for i, p in enumerate(paths):
+			o = self.ocr(p)
+			score = self.ocrscore(o)
+			if score > bestscore:
+				best, bestscore, bestocr = i, score, o
+		return [paths[best]] + paths[:best] + paths[best+1:], bestocr
+
+	def grafs(self):
+		return [g for g in getstr(self.grafbox.text()).split(';') if g.strip()]
+
+	def adddropped(self, paths):
+		"""add dropped images to the trade; when it had none yet,
+		the one with most data recognised is the primary one and fills the form"""
+		paths = [p for p in paths if p]
+		old = self.grafs()
+		paths = [p for p in paths if p not in old]
+		if not paths:
+			return
+		if not old:
+			paths, self.tOCR = self.ocrbest(paths)
+			if self.tOCR is not None:
+				self.pnginfo()
+		self.grafbox.setText(';'.join(old + paths))
 
 	def pnginfo(self):
 		if self.tOCR is None:
@@ -375,18 +403,8 @@ class TradeEdit(QDialog):
 	def dropEvent(self, event):
 		if event.mimeData().hasUrls():
 			try:
-				file_paths = [x.toLocalFile() for x in event.mimeData().urls()]
-				file_path = file_paths[0]
-				old = self.grafbox.text().strip()
-				oldl = old.split(';')
-				oldl += file_paths
-				oldl = [g for g in oldl if g != ""]
-				self.grafbox.setText(';'.join(oldl))
 				event.acceptProposedAction()
-				if len(old) < 2:
-					self.tOCR = self.ocr(file_path)
-					if self.tOCR is not None:
-						self.pnginfo()
+				self.adddropped([x.toLocalFile() for x in event.mimeData().urls()])
 			except Exception as e:
 				print(e, file=sys.stderr)
 				event.acceptProposedAction()
@@ -445,7 +463,7 @@ class TradeEdit(QDialog):
 					t.tp = ptsin - ptsout
 					if ptsstop != 0:
 						t.stop = ptsstop - ptsin
-		t.graf = [g for g in getstr(self.grafbox.text()).split(';') if g.strip()]
+		t.graf = self.grafs()
 		t.notes = getstr(self.notesbox.toPlainText())
 		t.has = set(self.featuresGroup.checked_items())
 		t.inval()
@@ -480,27 +498,8 @@ class TradeEdit(QDialog):
 		super(TradeEdit, self).accept()
 
 	def maycopygraphs(self, t):
-		dstl = []
-		if type(t.graf) is str:
-			print(f"bug: t.graf is str {t.graf}", file=sys.stderr)
-			t.graf = [t.graf]
-		t.graf = canonlist(t.graf)
-		for i, src in enumerate(t.graf):
-			dst = self.rb.mkgraphpath(t, i)
-			if alreadyhere(src, dst):
-				dstl.append(src)
-				continue
-			dstl.append(dst)
-			try:
-				if src == dst or os.path.samefile(src, dst):
-					continue
-			except Exception:
-				pass
-			try:
-				shutil.copyfile(src, dst)
-				t.graf = dstl
-			except Exception as e:
-				print(f"failed to copy graphics: {e}", file=sys.stderr)
+		for e in self.rb.storegraphs(t):
+			print(e, file=sys.stderr)
 
 def setfeats(q):
 	q.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable|QDockWidget.DockWidgetFeature.DockWidgetFloatable)
