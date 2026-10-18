@@ -4,18 +4,14 @@
 import sys
 
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QStyle
-from PySide6.QtWidgets import QToolBar
 from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout,
 	QCheckBox, QLabel, QFileDialog, QPlainTextEdit
 )
 import traceback
-import os
 import calendar
 from datetime import date, timedelta
-from PySide6.QtCore import QSize, QTimer, Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
 	QApplication, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
@@ -30,72 +26,11 @@ from data import (
 from calwin import TradeCalendar, daysign, tradeorder
 from filterwin import FilterWindow
 from imgwin import ImageViewer
+from menus import MainMenus, addrecent
 from objtbl import ObjectTable
 from stats import StatTotals, StatUnit, tradevalue
 from statswin import StatsWindow, TodayPanel
 from graphocr import TradeOCR
-
-def create_file_actions(parent):
-	style = parent.style()
-
-	new_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_FileIcon),
-		"New",
-		parent,
-	)
-	new_action.setShortcut("Ctrl+N")
-	new_action.setToolTip("New RoadBook")
-	open_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton),
-		"Open",
-		parent,
-	)
-	open_action.setShortcut("Ctrl+O")
-	open_action.setToolTip("Open RoadBbook")
-
-	save_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
-		"Save",
-		parent,
-	)
-	save_action.setShortcut("Ctrl+S")
-	save_action.setToolTip("Save RoadBook")
-
-	saveas_action = QAction(
-		style.standardIcon(QStyle.StandardPixmap.SP_DirLinkIcon),
-		"SaveAs",
-		parent,
-	)
-	saveas_action.setToolTip("Save RoadBook as")
-
-	return [new_action, open_action, save_action, saveas_action]
-
-def mktoolbar(dwin, rbs=None):
-		toolbar = QToolBar("File", dwin)
-		toolbar.setMovable(False)
-		toolbar.setFloatable(False)
-		toolbar.setIconSize(QSize(16, 16))
-		acts = create_file_actions(dwin)
-		fns = [dwin.newroadbook, dwin.openroadbook, dwin.saveroadbook,
-			dwin.saveroadbookas]
-		menu = dwin.menuBar()
-		fmenu = menu.addMenu("&File")
-
-		for i, a in enumerate(acts):
-			toolbar.addAction(a)
-			fmenu.addAction(a)
-			a.triggered.connect(fns[i])
-		if rbs is not None:
-			for rb in rbs:
-				txt = os.path.basename(rb)
-				act = QAction(txt, dwin)
-				act.setStatusTip('open '+rb)
-				act.triggered.connect(lambda x,t=rb: dwin.openroadbook1(t))
-				toolbar.addAction(act)
-				font = act.font()
-				font.setBold(True)
-				dwin.addToolBar(toolbar)
-
 
 class FileDropLineEdit(QLineEdit):
 	dropped = Signal(list)	# paths of the files dropped
@@ -607,7 +542,9 @@ class DataWindow(QMainWindow):
 		trades.raise_()
 		self.tradesdock = trades
 
-		mktoolbar(self, rbs)
+		self.leftdocks = [trades, caldock, setups, features, instruments, currencies, account]
+		self.rightdocks = [self.featcheckswidget, self.setupcheckswidget, self.todaywidget]
+		self.menus = MainMenus(self, rbs)
 
 		self.updateTitle()
 		# once the event loop runs, the window and its first roadbook are in place
@@ -863,7 +800,28 @@ class DataWindow(QMainWindow):
 			self.statswindow.plotchanged()
 
 
+	def tables(self):
+		return [self.tradestbl, self.setupstbl, self.featurestbl, self.instrumentstbl, self.currenciestbl]
+
+	def findintable(self):
+		"""find in the table with the focus, else the one shown, else the trades"""
+		# tabbed docks behind another one are still "visible"
+		shown = [t for t in self.tables() if t.isVisible() and not t.visibleRegion().isEmpty()]
+		focus = QApplication.focusWidget()
+		for tbl in shown:
+			if focus is not None and tbl.isAncestorOf(focus):
+				tbl.find()
+				return
+		if shown:
+			shown[0].find()
+			return
+		self.tradesdock.show()
+		self.tradesdock.raise_()
+		self.tradestbl.find()
+
 	def updateTitle(self):
+		if hasattr(self, "menus"):
+			self.menus.save.setEnabled(bool(self.rb and self.rb.dir))
 		if self.rb and self.rb.dirty and self.rb.dir:
 			self.setWindowTitle(f"RoadBook {self.rb.dir} (unsaved)")
 		elif self.rb and self.rb.dir:
@@ -1029,6 +987,9 @@ class DataWindow(QMainWindow):
 			self.accounttbl.refresh()
 			self.updatetoday()
 			self.refreshcalendar()
+			if r.dir:
+				addrecent(r.dir)
+				self.menus.updaterecent()
 		except Exception as e:
 			print("failed: ", e, file=sys.stderr)
 			traceback.print_exc()

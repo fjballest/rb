@@ -14,7 +14,7 @@ from find import FindReplaceDialog
 
 from PySide6.QtWidgets import (
 	QWidget, QVBoxLayout, QHBoxLayout, QTableView,
-	QPushButton
+	QPushButton, QToolButton
 )
 from PySide6.QtCore import QTimer, Signal, QPersistentModelIndex
 
@@ -191,6 +191,17 @@ class ObjectTableModel(QAbstractTableModel):
 
 	def collapseall(self):
 		self.collapseexcept([])
+
+	def allcollapsed(self):
+		"""every group shown is collapsed"""
+		return self.grouped() and all(e.key in self.collapsed for e in self.rows if isinstance(e, Group))
+
+	def toggleall(self):
+		"""expand all groups when all are collapsed, else collapse all"""
+		if self.allcollapsed():
+			self.expandall()
+		else:
+			self.collapseall()
 
 	def collapseexcept(self, objs):
 		"""collapse every group but those holding objs"""
@@ -612,6 +623,14 @@ class DTableView(QTableView):
 		self.setDragEnabled(True)
 		self.setDropIndicatorShown(True)
 		self.drop = drop
+		self.corner = None	# a widget kept over the top left corner
+
+	def updateGeometries(self):
+		super().updateGeometries()
+		if self.corner is not None:
+			fw = self.frameWidth()
+			self.corner.setGeometry(fw, fw, self.verticalHeader().width(), self.horizontalHeader().height())
+			self.corner.raise_()
 
 	def dragEnterEvent(self, event):
 		if event.mimeData().hasUrls():
@@ -704,7 +723,9 @@ class ObjectTable(QWidget):
 
 		find_btn = QPushButton("Find")
 		find_btn.clicked.connect(self.find)
-		QShortcut(QKeySequence.StandardKey.Find, self, self.find)
+		# only while the table has the focus, so tables in the same window don't clash
+		self.findshortcut = QShortcut(QKeySequence.StandardKey.Find, self, self.find,
+			context=Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
 		btn_layout = QHBoxLayout()
 		btn_layout.addWidget(add_btn)
@@ -714,15 +735,21 @@ class ObjectTable(QWidget):
 			edit_btn.clicked.connect(self.edit_row)
 			btn_layout.addWidget(edit_btn)
 		btn_layout.addWidget(find_btn)
+		self.cornerbtn = None
 		if groupby is not None:
-			exp_btn = QPushButton("Expand")
-			exp_btn.setToolTip("expand all groups; click a group to expand or collapse it")
-			exp_btn.clicked.connect(self.model.expandall)
-			btn_layout.addWidget(exp_btn)
-			col_btn = QPushButton("Collapse")
-			col_btn.setToolTip("collapse all groups; click a group to expand or collapse it")
-			col_btn.clicked.connect(self.model.collapseall)
-			btn_layout.addWidget(col_btn)
+			# a tiny triangle in the top left corner expands or collapses all groups
+			self.view.setCornerButtonEnabled(False)
+			self.view.verticalHeader().setMinimumWidth(16)	# room for the triangle
+			b = QToolButton(self.view)
+			b.setAutoRaise(True)
+			f = b.font()
+			f.setPointSizeF(f.pointSizeF() * 0.8)
+			b.setFont(f)
+			b.setStyleSheet("QToolButton { border: none; padding: 0; }")
+			b.clicked.connect(self.model.toggleall)
+			self.cornerbtn = b
+			self.view.corner = b
+			self.updatecorner()
 		if "Graphics" in extrabuttons:
 			g_btn = QPushButton("Graphics")
 			g_btn.clicked.connect(self.graphics)
@@ -799,9 +826,20 @@ class ObjectTable(QWidget):
 		obj = self.model.entry(cur.row()) if cur.isValid() else None
 		self.keep = (obj, max(cur.column(), 0), self.view.verticalScrollBar().value())
 
+	def updatecorner(self):
+		if self.cornerbtn is None:
+			return
+		if self.model.allcollapsed():
+			self.cornerbtn.setText("▶")
+			self.cornerbtn.setToolTip("expand all groups (click a group to expand or collapse just that one)")
+		else:
+			self.cornerbtn.setText("▼")
+			self.cornerbtn.setToolTip("collapse all groups (click a group to expand or collapse just that one)")
+
 	def afterreset(self):
 		"""after regrouping, keep the current object or group and the scroll position"""
 		self.setspans()
+		self.updatecorner()
 		if self.keep is None:
 			return
 		obj, col, scroll = self.keep
