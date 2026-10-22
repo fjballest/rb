@@ -3,7 +3,8 @@ Just born for personal use.
 For sure it's full of bugs.
 Provided AS-IS
 
-See near the end for a quick use guide
+See near the end for a quick use guide, the [user manual](docs/MANUAL.md)
+for the details, and the [design document](docs/DESIGN.md) to find your way in the source.
 
 Uses PySide6 Qt for widgets.
 

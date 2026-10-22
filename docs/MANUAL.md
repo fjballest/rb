@@ -48,7 +48,8 @@ example trade once you add your own.
 
 ![main window](img/toolbar.png)
 
-- **Toolbar**: New, Open (its ▾ lists recent roadbooks), Save and Save As,
+- **Toolbar**: New, Open (its ▾ lists recent roadbooks), Save, Save As and
+  Backup,
   followed by a button for each of your most recent roadbooks. The one that
   is open is highlighted. Click another one to switch.
 - **Left tabs**: Trades, Calendar, Setups, Features, Instruments,
@@ -69,7 +70,7 @@ side by side. **View ▸ Side Panels** shows or hides the right panels.
 
 | Menu | Entries |
 |------|---------|
-| File | New Roadbook (⌘N), Open Roadbook (⌘O), Open Recent, Save (⌘S), Save As (⌘⇧S), Quit (⌘Q) |
+| File | New Roadbook (⌘N), Open Roadbook (⌘O), Open Recent, Save (⌘S), Save As (⌘⇧S), Backups (⌘B), Quit (⌘Q) |
 | Edit | New Trade (⌘T), Edit Trade (⌘E), Delete Trade, Find and Replace (⌘F) |
 | View | one entry per tab (⌘1 to ⌘7), Expand or Collapse All Trades (⌘⇧E), Graphics (⌘G), Filter (⌘⇧F), Statistics, Side Panels |
 | Help | About |
@@ -305,6 +306,27 @@ Graphs* is set. The open roadbook stays the same.
 RoadBook warns you before quitting or opening another roadbook with unsaved
 changes.
 
+### Backups
+
+![backups](img/backups.png)
+
+The **Backup** button (or **File ▸ Backups…**, ⌘B) opens the backups window.
+Backups of a roadbook at `/a/b/rb` go in `/a/b/rb.dump/`, one directory per
+day named `YYMMDD` (for example `261022`). Each one holds a copy of the
+roadbook's CSV files and graphs with the same layout they have in the
+roadbook.
+
+- **Back Up Now** makes today's backup. If the roadbook has unsaved changes
+  it offers to save them first; otherwise the backup has what is on disk.
+  Backing up again the same day replaces that day's backup, so there is only
+  one per day. The new backup is written aside and only replaces the old one
+  when it is complete.
+- **Restore…** (or double-clicking a backup) copies the chosen backup's CSV
+  files and graphs back into the roadbook, after you confirm, and reloads it.
+  Changes made since that backup are lost, including unsaved ones. Graph
+  files added after the backup are left in place.
+- **Clean Up** removes all backups but the newest one, after you confirm.
+
 A roadbook directory holds:
 
 | File | Contents |
@@ -326,7 +348,7 @@ when opened.
 
 | Where | Keys | Action |
 |-------|------|--------|
-| Anywhere | ⌘N, ⌘O, ⌘S, ⌘⇧S, ⌘Q | new, open, save, save as, quit |
+| Anywhere | ⌘N, ⌘O, ⌘S, ⌘⇧S, ⌘B, ⌘Q | new, open, save, save as, backups, quit |
 | Anywhere | ⌘T, ⌘E | new trade, edit trade |
 | Anywhere | ⌘F | find and replace in the table shown |
 | Anywhere | ⌘1 … ⌘7 | show a tab |

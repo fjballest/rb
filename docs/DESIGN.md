@@ -21,9 +21,10 @@ edited through Qt table models, and written back on save.
 9. [Calendar](#calendar)
 10. [Graphics window](#graphics-window)
 11. [Filters and statistics](#filters-and-statistics)
-12. [Menus, toolbar and settings](#menus-toolbar-and-settings)
-13. [Conventions](#conventions)
-14. [Where to make common changes](#where-to-make-common-changes)
+12. [Backups](#backups)
+13. [Menus, toolbar and settings](#menus-toolbar-and-settings)
+14. [Conventions](#conventions)
+15. [Where to make common changes](#where-to-make-common-changes)
 
 ## Running and building
 
@@ -51,6 +52,7 @@ downward: the data layer knows nothing about Qt widgets.
 | Entry | `rb.py` | finds roadbooks on disk, creates `DataWindow`, opens the last roadbook used |
 | Main window | `datawin.py` | `DataWindow` (docks, wiring, open and save), `TradeEdit` (trade form), `AccountEdit`, `FileDropLineEdit` |
 | | `menus.py` | `MainMenus`: menu bar, toolbar, recent roadbooks (in `QSettings`) |
+| | `backup.py` | daily backups in `<roadbook>.dump/YYMMDD/`: `makebackup`, `cleanup`, `restore` and `BackupDialog` |
 | | `icons.py` | inline SVG icons rendered to `QIcon` |
 | Widgets | `objtbl.py` | `ObjectTable` and `ObjectTableModel`, a generic editable table over dataclasses, with grouping, find and replace, highlighting |
 | | `calwin.py` | `TradeCalendar`, `DayCalendar` and `YearView` |
@@ -324,6 +326,21 @@ calendar and statistics.
 weekday and hour. `StatsWindow` lays out the chart widgets for the selected
 plots, unit and kinds (total, average, count), and `TodayPanel` shows today's
 pies.
+
+## Backups
+
+`backup.py` keeps one backup per day of a roadbook `/a/b/rb` in
+`/a/b/rb.dump/YYMMDD/`. `backedup(dir)` lists what is copied: every `.csv`
+and image file under the roadbook, by relative path, so the layout is kept
+(`*.csv~`, `*.tmp` and other files are not copied). `makebackup` copies into a
+hidden `.YYMMDD.new` directory and only then swaps it with the existing
+backup of that day, so a failed backup never destroys the previous one.
+`restore` copies a backup's files back over the roadbook, each through a
+temporary file and `os.replace`, and leaves alone files the backup doesn't
+have. `cleanup` removes all but the newest backup.
+
+`BackupDialog` is the window for these. It emits `restored` after a restore,
+and `DataWindow.reload` then reads the roadbook again from disk.
 
 ## Menus, toolbar and settings
 

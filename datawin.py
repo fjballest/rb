@@ -27,6 +27,7 @@ from calwin import TradeCalendar, daysign, tradeorder
 from filterwin import FilterWindow
 from imgwin import ImageViewer
 from menus import MainMenus, addrecent
+from backup import BackupDialog
 from objtbl import ObjectTable
 from stats import StatTotals, StatUnit, tradevalue
 from statswin import StatsWindow, TodayPanel
@@ -637,6 +638,21 @@ class DataWindow(QMainWindow):
 		self.rb.save()
 		self.updateTitle()
 
+	def backups(self):
+		if not self.rb or not self.rb.dir:
+			QMessageBox.warning(self, "No roadBook", "Do not have a roadbook to back up")
+			return
+		dlg = BackupDialog(self)
+		dlg.restored.connect(self.reload)
+		dlg.exec()
+
+	def reload(self):
+		"""read the roadbook again from disk, dropping changes in memory"""
+		rb = RoadBook()
+		rb.load(self.rb.dir)
+		self.changedata(rb)
+		self.updateTitle()
+
 	def saveroadbookas(self):
 		if not self.rb or not self.rb.dir:
 			QMessageBox.warning(
@@ -823,6 +839,7 @@ class DataWindow(QMainWindow):
 	def updateTitle(self):
 		if hasattr(self, "menus"):
 			self.menus.save.setEnabled(bool(self.rb and self.rb.dir))
+			self.menus.backup.setEnabled(bool(self.rb and self.rb.dir))
 		if self.rb and self.rb.dirty and self.rb.dir:
 			self.setWindowTitle(f"RoadBook {self.rb.dir} (unsaved)")
 		elif self.rb and self.rb.dir:

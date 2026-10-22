@@ -19,6 +19,8 @@ BODIES = {
 	"saveas": '<path d="M12 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v3"/>'
 		'<path d="M7 3v5h8V3"/><path d="M7 21v-6h5"/>'
 		'<path d="M20.5 14.5l1 1-5.5 5.5H15v-1z"/>',
+	"backup": '<rect x="3" y="4" width="18" height="5" rx="1"/>'
+		'<path d="M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/>',
 	"recent": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
 	"book": '<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/>'
 		'<path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/>',
@@ -30,7 +32,7 @@ BODIES = {
 	"quit": '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
 }
 
-COLORS = {"save": "#1f6fd1", "saveas": "#1f6fd1", "new": "#2e8b57", "open": "#c98a00"}
+COLORS = {"backup": "#7a4fb5", "save": "#1f6fd1", "saveas": "#1f6fd1", "new": "#2e8b57", "open": "#c98a00"}
 
 _cache = {}
 

@@ -70,6 +70,8 @@ class MainMenus:
 			"save the roadbook")
 		self.saveas = mkaction(d, "Save &As…", d.saveroadbookas, "saveas", "Ctrl+Shift+S",
 			"save the (filtered) roadbook in another directory")
+		self.backup = mkaction(d, "&Backups…", d.backups, "backup", "Ctrl+B",
+			"back up the roadbook, clean up old backups or restore one")
 		self.quit = mkaction(d, "&Quit", d.close, "quit", QKeySequence.StandardKey.Quit,
 			role=QAction.MenuRole.QuitRole)
 		self.recent = QMenu("Open &Recent", d)
@@ -89,6 +91,7 @@ class MainMenus:
 		f.addSeparator()
 		f.addAction(self.save)
 		f.addAction(self.saveas)
+		f.addAction(self.backup)
 		f.addSeparator()
 		f.addAction(self.quit)
 
@@ -134,6 +137,7 @@ class MainMenus:
 		self.open.setIconText("Open")
 		self.save.setIconText("Save")
 		self.saveas.setIconText("Save As")
+		self.backup.setIconText("Backup")
 		tb.addAction(self.new)
 		# open, with the recent roadbooks in its drop down
 		ob = QToolButton(tb)
@@ -144,6 +148,7 @@ class MainMenus:
 		tb.addWidget(ob)
 		tb.addAction(self.save)
 		tb.addAction(self.saveas)
+		tb.addAction(self.backup)
 		tb.addSeparator()
 		self.toolbar = tb
 		self.quickgroup = QActionGroup(d)
