@@ -1,6 +1,6 @@
-PySide6==6.12.0
-PySide6_Addons==6.12.0
-PySide6_Essentials==6.12.0
+PySide6==6.10.1
+PySide6_Addons==6.10.1
+PySide6_Essentials==6.10.1
 pillow==12.0.0
 easyocr
 opencv-python
