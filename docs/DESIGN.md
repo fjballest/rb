@@ -81,7 +81,7 @@ CSV column order.
 | `Currency` | `name` | `euros2`: value in euros, used to convert results |
 | `Instrument` | `instrument` | `currency`, `pipmoney` (money per point), `scale` (to normalize points), and other per-instrument numbers |
 | `Setup` | `setup` | name and description |
-| `Feature` | `feature` | `setups`: the setups it applies to; empty means all |
+| `Feature` | `feature` | `setups`: the setups it applies to, empty means all; `aka`: a list of other names (the `AKA` column, optional in the CSV) |
 | `Trade` | `trade` (number) | instrument, setup, date and times, `dir`, `lots`, `tp`, `stop`, `out` (points), `euros`, `graf` (list of graph paths, primary first), `notes`, `has` (set of feature names) |
 | `Trade1` | | the version 1 trade format, converted with `Trade.old2new` on load |
 
@@ -100,7 +100,11 @@ to find their instrument and currency:
 of the current filter, or `None`) and the next trade number. It also has the
 lookups (`findInstrument`, `setupNames`, `featureNames(setup)`...), the
 "is this name used" checks for deletes, and the rename and defaults helpers
-described below.
+described below. `listedtrades()` is the filtered list or all trades;
+`clearfeatures` and `autofeatures` (the Features tab's ClearAll and
+AutoFeatures buttons) work on it, the latter matching feature names and aka
+names in the notes with one case-insensitive whole-word regex per feature
+(`namepattern`: optional lowercase final `s`, `*` wildcards in aka names).
 
 ## Storage
 
@@ -316,10 +320,18 @@ and `jumped(last)`, and the main window selects the trade, which in turn calls
 
 `stats.Filter` is a dataclass of criteria (feature sets that must and must
 not be present, instruments, setups, directions, results, hours, weekdays,
-dates); `apply(trades)` returns the matching ones. `FilterWindow` builds one
-from its check boxes and emits it. `DataWindow.setfilter` stores the result
-in `rb.filteredtrades`, shows it in the trades table and refreshes the
-calendar and statistics.
+dates, and a `text` expression); `apply(trades)` returns the matching ones.
+`stats.TextFilter` parses a text expression (words, `!`, `|`, parentheses)
+with a small recursive descent parser into a tree of word regexes
+(`RoadBook.namepattern`) and raises `ValueError` on a bad one.
+`filterwin.TextFilterEdit` is the line edit used for it in the filter window
+and in the trades tab: it shows errors and emits `edited` after a short
+pause. `FilterWindow` builds a `Filter` from its controls and emits it.
+`DataWindow` keeps the window's filter (`winfilter`) and the trades tab's
+text filter (`quickfilter`); `applyfilters` runs both, stores the result in
+`rb.filteredtrades` (`None` when neither is set), shows it in the trades
+table and refreshes the calendar and statistics. Code that wants the trades
+shown uses `rb.listedtrades()`.
 
 `stats.py` computes values per trade in a `StatUnit` (`tradevalue`), totals
 (`StatTotals`) and aggregations per day, week, month, setup, instrument,
@@ -337,7 +349,7 @@ hidden `.YYMMDD.new` directory and only then swaps it with the existing
 backup of that day, so a failed backup never destroys the previous one.
 `restore` copies a backup's files back over the roadbook, each through a
 temporary file and `os.replace`, and leaves alone files the backup doesn't
-have. `cleanup` removes all but the newest backup.
+have. `cleanup` removes all but the newest backup, and `remove` deletes one.
 
 `BackupDialog` is the window for these. It emits `restored` after a restore,
 and `DataWindow.reload` then reads the roadbook again from disk.

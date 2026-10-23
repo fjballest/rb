@@ -79,10 +79,11 @@ class Feature:
 	feature: str = ""
 	descr: str = ""
 	setups: Optional[Set[str]] = field(default_factory= set)
+	aka: Optional[List[str]] = field(default_factory= list)	# other names for it
 
 def featureexample():
 	return Feature("ApoyoH4 Aper", "apoyo pero antes de GL y con cota cerca",
-                   {"ApoyoH4 Aper", "ApoyoH4 Aper", "ApoyoH4 Aper"})
+                   {"ApoyoH4 Aper", "ApoyoH4 Aper", "ApoyoH4 Aper"}, ["Apoyo H4", "H4 Aper"])
 
 @dataclass
 class Currency:
@@ -412,6 +413,67 @@ class RoadBook:
 			if f.feature == name:
 				return f
 		return None
+	def listedtrades(self):
+		"""the trades shown: the filtered ones when there is a filter"""
+		return self.filteredtrades if self.filteredtrades is not None else self.trades
+
+	@staticmethod
+	def clearfeatures(trades) -> int:
+		"""remove the features of trades; returns how many trades had some"""
+		n = 0
+		for t in trades:
+			if t.has:
+				n += 1
+			t.has = set()
+		return n
+
+	@staticmethod
+	def namepattern(name, wild=False) -> str:
+		"""regex for a feature name in the notes: a final lowercase "s" is
+		optional, so EQL matches EQLs and EQLs matches EQL. With wild, a "*"
+		matches any run of word characters (EQ* matches EQL and EQH)."""
+		if name.endswith("s") and len(name) > 1:
+			name = name[:-1]
+		if wild:
+			p = r"\w*".join(re.escape(x) for x in name.split("*"))
+		else:
+			p = re.escape(name)
+		if not (wild and name.endswith("*")):
+			p += "(?-i:s)?"
+		return p
+
+	def autofeatures(self, trades) -> tuple[int, int]:
+		"""add to each trade the features whose name or aka names appear
+		as words in its notes, ignoring case (see namepattern). Features for other setups
+		are not added. Returns how many features were added, to how many trades."""
+		pats = []
+		for f in self.features:
+			names = [f.feature] + list(f.aka or [])
+			alts = "|".join(self.namepattern(n.strip(), wild=i > 0)
+				for i, n in enumerate(names) if n and n.strip())
+			if alts:
+				# whole words, also for names that start or end with a non word char
+				pats.append((f, re.compile(rf"(?<!\w)(?:{alts})(?!\w)", re.IGNORECASE)))
+		nfeat = ntrades = 0
+		for t in trades:
+			if not t.notes:
+				continue
+			added = 0
+			for f, pat in pats:
+				if t.has and f.feature in t.has:
+					continue
+				if f.setups and t.setup not in f.setups:
+					continue
+				if pat.search(t.notes):
+					if t.has is None:
+						t.has = set()
+					t.has.add(f.feature)
+					added += 1
+			if added:
+				nfeat += added
+				ntrades += 1
+		return nfeat, ntrades
+
 	def findCurrency(self, name):
 		for c in self.currencies:
 			if c.name == name:
@@ -507,8 +569,12 @@ class RoadBook:
 
 	def defaultsforfeatures(self) -> None:
 		for f in self.features:
-			if f != f:
-				self.defaultsetups(f.setups)
+			# files without the column, or with an empty cell, give None
+			if f.setups is None:
+				f.setups = set()
+			if f.aka is None:
+				f.aka = []
+			self.defaultsetups(f.setups)
 
 
 	def defaultsforinstruments(self) -> None:

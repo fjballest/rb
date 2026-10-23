@@ -707,6 +707,9 @@ class ObjectTable(QWidget):
 		self.keep = None
 		self.model.modelAboutToBeReset.connect(self.beforereset)
 		self.model.modelReset.connect(self.afterreset)
+		# widen columns when their cells change, e.g. the first value in an empty column
+		self.resizecols = set()
+		self.model.dataChanged.connect(self.datachanged)
 		self.view.clicked.connect(self.clicked)
 		self.setspans()
 
@@ -754,17 +757,18 @@ class ObjectTable(QWidget):
 			g_btn = QPushButton("Graphics")
 			g_btn.clicked.connect(self.graphics)
 			btn_layout.addWidget(g_btn)
-		if "Filter" in extrabuttons:
-			f_btn = QPushButton("Filter")
-			f_btn.clicked.connect(lambda: self.filterRequested.emit())
-			btn_layout.addWidget(f_btn)
 		if "Stats" in extrabuttons:
 			s_btn = QPushButton("Stats")
 			s_btn.clicked.connect(lambda: self.statsRequested.emit())
 			btn_layout.addWidget(s_btn)
+		if "Filter" in extrabuttons:
+			f_btn = QPushButton("Filter")
+			f_btn.clicked.connect(lambda: self.filterRequested.emit())
+			btn_layout.addWidget(f_btn)
 		self.infolabel = None
 
-
+		self.btnlayout = btn_layout
+		self.btnpos = btn_layout.count()	# where addbutton puts the next one
 		btn_layout.addStretch()
 		if self.info is not None:
 			self.infolabel = QLabel(self.info())
@@ -825,6 +829,32 @@ class ObjectTable(QWidget):
 		cur = self.view.currentIndex()
 		obj = self.model.entry(cur.row()) if cur.isValid() else None
 		self.keep = (obj, max(cur.column(), 0), self.view.verticalScrollBar().value())
+
+	def datachanged(self, topleft, bottomright, roles=()):
+		if not self.resizecols:
+			QTimer.singleShot(0, self.resizechanged)	# once for many changes
+		self.resizecols.update(range(topleft.column(), bottomright.column()+1))
+
+	def resizechanged(self):
+		cols, self.resizecols = self.resizecols, set()
+		for c in sorted(cols):
+			if c < self.model.columnCount():
+				self.view.resizeColumnToContents(c)
+
+	def addbutton(self, text, tip, fn):
+		"""add a button after the others, calling fn when clicked"""
+		b = QPushButton(text)
+		b.setToolTip(tip)
+		b.clicked.connect(lambda _=False: fn())
+		self.btnlayout.insertWidget(self.btnpos, b)
+		self.btnpos += 1
+		return b
+
+	def addwidget(self, w, stretch=0):
+		"""add a widget after the buttons"""
+		self.btnlayout.insertWidget(self.btnpos, w, stretch)
+		self.btnpos += 1
+		return w
 
 	def updatecorner(self):
 		if self.cornerbtn is None:

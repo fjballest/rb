@@ -79,6 +79,12 @@ def cleanup(rbdir):
 		shutil.rmtree(os.path.join(dumpdir(rbdir), n))
 	return gone
 
+def remove(rbdir, name):
+	"""delete backup name"""
+	if not BACKUPNAME.match(name):
+		raise ValueError(f"no backup {name}")
+	shutil.rmtree(os.path.join(dumpdir(rbdir), name))
+
 def restore(rbdir, name):
 	"""copy the files of backup name back into rbdir, each one replacing
 	the file it was copied from. Files made after the backup are left alone."""
@@ -122,6 +128,9 @@ class BackupDialog(QDialog):
 		self.backupb.clicked.connect(self.backup)
 		self.restoreb = QPushButton("Restore…")
 		self.restoreb.clicked.connect(self.restore)
+		self.delb = QPushButton("Del")
+		self.delb.setToolTip("delete the selected backup")
+		self.delb.clicked.connect(self.delete)
 		self.cleanb = QPushButton("Clean Up")
 		self.cleanb.setToolTip("remove all backups but the last one")
 		self.cleanb.clicked.connect(self.cleanup)
@@ -131,6 +140,7 @@ class BackupDialog(QDialog):
 		buttons = QHBoxLayout()
 		buttons.addWidget(self.backupb)
 		buttons.addWidget(self.restoreb)
+		buttons.addWidget(self.delb)
 		buttons.addWidget(self.cleanb)
 		buttons.addStretch()
 		buttons.addWidget(closeb)
@@ -161,6 +171,7 @@ class BackupDialog(QDialog):
 
 	def updatebuttons(self):
 		self.restoreb.setEnabled(self.selected() is not None)
+		self.delb.setEnabled(self.selected() is not None)
 		self.cleanb.setEnabled(self.list.count() > 1)
 
 	def ask(self, title, msg):
@@ -205,6 +216,25 @@ class BackupDialog(QDialog):
 			return
 		self.refresh()
 		self.status.setText(f"Removed {len(gone)} backup{'s' if len(gone) != 1 else ''}; kept {names[-1]}.")
+
+	def delete(self):
+		name = self.selected()
+		if name is None:
+			return
+		left = len(backups(self.rbdir)) - 1
+		msg = f"Delete backup {name}?"
+		if left == 0:
+			msg += " It is the only backup."
+		if not self.ask("Delete backup", msg):
+			return
+		try:
+			remove(self.rbdir, name)
+		except (OSError, ValueError) as e:
+			self.status.setText(f"Delete failed: {e}")
+			self.refresh()
+			return
+		self.refresh()
+		self.status.setText(f"Deleted {name}.")
 
 	def restore(self):
 		name = self.selected()

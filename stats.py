@@ -1,9 +1,10 @@
 
+import re
 from enum import IntEnum, IntFlag, auto
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Set
-from data import Dir, Result, Trade, WDay
+from data import Dir, Result, RoadBook, Trade, WDay
 
 class StatKind(IntFlag):
 	Tot = auto()
@@ -35,6 +36,90 @@ class StatPlot(IntEnum):
 	PerHour = auto()
 
 
+class TextFilter:
+	"""trades whose notes or features match a text expression.
+	Words one after another must all match, ! is not, | is or, and
+	parentheses group: "(a b) | !(c d)". A word matches, ignoring case,
+	when it is a whole word of the notes or of a feature name, with the
+	same rules as AutoFeatures: a final lowercase s is optional and * matches
+	any letters within the word. ! binds tighter than the implicit and,
+	which binds tighter than |. An empty text matches every trade.
+	A bad expression raises ValueError when the filter is made."""
+	SPECIAL = "!|()"
+
+	def __init__(self, text: str):
+		self.text = text or ""
+		self.toks = self.tokens(self.text)
+		self.pos = 0
+		self.expr = None
+		if self.toks:
+			self.expr = self.parseor()
+			if self.pos < len(self.toks):
+				raise ValueError(f"unexpected {self.toks[self.pos]!r}")
+
+	@classmethod
+	def tokens(cls, text):
+		return re.findall(r"[!|()]|[^\s!|()]+", text)
+
+	def peek(self):
+		return self.toks[self.pos] if self.pos < len(self.toks) else None
+
+	def parseor(self):
+		terms = [self.parseand()]
+		while self.peek() == "|":
+			self.pos += 1
+			terms.append(self.parseand())
+		return terms[0] if len(terms) == 1 else ("or", terms)
+
+	def parseand(self):
+		terms = []
+		while self.peek() not in (None, "|", ")"):
+			terms.append(self.parsenot())
+		if not terms:
+			tok = self.peek()
+			raise ValueError("expression missing " + (f"before {tok!r}" if tok else "at the end"))
+		return terms[0] if len(terms) == 1 else ("and", terms)
+
+	def parsenot(self):
+		tok = self.peek()
+		if tok == "!":
+			self.pos += 1
+			if self.peek() in (None, "|", ")"):
+				raise ValueError("! needs something after it")
+			return ("not", self.parsenot())
+		if tok == "(":
+			self.pos += 1
+			e = self.parseor()
+			if self.peek() != ")":
+				raise ValueError("missing )")
+			self.pos += 1
+			return e
+		self.pos += 1
+		pat = RoadBook.namepattern(tok, wild="*" in tok)
+		return ("word", re.compile(rf"(?<!\w)(?:{pat})(?!\w)", re.IGNORECASE))
+
+	@staticmethod
+	def eval(e, texts):
+		op, arg = e
+		if op == "word":
+			return any(arg.search(x) for x in texts)
+		if op == "not":
+			return not TextFilter.eval(arg, texts)
+		if op == "and":
+			return all(TextFilter.eval(x, texts) for x in arg)
+		return any(TextFilter.eval(x, texts) for x in arg)
+
+	def match(self, t: Trade) -> bool:
+		if self.expr is None:
+			return True
+		texts = [t.notes or ""] + sorted(t.has or ())
+		return self.eval(self.expr, texts)
+
+	def apply(self, trades: list[Trade]) -> list[Trade]:
+		if self.expr is None:
+			return trades
+		return [t for t in trades if self.match(t)]
+
 @dataclass
 class Filter:
 	# features
@@ -54,7 +139,12 @@ class Filter:
 	since: date = None
 	until: date = None
 
+	# words in the notes or features, see TextFilter; empty means any
+	text: str = ""
+
 	def apply(self, trades: list[Trade]) -> list[Trade]:
+		if self.text and self.text.strip():
+			trades = TextFilter(self.text).apply(trades)
 		for mh in self.musthave:
 			trades = [t for t in trades if t.hasfeature(mh)]
 		for mh in self.canthave:

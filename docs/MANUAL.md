@@ -172,7 +172,17 @@ buttons.
 - **Features**: things a trade may or may not have ("with" or "without"),
   with a description and the setups they apply to. A feature with no setups
   applies to all. Select a feature to edit its setups in the *Feature
-  Setups* panel.
+  Setups* panel. The **aka** column lists other names for the feature,
+  separated by `;` as in the trades' features (for example
+  `Primera;1st candle`).
+  Two more buttons act on the trades listed (the filtered ones when a
+  filter is on). **ClearAll** removes every feature from those trades, after
+  asking. **AutoFeatures** reads their notes and adds each feature whose
+  name or aka name appears there as a whole word, ignoring case; a feature
+  restricted to some setups is only added to trades of those setups. A
+  final lowercase `s` is optional, so `EQL` matches `EQLs` (and `EQLs`
+  matches `EQL`). In aka names a `*` matches any letters within the word,
+  so `EQ*` matches `EQL`, `EQH` and `EQLs`.
 - **Instruments**: what you trade. Besides its name it has an alias, its
   currency, the money per point (`pipmoney`), the point size and a scale
   used to normalize points between instruments, among others.
@@ -270,11 +280,35 @@ through graphs and trades.
 - direction and result,
 - day of the week and hour, again with **Is** or **Is not**,
 - a **Since** and **Until** date range (ignored when Since is not before
-  Until).
+  Until),
+- a **Text** expression (see below; Enter applies it).
 
 **Apply** filters the trades table, the totals, the calendar and the
 statistics. **Clear** resets the choices, and **No Filter** shows all trades
 again.
+
+### Text filter
+
+The box after the buttons of the Trades tab filters as you type, and the
+same expression can go in the filter window's **Text** box. Both filters
+apply together. An empty box doesn't filter.
+
+A word matches a trade when it is a whole word of the trade's notes or of
+one of its features, ignoring case. As in AutoFeatures, a final lowercase
+`s` is optional (`eql` finds EQLs) and `*` matches any letters within a word
+(`EQ*`).
+
+| Expression | Trades shown |
+|------------|--------------|
+| `late entry` | with both words (words one after another mean *and*) |
+| `late \| early` | with either word |
+| `!late` | without the word |
+| `(a b) \| !(c d)` | with a and b, or without both c and d together |
+
+`!` applies to the word or parenthesis right after it, *and* comes before
+`|`. A wrong expression turns red and its tooltip says why; the trades stay
+as they were until it is fixed. Esc empties the box. Opening another
+roadbook clears both filters.
 
 ## Statistics
 
@@ -325,6 +359,7 @@ roadbook.
   files and graphs back into the roadbook, after you confirm, and reloads it.
   Changes made since that backup are lost, including unsaved ones. Graph
   files added after the backup are left in place.
+- **Del** deletes the selected backup, after you confirm.
 - **Clean Up** removes all backups but the newest one, after you confirm.
 
 A roadbook directory holds:

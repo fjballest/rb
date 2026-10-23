@@ -104,7 +104,7 @@ class StatsWindow(QMainWindow):
 		self.plotchanged()
 
 	def mkplot(self, k, u, p, fn=lambda x: x, factorx=1.0, factory=1.0):
-		trades = self.rb.filteredtrades or self.rb.trades
+		trades = self.rb.listedtrades()
 		trades = fn(trades)
 		y = tradevaluetots(trades, u)
 		x = range(len(y))
@@ -115,7 +115,7 @@ class StatsWindow(QMainWindow):
 		return plot
 
 	def mkokpie(self, k, u, nb=None, factor=1.0):
-		trades = self.rb.filteredtrades or self.rb.trades
+		trades = self.rb.listedtrades()
 		if u in [StatUnit.Success, StatUnit.Failure]:
 			u = StatUnit.Pts
 		x, yok = perresult(trades, u, k, nb)
@@ -139,7 +139,7 @@ class StatsWindow(QMainWindow):
 		return plot
 
 	def mkgraph(self, k, u, p, fn, nb=None):
-		trades = self.rb.filteredtrades or self.rb.trades
+		trades = self.rb.listedtrades()
 		if p == StatPlot.PerResult:
 			return self.mkokpie(k, u, nb=nb)
 		x, y = fn(trades, u, k, nb)
@@ -159,7 +159,7 @@ class StatsWindow(QMainWindow):
 		return title.replace("Per", "per ")
 
 	def mkokgraph(self, k, u, p, fn, nb=None):
-		trades = self.rb.filteredtrades or self.rb.trades
+		trades = self.rb.listedtrades()
 		x, yok = fn(trades, StatUnit.Success, k, nb)
 		x2, yko = fn(trades, StatUnit.Failure, k, nb)
 		plot = XYStackBarWidget(["KO", "OK"], StatsWindow.mktitle(k, u, p),
@@ -172,7 +172,7 @@ class StatsWindow(QMainWindow):
 		return plot
 
 	def todayokpie(rb, k, u, p, flt=Filter.thisday, nb=None):
-		trades = rb.filteredtrades or rb.trades
+		trades = rb.listedtrades()
 		trades = flt(trades)
 		if u == StatUnit.Success or u == StatUnit.Failure:
 			u = StatUnit.Pts
@@ -235,7 +235,7 @@ class StatsWindow(QMainWindow):
 			return fn(k, self.unit, p, perhour)
 
 	def mktots(self, playout):
-		trades = self.rb.filteredtrades or self.rb.trades
+		trades = self.rb.listedtrades()
 		t = StatTotals(self.rb.account, trades, self.unit)
 		ln1 = f"account {t.account}"
 		if self.unit in [StatUnit.Euros]:

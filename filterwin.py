@@ -1,15 +1,69 @@
 from PySide6.QtWidgets import (
-	QMainWindow, QLabel, QPushButton,
+	QMainWindow, QLabel, QLineEdit, QPushButton,
 	QWidget, QVBoxLayout, QHBoxLayout
 )
-from PySide6.QtCore import QDate, Signal
+from PySide6.QtCore import QDate, Qt, QTimer, Signal
 from checklist import CheckBoxGroup
 from datetime import date
 from PySide6.QtWidgets import QDateEdit, QRadioButton
 from data import Dir, Result, WDay
-from stats import Filter
+from stats import Filter, TextFilter
 WDAYS = [d.name for d in WDay]
 HOURS = [f"{h}" for h in range(6,20)]
+
+TEXTTIP = ("<p>Show the trades whose notes or features have these words, ignoring case.</p>"
+	"<p>Words one after another must all be there, <b>|</b> means or, <b>!</b> means not, "
+	"and parentheses group: <code>(a b) | !(c d)</code>.</p>"
+	"<p>As in AutoFeatures, a final lowercase s is optional (EQL finds EQLs) and "
+	"<b>*</b> matches any letters within a word (EQ*).</p><p>Empty: no text filter.</p>")
+
+class TextFilterEdit(QLineEdit):
+	"""a line edit for a TextFilter expression. A bad expression is shown
+	in red with the reason in the tooltip. edited is emitted with the text,
+	shortly after the user stops typing, whenever the text is valid."""
+	edited = Signal(str)
+
+	def __init__(self, parent=None, delay=300):
+		super().__init__(parent)
+		self.setPlaceholderText("words, | or, ! not, ( )")
+		self.setClearButtonEnabled(True)
+		self.setToolTip(TEXTTIP)
+		self.timer = QTimer(self)
+		self.timer.setSingleShot(True)
+		self.timer.setInterval(delay)
+		self.timer.timeout.connect(self.changed)
+		self.textChanged.connect(self.check)
+		self.lasttext = ""
+
+	def error(self):
+		"""why the expression is wrong, or None"""
+		try:
+			TextFilter(self.text())
+		except ValueError as e:
+			return str(e)
+		return None
+
+	def check(self):
+		err = self.error()
+		self.setStyleSheet("QLineEdit { color: #c62828; }" if err else "")
+		self.setToolTip(f"<p><b>{err}</b></p>{TEXTTIP}" if err else TEXTTIP)
+		if err is None:
+			self.timer.start()
+		else:
+			self.timer.stop()
+
+	def changed(self):
+		t = self.text().strip()
+		if self.error() is None and t != self.lasttext:
+			self.lasttext = t
+			self.edited.emit(t)
+
+	def keyPressEvent(self, ev):
+		if ev.key() == Qt.Key_Escape and self.text():
+			self.clear()
+			ev.accept()
+			return
+		super().keyPressEvent(ev)
 
 class FilterWindow(QMainWindow):
 	filterChanged = Signal(object)	# the new Filter, or None for no filter
@@ -41,6 +95,15 @@ class FilterWindow(QMainWindow):
 		b_layout.addWidget(QLabel("Until"))
 		b_layout.addWidget(self.b_until)
 		b_layout.addStretch()
+
+		self.text = TextFilterEdit()
+		self.text.returnPressed.connect(self.apply)
+		self.texterr = QLabel()
+		self.texterr.setStyleSheet("color: #c62828;")
+		t_layout = QHBoxLayout()
+		t_layout.addWidget(QLabel("Text"))
+		t_layout.addWidget(self.text, 1)
+		t_layout.addWidget(self.texterr)
 
 		self.instruments = CheckBoxGroup(rb.instrumentNames(), wsetall=True)
 		instruments, self.instrumentsb = self.mkgrp("Instrument", self.instruments)
@@ -85,6 +148,7 @@ class FilterWindow(QMainWindow):
 		container = QWidget()
 		layout = QVBoxLayout(container)
 		layout.addLayout(b_layout)
+		layout.addLayout(t_layout)
 		layout.addWidget(sets)
 		self.setCentralWidget(container)
 
@@ -109,7 +173,8 @@ class FilterWindow(QMainWindow):
 		self.results.select_none()
 		self.wdays.select_none()
 		self.hours.select_none()
-		self.hours.select_none()
+		self.text.clear()
+		self.texterr.clear()
 		td = date.today()
 		self.b_since.setDate(QDate(td.year,td.month,td.day))
 		self.b_until.setDate(QDate(td.year,td.month,td.day))
@@ -173,9 +238,14 @@ class FilterWindow(QMainWindow):
 		flt.results = set(resultsset)
 		flt.wdays = set(wdaysset)
 		flt.hours = set(hoursset)
+		flt.text = self.text.text().strip()
 		return flt
 
 	def apply(self):
+		err = self.text.error()
+		self.texterr.setText(f"Text: {err}" if err else "")
+		if err:
+			return
 		flt = self.getFilter()
 		self.filterChanged.emit(flt)
 

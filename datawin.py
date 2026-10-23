@@ -24,12 +24,12 @@ from data import (
 	setupexample, featureexample, instrumentexample, currencyexample
 )
 from calwin import TradeCalendar, daysign, tradeorder
-from filterwin import FilterWindow
+from filterwin import FilterWindow, TextFilterEdit
 from imgwin import ImageViewer
 from menus import MainMenus, addrecent
 from backup import BackupDialog
 from objtbl import ObjectTable
-from stats import StatTotals, StatUnit, tradevalue
+from stats import StatTotals, StatUnit, TextFilter, tradevalue
 from statswin import StatsWindow, TodayPanel
 from graphocr import TradeOCR
 
@@ -459,6 +459,8 @@ class DataWindow(QMainWindow):
 
 		self.graphwindow = None
 		self.filterwindow = None
+		self.winfilter = None	# the filter window's Filter, or None
+		self.quickfilter = None	# the TextFilter of the trades tab's text box, or None
 		self.statswindow = None
 
 		self.tradestbl = self.mktradestbl()
@@ -777,14 +779,30 @@ class DataWindow(QMainWindow):
 		self.filterwindow.filterChanged.connect(self.setfilter)
 
 	def setfilter(self, flt):
-		if flt is None:
+		"""the filter window's filter, None for none"""
+		self.winfilter = flt
+		self.applyfilters()
+
+	def setquickfilter(self, text):
+		"""the text box of the trades tab; empty text filters nothing"""
+		self.quickfilter = TextFilter(text) if text else None
+		self.applyfilters()
+
+	def applyfilters(self):
+		"""list the trades that pass both the filter window's filter and
+		the trades tab's text filter"""
+		if self.rb is None:
+			return
+		if self.winfilter is None and self.quickfilter is None:
 			self.rb.filteredtrades = None
-			self.updateinfo()
-			self.tradestbl.changedata(self.rb.trades)
 		else:
-			self.rb.filteredtrades = flt.apply(self.rb.trades)
-			self.updateinfo()
-			self.tradestbl.changedata(self.rb.filteredtrades)
+			trades = self.rb.trades
+			for flt in (self.winfilter, self.quickfilter):
+				if flt is not None:
+					trades = flt.apply(trades)
+			self.rb.filteredtrades = trades
+		self.updateinfo()
+		self.tradestbl.changedata(self.rb.listedtrades())
 		self.refreshcalendar()
 		if self.statswindow:
 			self.statswindow.plotchanged()
@@ -854,7 +872,7 @@ class DataWindow(QMainWindow):
 		if self.rb is None or not self.rb.account:
 			self.info = ""
 			return
-		trades = self.rb.filteredtrades or self.rb.trades
+		trades = self.rb.listedtrades()
 		tots = StatTotals(self.rb.account, trades)
 		self.info = f"Δ{tots.total:+.0f}€ R={tots.pcent:.1f}%"
 
@@ -871,6 +889,10 @@ class DataWindow(QMainWindow):
 		tbl.graphicsRequested.connect(self.tradegraphics)
 		tbl.filterRequested.connect(self.filter)
 		tbl.statsRequested.connect(self.stats)
+		self.quicktext = TextFilterEdit()
+		self.quicktext.setMinimumWidth(160)
+		self.quicktext.edited.connect(self.setquickfilter)
+		tbl.addwidget(self.quicktext, 1)
 		tbl.dirtied.connect(self.dirtied)
 		tbl.dirtied.connect(self.refreshcalendar)
 		tbl.edited.connect(self.dirtiedTrades)
@@ -953,7 +975,46 @@ class DataWindow(QMainWindow):
 		tbl = self.mknamestbl(featureexample(), lambda: Feature(), self.renamedFeature,
 			lambda o: self.canremove("Feature", o.feature, self.rb.featureUsed))
 		tbl.selected.connect(self.selectedfeature)
+		tbl.addbutton("ClearAll", "Remove all the features from the trades listed "
+			"(only the filtered ones when a filter is on). Asks first.", self.clearfeatures)
+		tbl.addbutton("AutoFeatures", "Look for each feature's name and its aka names as "
+			"words in the notes of the trades listed, ignoring case, and add the features "
+			"found to those trades. Features for other setups are not added.", self.autofeatures)
 		return tbl
+
+	def clearfeatures(self):
+		if self.rb is None:
+			return
+		trades = self.rb.listedtrades()
+		n = sum(1 for t in trades if t.has)
+		if n == 0:
+			QMessageBox.information(self, "ClearAll", "No trade listed has features.")
+			return
+		if not self.askuser(f"Remove the features of {n} trade{'s' if n != 1 else ''}?"):
+			return
+		self.rb.clearfeatures(trades)
+		self.featureschanged()
+
+	def autofeatures(self):
+		if self.rb is None:
+			return
+		nfeat, ntrades = self.rb.autofeatures(self.rb.listedtrades())
+		if nfeat:
+			self.featureschanged()
+			msg = f"Added {nfeat} feature{'s' if nfeat != 1 else ''} to {ntrades} trade{'s' if ntrades != 1 else ''}."
+		else:
+			msg = "No new features found in the notes."
+		QMessageBox.information(self, "AutoFeatures", msg)
+
+	def featureschanged(self):
+		"""the features of many trades changed"""
+		self.tradestbl.refresh()
+		cur = self.tradestbl.view.currentIndex()
+		t = self.tradestbl.model.objat(cur.row()) if cur.isValid() else None
+		if t is not None:
+			self.selectedtrade(t)	# its features panel
+		self.dirtiedTrades()
+
 	def renamedFeature(self, oname, nname):
 		if self.rb is None:
 			return
@@ -992,6 +1053,18 @@ class DataWindow(QMainWindow):
 
 	def changedata(self, r):
 		self.rb = r
+		# a new roadbook starts unfiltered
+		self.winfilter = self.quickfilter = None
+		r.filteredtrades = None
+		if self.filterwindow is not None:
+			self.filterwindow.rb = r
+			self.filterwindow.refresh()
+		self.quicktext.blockSignals(True)
+		self.quicktext.clear()
+		self.quicktext.lasttext = ""
+		self.quicktext.check()
+		self.quicktext.timer.stop()
+		self.quicktext.blockSignals(False)
 		try:
 			self.updateinfo()
 			self.tradestbl.changedata(r.trades)
