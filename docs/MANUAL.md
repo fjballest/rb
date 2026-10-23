@@ -265,9 +265,35 @@ the graphs of the selected trade, with the trade's notes beside the buttons
 | Double click | zooms in, zooms in again, then back to fit, in turns. Zooming keeps the point you clicked under the mouse |
 | Drag | moves the graph around when it is larger than the window |
 | OS View | opens the graph in the system viewer |
+| Save (⌘S) | saves the drawings |
 
 The zoom mode sticks: Real Size, Fit or a zoom factor stay in use as you move
 through graphs and trades.
+
+### Drawing on the graphs
+
+The toolbar at the top of the graphics window draws on the graph:
+
+| Tool | Key | What it does |
+|------|-----|--------------|
+| Select | S | click a drawing to select it, shift-click to add more, drag to move them; drag the graph itself to move around |
+| Pencil | P | draws free hand |
+| Line, Arrow | L, A | drag from one end to the other; hold shift when you let go to keep it horizontal or vertical |
+| Circle | C | drag across the box of a circle or ellipse |
+| Text | T | click where the text goes and type; click elsewhere to finish. Double click a text to edit it again |
+
+**Color** and the width box set how the next drawings look, and change the
+ones selected. **Undo** (⌘Z) and **Redo** (⌘⇧Z) go back and forth through
+the changes made to the graph shown; **Delete** (or Del) removes what is
+selected and Esc unselects it and goes back to Select. Drawings stay on their
+place on the graph when you zoom.
+
+Drawings are not saved until you press **Save** (⌘S); until then the title
+says *(unsaved)*. You can move to other graphs and trades and save them all
+later. Closing the window or quitting asks whether to save them. The drawings
+of a graph are kept next to it, with its name and the `.drw` extension:
+`diarygraphs/trade12dax.png` has its drawings in `diarygraphs/trade12dax.drw`.
+A graph with no drawings left has no `.drw` file.
 
 ## Filters
 
@@ -347,7 +373,7 @@ changes.
 The **Backup** button (or **File ▸ Backups…**, ⌘B) opens the backups window.
 Backups of a roadbook at `/a/b/rb` go in `/a/b/rb.dump/`, one directory per
 day named `YYMMDD` (for example `261022`). Each one holds a copy of the
-roadbook's CSV files and graphs with the same layout they have in the
+roadbook's CSV files, graphs and drawings with the same layout they have in the
 roadbook.
 
 - **Back Up Now** makes today's backup. If the roadbook has unsaved changes
@@ -356,7 +382,7 @@ roadbook.
   one per day. The new backup is written aside and only replaces the old one
   when it is complete.
 - **Restore…** (or double-clicking a backup) copies the chosen backup's CSV
-  files and graphs back into the roadbook, after you confirm, and reloads it.
+  files, graphs and drawings back into the roadbook, after you confirm, and reloads it.
   Changes made since that backup are lost, including unsaved ones. Graph
   files added after the backup are left in place.
 - **Del** deletes the selected backup, after you confirm.
@@ -393,3 +419,6 @@ when opened.
 | Graphics window | ← → | previous or next graph of the trade |
 | Graphics window | ↑ ↓ | previous or next trade |
 | Graphics window | Home, End | first or last trade |
+| Graphics window | S, P, L, A, C, T | select, pencil, line, arrow, circle, text |
+| Graphics window | ⌘Z, ⌘⇧Z, Del, Esc | undo, redo, delete the drawings selected, unselect |
+| Graphics window | ⌘S | save the drawings |

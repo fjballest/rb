@@ -42,6 +42,9 @@ without a display by setting `QT_QPA_PLATFORM=offscreen`, creating a
 `QApplication`, building the windows and calling their methods or sending
 events with `QtTest`.
 
+`sh docs/mkpdf.sh` makes the PDFs of these documents (pandoc and a headless
+Chrome or Chromium).
+
 ## Source map
 
 Files are grouped here by layer. Arrows in the import graph only go
@@ -56,7 +59,8 @@ downward: the data layer knows nothing about Qt widgets.
 | | `icons.py` | inline SVG icons rendered to `QIcon` |
 | Widgets | `objtbl.py` | `ObjectTable` and `ObjectTableModel`, a generic editable table over dataclasses, with grouping, find and replace, highlighting |
 | | `calwin.py` | `TradeCalendar`, `DayCalendar` and `YearView` |
-| | `imgwin.py` | `ImageViewer`, the graphics window |
+| | `imgwin.py` | `ImageViewer`, the graphics window, and where drawings are saved |
+| | `viewer.py`, `drawing.py`, `drawbar.py` | drawing on graphs: `ImageView`, the shapes and undo commands, `DrawBar` (shared with DayJournal) |
 | | `filterwin.py` | `FilterWindow` |
 | | `statswin.py` | `StatsWindow` and `TodayPanel` |
 | | `checklist.py` | `CheckBoxGroup`, a list of check boxes |
@@ -113,6 +117,7 @@ A roadbook is a directory:
 ```
 account.csv  trades.csv  setups.csv  features.csv  activos.csv  divisas.csv
 diarygraphs/trade12dax.png  diarygraphs/trade12dax.1.png  ...
+diarygraphs/trade12dax.drw  (the drawings on trade12dax.png, if any)
 ```
 
 `TABLES` in `data.py` describes each list-like CSV once: the `RoadBook`
@@ -307,14 +312,46 @@ calendar and the trades table.
 
 ## Graphics window
 
-`ImageViewer` (`imgwin.py`) shows one graph of a list at a time. `mode` is
-`"fit"`, `"real"` or `"zoom"` and is kept across graphs and trades; the fit
-scale uses the viewport size without scroll bars. Double clicks cycle through
-`dstep` (zoom ×2, ×2 again, fit), and `zoomat` keeps the clicked point under
-the mouse. The arrow, Home and End keys are `QShortcut`s so the scroll area
-does not take them. It never selects trades itself: it emits `moved(delta)`
-and `jumped(last)`, and the main window selects the trade, which in turn calls
-`setimage()` back.
+`ImageViewer` (`imgwin.py`) shows one graph of a list at a time in an
+`ImageView` (`viewer.py`), a `QGraphicsView` that holds the graph and its
+drawings, in graph coordinates. `ImageView.mode` is `"fit"`, `"real"` or
+`"zoom"` and is kept across graphs and trades. Double clicks cycle through
+`dstep` (zoom ×2, ×2 again, fit), keeping the clicked point under the mouse.
+The view sends the arrow, Home and End keys as `navigate` (its `navkeys` are
+set by `imgwin.NAVKEYS`), unless a text box is being edited; the buttons
+don't take the focus, so the keys stay with the view. The window never
+selects trades itself: it emits `moved(delta)` and `jumped(last)`, and the
+main window selects the trade, which in turn calls `setimage()` back.
+
+Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
+`drawing.py` and `drawbar.py` the same in both:
+
+- `drawing.py` has the shapes (`LineShape` for lines and arrows,
+  `PencilShape`, `CircleShape`, `TextShape`), their JSON form (`todict`,
+  `fromdict`) and the undo commands (`AddCmd`, `DeleteCmd`, `MoveCmd`,
+  `TextCmd`, `StyleCmd`).
+- `ImageView` turns the mouse into shapes for the tool chosen (`settool`),
+  keeps them inside the graph, snaps lines to horizontal or vertical with
+  shift, and pushes each change on its `QUndoStack`, which is cleared when
+  another graph is shown. It emits `drawchanged` on every change.
+- `drawbar.DrawBar` is the toolbar: tools, color, width, undo, redo, delete.
+
+`ImageViewer.drawchanged` compares `view.drawingdata()` with the file and
+keeps the drawing in `pending`, by graph path, while they differ; the title
+says *(unsaved)* while there is any. `setimage` shows the pending drawing of a
+graph, or the saved one. `savedrawings` writes them all
+(`savedrawing`: through a temporary file, removing the file when there are no
+shapes); `keepdrawings` asks before closing the window, and
+`DataWindow.closeEvent` asks it before quitting.
+
+A graph's drawings are in `drawpath(graph)`, the graph's name with `.drw`:
+
+```json
+{"version": 1, "shapes": [
+  {"kind": "arrow", "p1": [1167.4, 1307.5], "p2": [1494.3, 1097.3], "color": "#e53935", "width": 3.0},
+  {"kind": "text", "pos": [800, 150], "text": "EQH sweep", "color": "#1e63d6", "size": 22}
+]}
+```
 
 ## Filters and statistics
 
@@ -342,8 +379,8 @@ pies.
 ## Backups
 
 `backup.py` keeps one backup per day of a roadbook `/a/b/rb` in
-`/a/b/rb.dump/YYMMDD/`. `backedup(dir)` lists what is copied: every `.csv`
-and image file under the roadbook, by relative path, so the layout is kept
+`/a/b/rb.dump/YYMMDD/`. `backedup(dir)` lists what is copied: every `.csv`,
+image and `.drw` file under the roadbook, by relative path, so the layout is kept
 (`*.csv~`, `*.tmp` and other files are not copied). `makebackup` copies into a
 hidden `.YYMMDD.new` directory and only then swaps it with the existing
 backup of that day, so a failed backup never destroys the previous one.

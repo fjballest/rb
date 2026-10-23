@@ -1087,6 +1087,10 @@ class DataWindow(QMainWindow):
 		self.updateinfo()
 
 	def closeEvent(self, ev):
+		g = self.graphwindow
+		if g is not None and not g.keepdrawings("quitting"):
+			ev.ignore()
+			return
 		if self.rb and self.rb.dirty:
 			if not self.askuser('unsaved changed. sure to quit?'):
 				ev.ignore()

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 
 DUMPSUFFIX = ".dump"
 BACKUPNAME = re.compile(r"^\d{6}$")	# YYMMDD
-COPIED = (".csv", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
+COPIED = (".csv", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".drw")
 
 def dumpdir(rbdir):
 	return os.path.normpath(rbdir) + DUMPSUFFIX
