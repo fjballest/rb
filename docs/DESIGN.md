@@ -327,14 +327,19 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
 `drawing.py` and `drawbar.py` the same in both:
 
 - `drawing.py` has the shapes (`LineShape` for lines and arrows,
-  `PencilShape`, `CircleShape`, `TextShape`), their JSON form (`todict`,
+  `PencilShape`, `CircleShape`, `RectShape`, `TextShape`, `FibShape`), the fib level sets (`FIBSETS`), their JSON form (`todict`,
   `fromdict`) and the undo commands (`AddCmd`, `DeleteCmd`, `MoveCmd`,
   `TextCmd`, `StyleCmd`).
 - `ImageView` turns the mouse into shapes for the tool chosen (`settool`),
   keeps them inside the graph, snaps lines to horizontal or vertical with
   shift, and pushes each change on its `QUndoStack`, which is cleared when
   another graph is shown. It emits `drawchanged` on every change.
-- `drawbar.DrawBar` is the toolbar: tools, color, width, undo, redo, delete.
+- `drawbar.DrawBar` is the toolbar: tools, color, width, undo, redo, delete,
+  and the menu of fib levels (OTE, Quadrants, PO3, Custom; the custom ones
+  are kept in `QSettings("fjballest", "drawing")`, shared with DayJournal).
+- A fib is drawn in steps (`ImageView.fibstep`): the two points, by dragging
+  or clicking, then a click for the right end of the lines, or a double
+  click on the second point to take them to the right edge.
 
 `ImageViewer.drawchanged` compares `view.drawingdata()` with the file and
 keeps the drawing in `pending`, by graph path, while they differ; the title

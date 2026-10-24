@@ -2,9 +2,11 @@
 # the toolbar for drawing on an ImageView: the tools, color, width, undo,
 # redo and delete. Shared by DayJournal and pylg's graphics window.
 #
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPixmap
-from PySide6.QtWidgets import QColorDialog, QComboBox, QMenu, QToolBar, QToolButton
+from PySide6.QtWidgets import QColorDialog, QComboBox, QInputDialog, QMenu, QMessageBox, QToolBar, QToolButton
+
+from drawing import FIBALL, FIBSETS, fmtlevels, parselevels
 
 COLORS = (("Red", "#e53935"), ("Green", "#2e7d32"), ("Blue", "#1e63d6"), ("Orange", "#f57c00"),
 	("Purple", "#8e24aa"), ("Black", "#000000"), ("White", "#ffffff"))
@@ -15,8 +17,22 @@ TOOLS = (
 	("line", "╱ Line", "L", "draw a line; shift keeps it horizontal or vertical"),
 	("arrow", "➚ Arrow", "A", "draw an arrow; shift keeps it horizontal or vertical"),
 	("circle", "◯ Circle", "C", "draw a circle or ellipse"),
+	("rect", "▭ Rect", "R", "draw a rectangle; double click one for its fill, middle line and label"),
 	("text", "T Text", "T", "write a text box; double click one to edit it"),
+	("fib", "≡ Fib", "F", "draw Fibonacci levels: from the first point (1) to the second (0), then click "
+		"where the lines end, or double click on the second point to take them to the right edge. "
+		"The menu picks the levels"),
 )
+
+def fibsettings():
+	"""where the custom levels are kept, the same for every program using this"""
+	return QSettings("fjballest", "drawing")
+
+def customlevels():
+	try:
+		return parselevels(str(fibsettings().value("customfib", "")))
+	except ValueError:
+		return list(FIBALL)
 
 def colorswatch(c):
 	pm = QPixmap(14, 14)
@@ -41,6 +57,7 @@ class DrawBar(QToolBar):
 			self.addAction(a)
 			self.toolacts[tool] = a
 		self.toolacts["select"].setChecked(True)
+		self.mkfibmenu()
 		view.toolchanged.connect(self.toolchanged)
 		self.addSeparator()
 		self.colorbtn = QToolButton(self)
@@ -83,6 +100,53 @@ class DrawBar(QToolBar):
 		view.scene().selectionChanged.connect(self.selchanged)
 		self.setcolor(view.color, apply=False)
 		self.selchanged()
+
+	def mkfibmenu(self):
+		a = self.toolacts["fib"]
+		m = QMenu(self)
+		g = QActionGroup(m)
+		self.fibacts = {}
+		for name, levels in FIBSETS.items():
+			x = m.addAction(f"{name}: {fmtlevels(levels)}")
+			x.triggered.connect(lambda _=False, n=name: self.setfib(n))
+			self.fibacts[name] = x
+		x = m.addAction("Custom…")
+		x.triggered.connect(lambda _=False: self.setfib("Custom"))
+		self.fibacts["Custom"] = x
+		for x in self.fibacts.values():
+			x.setCheckable(True)
+			g.addAction(x)
+		a.setMenu(m)
+		b = self.widgetForAction(a)
+		if b is not None:
+			b.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+		self.fibname = "OTE"
+		self.fibacts["OTE"].setChecked(True)
+
+	def setfib(self, name):
+		"""use the levels of set name for the fibs, asking for the custom ones"""
+		if name == "Custom":
+			levels = customlevels()
+			while True:
+				text, ok = QInputDialog.getText(self, "Fib levels",
+					"Levels, separated by spaces (0 is the second point, 1 the first):",
+					text=fmtlevels(levels))
+				if not ok:
+					self.fibacts[self.fibname].setChecked(True)
+					return
+				try:
+					levels = parselevels(text)
+					break
+				except ValueError:
+					QMessageBox.warning(self, "Fib levels", f"Not a list of numbers: {text}")
+			fibsettings().setValue("customfib", fmtlevels(levels))
+		else:
+			levels = FIBSETS[name]
+		self.fibname = name
+		self.fibacts[name].setChecked(True)
+		self.view.setfiblevels(levels)
+		if not any(getattr(it, "kind", "") == "fib" for it in self.view.scene().selectedItems()):
+			self.view.settool("fib")	# else it was for the fibs selected
 
 	def undotext(self, t):
 		self.undoact.setToolTip(f"undo {t.lower()}" if t else "undo")

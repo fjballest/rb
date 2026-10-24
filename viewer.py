@@ -4,19 +4,22 @@
 # holds the drawings made on it, in image coordinates. Shared by DayJournal
 # and pylg's graphics window.
 #
-from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QPainter, QPixmap, QUndoStack
-from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsView
+from PySide6.QtCore import QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QUndoStack
+from PySide6.QtWidgets import (
+	QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGraphicsPixmapItem,
+	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSlider
+)
 
 from drawing import (
-	DRAWVERSION, AddCmd, CircleShape, DeleteCmd, LineShape, MoveCmd, PencilShape, StyleCmd, TextCmd, TextShape,
-	fromdict
+	DRAWVERSION, FIBSETS, AddCmd, CircleShape, DeleteCmd, FibShape, LevelsCmd, LineShape, MoveCmd, PencilShape,
+	PropsCmd, RectShape, StyleCmd, TextCmd, TextShape, fromdict
 )
 
 DCLICKZOOM = 2.0
-TOOLS = ("select", "pencil", "line", "arrow", "circle", "text")
+TOOLS = ("select", "pencil", "line", "arrow", "circle", "rect", "text", "fib")
 TOOLKEYS = {Qt.Key.Key_S: "select", Qt.Key.Key_P: "pencil", Qt.Key.Key_L: "line", Qt.Key.Key_A: "arrow",
-	Qt.Key.Key_C: "circle", Qt.Key.Key_T: "text"}
+	Qt.Key.Key_C: "circle", Qt.Key.Key_R: "rect", Qt.Key.Key_T: "text", Qt.Key.Key_F: "fib"}
 # the keys sent as navigate, and what for; a window can set its own navkeys
 NAVKEYS = {Qt.Key.Key_Left: "prev", Qt.Key.Key_Up: "prev", Qt.Key.Key_Right: "next",
 	Qt.Key.Key_Down: "next", Qt.Key.Key_Home: "first", Qt.Key.Key_End: "last", Qt.Key.Key_W: "week"}
@@ -42,6 +45,14 @@ class ImageView(QGraphicsView):
 		self.width = 3.0
 		self.textsize = 22
 		self.drawing = None		# the item being drawn
+		# a fib is drawn in steps: "drag" from the first point, then "p2" when
+		# that was a click, then "right" for where the lines end
+		self.fibstep = None
+		self.fiblevels = list(FIBSETS["OTE"])
+		self.fibdone = QTimer(self, singleShot=True)	# a click ends it, unless it was a double click
+		self.fibdone.setInterval(QApplication.doubleClickInterval())
+		self.fibdone.timeout.connect(lambda: self.endfib(False))
+		self.viewport().setMouseTracking(True)	# fib steps follow the mouse with no button down
 		self.pressed = {}		# selected item -> its position when the mouse was pressed
 		self.undo = QUndoStack(self)
 		self.undo.indexChanged.connect(self.undochanged)
@@ -58,6 +69,8 @@ class ImageView(QGraphicsView):
 		self.commitedit()
 		self.loading = True
 		self.drawing = None
+		self.fibstep = None
+		self.fibdone.stop()
 		self.undo.clear()
 		self.scene().clear()
 		self.pixitem = None
@@ -103,6 +116,19 @@ class ImageView(QGraphicsView):
 		self.scene().addItem(it)
 		if isinstance(it, TextShape):
 			it.edited = self.textedited
+		elif isinstance(it, RectShape):
+			it.edit = self.editrect
+
+	def editrect(self, it):
+		"""the dialog for the fill, middle line and label of rectangle it"""
+		before = it.props()
+		dlg = RectDialog(it, self)
+		ok = dlg.exec() == QDialog.DialogCode.Accepted
+		after = dlg.props()
+		dlg.deleteLater()
+		if ok and after != before:
+			it.setprops(after)
+			self.undo.push(PropsCmd(it, before, after))
 
 	# ---- zoom ----
 	def scale_(self):
@@ -145,6 +171,7 @@ class ImageView(QGraphicsView):
 
 	# ---- tools ----
 	def settool(self, tool):
+		self.cancelfib()
 		self.tool = tool
 		if tool == "select":
 			self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -167,6 +194,42 @@ class ImageView(QGraphicsView):
 		sel = [it for it in self.scene().selectedItems() if not isinstance(it, TextShape)]
 		if sel:
 			self.undo.push(StyleCmd(sel, None, width))
+
+	def setfiblevels(self, levels):
+		"""the levels for the next fibs, and for the fibs selected"""
+		self.fiblevels = list(levels)
+		sel = [it for it in self.scene().selectedItems() if isinstance(it, FibShape)]
+		if sel:
+			self.undo.push(LevelsCmd(sel, levels))
+
+	def cancelfib(self):
+		"""drop a fib not finished"""
+		if isinstance(self.drawing, FibShape):
+			self.fibdone.stop()
+			self.scene().removeItem(self.drawing)
+			self.drawing = None
+			self.fibstep = None
+
+	def endfib(self, extend):
+		"""the fib is done: its lines end where the mouse was, or at the
+		right edge of the image when extend"""
+		self.fibdone.stop()
+		it, self.drawing, self.fibstep = self.drawing, None, None
+		if not isinstance(it, FibShape):
+			return
+		if extend:
+			it.setright(self.sceneRect().right(), True)
+		self.undo.push(AddCmd(self.scene(), it))
+
+	def fibpress(self, p):
+		"""a click while drawing a fib, at p"""
+		it = self.drawing
+		if self.fibstep == "p2":
+			it.setend(p)
+			self.fibstep = "right"
+		elif self.fibstep == "right" and not self.fibdone.isActive():
+			it.setright(p.x())
+			self.fibdone.start()	# done, unless this is the first click of a double one
 
 	def deleteselected(self):
 		sel = self.scene().selectedItems()
@@ -196,6 +259,9 @@ class ImageView(QGraphicsView):
 			super().mousePressEvent(ev)
 			return
 		p = self.mapToScene(ev.position().toPoint())
+		if isinstance(self.drawing, FibShape):
+			self.fibpress(self.clamp(p))
+			return
 		if self.tool != "select" and not self.sceneRect().contains(p):
 			return	# drawings go on the image
 		if self.tool == "select":
@@ -212,6 +278,11 @@ class ImageView(QGraphicsView):
 			self.drawing = PencilShape([p], self.color, self.width)
 		elif self.tool == "circle":
 			self.drawing = CircleShape(QRectF(p, p), self.color, self.width)
+		elif self.tool == "rect":
+			self.drawing = RectShape(QRectF(p, p), self.color, self.width)
+		elif self.tool == "fib":
+			self.drawing = FibShape(p, p, self.fiblevels, self.color, self.width)
+			self.fibstep = "drag"
 		elif self.tool == "text":
 			it = TextShape(p, "", self.color, self.textsize)
 			it.new = True
@@ -227,13 +298,23 @@ class ImageView(QGraphicsView):
 			return
 		super().mouseMoveEvent(ev)
 
-	def drawto(self, ev):
-		"""move the end of what is being drawn to the mouse, inside the image.
-		With shift, lines and arrows are kept horizontal or vertical."""
-		p = self.mapToScene(ev.position().toPoint())
+	def clamp(self, p):
+		"""p, moved inside the image"""
 		r = self.sceneRect()
 		p.setX(min(max(p.x(), r.left()), r.right()))
 		p.setY(min(max(p.y(), r.top()), r.bottom()))
+		return p
+
+	def drawto(self, ev):
+		"""move the end of what is being drawn to the mouse, inside the image.
+		With shift, lines and arrows are kept horizontal or vertical."""
+		p = self.clamp(self.mapToScene(ev.position().toPoint()))
+		if isinstance(self.drawing, FibShape):
+			if self.fibstep in ("drag", "p2"):
+				self.drawing.setend(p)
+			elif self.fibstep == "right" and not self.fibdone.isActive():
+				self.drawing.setright(p.x())
+			return
 		if isinstance(self.drawing, LineShape) and ev.modifiers() & Qt.KeyboardModifier.ShiftModifier:
 			a = self.drawing.mapToScene(self.drawing.line().p1())
 			if abs(p.x() - a.x()) >= abs(p.y() - a.y()):
@@ -243,6 +324,11 @@ class ImageView(QGraphicsView):
 		self.drawing.setend(p)
 
 	def mouseReleaseEvent(self, ev):
+		if isinstance(self.drawing, FibShape):
+			if self.fibstep == "drag":
+				# dragged to the second point, or clicked the first one: then click the second
+				self.fibstep = "p2" if self.drawing.small() else "right"
+			return
 		if self.drawing is not None:
 			if not isinstance(self.drawing, PencilShape):
 				self.drawto(ev)
@@ -260,6 +346,10 @@ class ImageView(QGraphicsView):
 				self.undo.push(MoveCmd(moves))
 
 	def mouseDoubleClickEvent(self, ev):
+		if isinstance(self.drawing, FibShape):
+			if self.fibstep == "right":
+				self.endfib(True)	# a double click on the second point: lines to the right edge
+			return
 		at = ev.position().toPoint()
 		if self.tool != "select" or self.itemAt(at) not in (None, self.pixitem):
 			super().mouseDoubleClickEvent(ev)
@@ -282,6 +372,7 @@ class ImageView(QGraphicsView):
 		if k in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
 			self.deleteselected()
 		elif k == Qt.Key.Key_Escape:
+			self.cancelfib()
 			self.scene().clearSelection()
 			self.settool("select")
 		elif k in TOOLKEYS and ev.modifiers() == Qt.KeyboardModifier.NoModifier:
@@ -290,3 +381,74 @@ class ImageView(QGraphicsView):
 			self.navigate.emit(nav[k])
 		else:
 			super().keyPressEvent(ev)
+
+ALIGNS = (("Center", "center"), ("Left", "left"), ("Right", "right"))
+
+class RectDialog(QDialog):
+	"""asks for the fill, middle line and label of a rectangle"""
+	def __init__(self, it, parent=None):
+		super().__init__(parent)
+		self.setWindowTitle("Rectangle")
+		self.fillcolor = it.fill or it.color
+		form = QFormLayout(self)
+		self.fillbox = QCheckBox("Fill")
+		self.fillbox.setChecked(bool(it.fill))
+		self.colorbtn = QPushButton()
+		self.colorbtn.setToolTip("the fill color")
+		self.colorbtn.clicked.connect(self.choosecolor)
+		self.alpha = QSlider(Qt.Orientation.Horizontal)
+		self.alpha.setRange(0, 100)	# % of transparency
+		self.alpha.setValue(round(100 - it.alpha * 100 / 255))
+		self.alpha.setToolTip("transparency: 0% hides what is under it, 100% shows it all")
+		self.alphal = QLabel()
+		self.alpha.valueChanged.connect(lambda v: self.alphal.setText(f"{v}%"))
+		self.alphal.setText(f"{self.alpha.value()}%")
+		row = QHBoxLayout()
+		row.addWidget(self.fillbox)
+		row.addWidget(self.colorbtn)
+		form.addRow(row)
+		row = QHBoxLayout()
+		row.addWidget(self.alpha, 1)
+		row.addWidget(self.alphal)
+		form.addRow("Transparency:", row)
+		self.middlebox = QCheckBox("Line across the middle")
+		self.middlebox.setChecked(it.middle)
+		form.addRow(self.middlebox)
+		self.label = QLineEdit(it.label)
+		self.label.setPlaceholderText("FVG, OB...")
+		form.addRow("Label:", self.label)
+		self.align = QComboBox()
+		for text, a in ALIGNS:
+			self.align.addItem(text, a)
+		self.align.setCurrentIndex(max(0, self.align.findData(it.align)))
+		form.addRow("Aligned:", self.align)
+		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+		bb.accepted.connect(self.accept)
+		bb.rejected.connect(self.reject)
+		form.addRow(bb)
+		self.fillbox.toggled.connect(self.enable)
+		self.showcolor()
+		self.enable()
+
+	def enable(self):
+		on = self.fillbox.isChecked()
+		self.colorbtn.setEnabled(on)
+		self.alpha.setEnabled(on)
+
+	def showcolor(self):
+		pm = QPixmap(14, 14)
+		pm.fill(QColor(self.fillcolor))
+		self.colorbtn.setIcon(QIcon(pm))
+		self.colorbtn.setText("Color…")
+
+	def choosecolor(self):
+		c = QColorDialog.getColor(QColor(self.fillcolor), self, "Fill color")
+		if c.isValid():
+			self.fillcolor = c.name()
+			self.showcolor()
+
+	def props(self):
+		return {"fill": self.fillcolor if self.fillbox.isChecked() else None,
+			"alpha": round((100 - self.alpha.value()) * 255 / 100),
+			"middle": self.middlebox.isChecked(), "label": self.label.text().strip(),
+			"align": self.align.currentData()}

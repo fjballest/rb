@@ -1,18 +1,20 @@
 #
-# drawings on top of an image: lines, arrows, circles and text boxes, in
+# drawings on top of an image: lines, arrows, circles, rectangles, text
+# boxes and Fibonacci levels, in
 # image coordinates, with the undo commands that change them and their
 # JSON form, kept in a file next to the image (see Journal.drawpath)
 #
 import math
 
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QUndoCommand
+from PySide6.QtGui import QBrush, QColor, QFont, QFontMetricsF, QPainterPath, QPainterPathStroker, QPen, QPolygonF, QUndoCommand
 from PySide6.QtWidgets import (
-	QGraphicsEllipseItem, QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsTextItem, QStyle
+	QGraphicsEllipseItem, QGraphicsItem, QGraphicsLineItem, QGraphicsPathItem, QGraphicsRectItem, QGraphicsTextItem,
+	QStyle
 )
 
 DRAWVERSION = 1
-KINDS = ("line", "arrow", "circle", "text", "pencil")
+KINDS = ("line", "arrow", "circle", "rect", "text", "pencil", "fib")
 FLAGS = (QGraphicsItem.GraphicsItemFlag.ItemIsSelectable | QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
 ZDRAW = 10
 
@@ -147,6 +149,125 @@ class CircleShape(QGraphicsEllipseItem):
 		r = self.rect()
 		return r.width() < 4 and r.height() < 4
 
+class RectShape(QGraphicsRectItem):
+	"""a rectangle: its border, and optionally a fill (fill color and alpha,
+	0 to 255), a dashed line across its middle, and a label at its top,
+	aligned left, center or right. Double click calls edit(self)"""
+	LABELSIZE = 16
+	PROPS = ("fill", "alpha", "middle", "label", "align")
+
+	def __init__(self, rect, color, width, fill=None, alpha=64, middle=False, label="", align="center"):
+		super().__init__(rect)
+		self.kind = "rect"
+		self.color = color
+		self.width = width
+		self.fill, self.alpha, self.middle, self.label, self.align = fill, alpha, middle, label, align
+		self.origin = rect.topLeft()
+		self.edit = None
+		self.setFlags(FLAGS)
+		self.setZValue(ZDRAW)
+
+	def props(self):
+		return {k: getattr(self, k) for k in self.PROPS}
+
+	def setprops(self, d):
+		self.prepareGeometryChange()
+		for k in self.PROPS:
+			if k in d:
+				setattr(self, k, d[k])
+		self.update()
+
+	def setstyle(self, color, width):
+		self.prepareGeometryChange()
+		self.color, self.width = color, width
+		self.update()
+
+	def font(self):
+		f = QFont()
+		f.setPixelSize(self.LABELSIZE)
+		f.setBold(True)
+		return f
+
+	def labelrect(self):
+		"""where the label goes: inside the top of the rectangle, or just
+		above it when the rectangle is too low for it"""
+		r = self.rect()
+		h = self.LABELSIZE * 1.4
+		m = self.width / 2 + 3
+		if r.height() >= h + 2 * m:
+			return QRectF(r.left() + m, r.top() + m, max(r.width() - 2 * m, 1), h)
+		return QRectF(r.left(), r.top() - h - 1, max(r.width(), 1), h)
+
+	def boundingRect(self):
+		m = self.width * 2 + 2
+		r = self.rect().adjusted(-m, -m, m, m)
+		if self.label:
+			lr = self.labelrect()
+			extra = max(0.0, QFontMetricsF(self.font()).horizontalAdvance(self.label) - lr.width()) + 2
+			r = r.united(lr.adjusted(-extra, 0, extra, 0))
+		return r
+
+	def shape(self):
+		# its border, so the inside doesn't hide what is under it, unless filled
+		path = QPainterPath()
+		path.addRect(self.rect())
+		if self.fill:
+			return path
+		s = QPainterPathStroker()
+		s.setWidth(max(self.width, 1) + 8)
+		return s.createStroke(path)
+
+	def paint(self, painter, option, widget=None):
+		painter.setRenderHint(painter.RenderHint.Antialiasing)
+		r = self.rect()
+		if self.fill:
+			c = QColor(self.fill)
+			c.setAlpha(int(self.alpha))
+			painter.fillRect(r, c)
+		painter.setPen(mkpen(self.color, self.width))
+		painter.setBrush(Qt.BrushStyle.NoBrush)
+		painter.drawRect(r)
+		if self.middle:
+			pen = mkpen(self.color, max(1.0, self.width / 2))
+			pen.setStyle(Qt.PenStyle.DashLine)
+			painter.setPen(pen)
+			y = r.center().y()
+			painter.drawLine(QPointF(r.left(), y), QPointF(r.right(), y))
+		if self.label:
+			painter.setFont(self.font())
+			painter.setPen(QColor(self.color))
+			al = {"left": Qt.AlignmentFlag.AlignLeft, "right": Qt.AlignmentFlag.AlignRight}.get(
+				self.align, Qt.AlignmentFlag.AlignHCenter)
+			# a label wider than the rectangle goes out of it, by the side it's aligned to
+			painter.drawText(self.labelrect(), al | Qt.AlignmentFlag.AlignVCenter | Qt.TextFlag.TextDontClip, self.label)
+		if self.isSelected():
+			selpen(painter)
+			painter.drawRect(r.adjusted(-3, -3, 3, 3))
+
+	def mouseDoubleClickEvent(self, ev):
+		if self.edit is not None:
+			self.edit(self)
+			return
+		super().mouseDoubleClickEvent(ev)
+
+	def todict(self):
+		d = {"kind": "rect", "rect": rct(self.mapRectToScene(self.rect())), "color": self.color, "width": self.width}
+		if self.fill:
+			d["fill"], d["alpha"] = self.fill, self.alpha
+		if self.middle:
+			d["middle"] = True
+		if self.label:
+			d["label"], d["align"] = self.label, self.align
+		return d
+
+	def setend(self, p):
+		self.prepareGeometryChange()
+		self.setRect(QRectF(self.origin, self.mapFromScene(p)).normalized())
+
+	def small(self):
+		r = self.rect()
+		return r.width() < 4 and r.height() < 4
+
 class PencilShape(QGraphicsPathItem):
 	"""a free hand stroke"""
 	MINSTEP = 1.5	# image pixels between the points kept
@@ -209,6 +330,128 @@ class PencilShape(QGraphicsPathItem):
 	def small(self):
 		r = self.path().boundingRect()
 		return r.width() < 3 and r.height() < 3
+
+# the level sets for Fibonacci drawings: 0 is at the second point, 1 at the first
+FIBSETS = {
+	"OTE": (0.5, 0.62, 0.705, 0.79),
+	"Quadrants": (0, 0.25, 0.5, 0.75, 1),
+	"PO3": (-2.5, -2, -1.5, -1, -0.5, 0, 0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 3.5),
+}
+FIBALL = tuple(sorted({l for ls in FIBSETS.values() for l in ls}))	# where Custom starts
+
+def parselevels(text):
+	"""the levels in text, numbers separated by spaces or commas, sorted;
+	ValueError if one is not a number or there are none"""
+	ls = sorted({float(x) for x in text.replace(",", " ").split()})
+	if not ls:
+		raise ValueError("no levels")
+	return ls
+
+def fmtlevels(levels):
+	return " ".join(f"{l:g}" for l in levels)
+
+class FibShape(QGraphicsItem):
+	"""Fibonacci levels between p1 (level 1) and p2 (level 0): a horizontal
+	line for each level, from the left point to right, or to the right
+	edge of the image when extend"""
+	LABELSIZE = 14
+
+	def __init__(self, p1, p2, levels, color, width, right=None, extend=False):
+		super().__init__()
+		self.kind = "fib"
+		self.p1, self.p2 = QPointF(p1), QPointF(p2)
+		self.levels = list(levels)
+		self.color = color
+		self.width = width
+		self.right = max(p1.x(), p2.x()) if right is None else right
+		self.extend = extend
+		self.setFlags(FLAGS)
+		self.setZValue(ZDRAW)
+
+	def setstyle(self, color, width):
+		self.prepareGeometryChange()
+		self.color, self.width = color, width
+		self.update()
+
+	def setlevels(self, levels):
+		self.prepareGeometryChange()
+		self.levels = list(levels)
+		self.update()
+
+	def setend(self, p):
+		"""move the second point; the lines end there for now"""
+		self.prepareGeometryChange()
+		self.p2 = self.mapFromScene(p)
+		self.right = max(self.p1.x(), self.p2.x())
+
+	def setright(self, x, extend=False):
+		"""where the lines end, in scene x; never left of both points"""
+		self.prepareGeometryChange()
+		self.right = max(self.mapFromScene(QPointF(x, 0)).x(), min(self.p1.x(), self.p2.x()) + 1)
+		self.extend = extend
+
+	def xs(self):
+		"""the left and right ends of the lines"""
+		left = min(self.p1.x(), self.p2.x())
+		right = self.right
+		if self.extend and self.scene() is not None:
+			right = self.mapFromScene(QPointF(self.scene().sceneRect().right(), 0)).x()
+		return left, max(right, left + 1)
+
+	def ys(self):
+		"""(level, y) of each line"""
+		y1, y0 = self.p1.y(), self.p2.y()
+		return [(l, y0 + (y1 - y0) * l) for l in self.levels]
+
+	def boundingRect(self):
+		left, right = self.xs()
+		ys = [y for _, y in self.ys()] + [self.p1.y(), self.p2.y()]
+		m = self.width * 2 + 4
+		return QRectF(QPointF(left - m, min(ys) - self.LABELSIZE - m),
+			QPointF(right + m, max(ys) + m))
+
+	def shape(self):
+		left, right = self.xs()
+		path = QPainterPath()
+		for _, y in self.ys():
+			path.moveTo(left, y)
+			path.lineTo(right, y)
+		path.moveTo(self.p1)
+		path.lineTo(self.p2)
+		s = QPainterPathStroker()
+		s.setWidth(max(self.width, 1) + 8)
+		return s.createStroke(path)
+
+	def paint(self, painter, option, widget=None):
+		painter.setRenderHint(painter.RenderHint.Antialiasing)
+		left, right = self.xs()
+		dash = mkpen(self.color, 1)
+		dash.setStyle(Qt.PenStyle.DashLine)
+		painter.setPen(dash)
+		painter.drawLine(self.p1, self.p2)
+		f = QFont()
+		f.setPixelSize(self.LABELSIZE)
+		painter.setFont(f)
+		pen = mkpen(self.color, self.width)
+		pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+		for l, y in self.ys():
+			painter.setPen(pen)
+			painter.drawLine(QPointF(left, y), QPointF(right, y))
+			painter.setPen(QColor(self.color))
+			painter.drawText(QPointF(left + 3, y - self.width / 2 - 3), f"{l:g}")
+		if self.isSelected():
+			selpen(painter)
+			painter.setBrush(Qt.BrushStyle.NoBrush)
+			painter.drawRect(self.boundingRect())
+
+	def todict(self):
+		right = self.mapToScene(QPointF(self.right, 0)).x()
+		return {"kind": "fib", "p1": pt(self.mapToScene(self.p1)), "p2": pt(self.mapToScene(self.p2)),
+			"right": round(right, 1), "extend": self.extend, "levels": self.levels,
+			"color": self.color, "width": self.width}
+
+	def small(self):
+		return QLineF(self.p1, self.p2).length() < 4
 
 class TextShape(QGraphicsTextItem):
 	"""a text box: text on a light background with a frame. Double click
@@ -314,9 +557,15 @@ def fromdict(d):
 			return LineShape(QPointF(*d["p1"]), QPointF(*d["p2"]), color, float(d.get("width", 3)), k == "arrow")
 		if k == "circle":
 			return CircleShape(QRectF(*d["rect"]), color, float(d.get("width", 3)))
+		if k == "rect":
+			return RectShape(QRectF(*d["rect"]), color, float(d.get("width", 3)), d.get("fill"),
+				int(d.get("alpha", 64)), bool(d.get("middle")), str(d.get("label", "")), str(d.get("align", "center")))
 		if k == "pencil":
 			pts = [QPointF(*p) for p in d["points"]]
 			return PencilShape(pts, color, float(d.get("width", 3))) if pts else None
+		if k == "fib":
+			return FibShape(QPointF(*d["p1"]), QPointF(*d["p2"]), [float(l) for l in d["levels"]], color,
+				float(d.get("width", 1)), float(d["right"]), bool(d.get("extend")))
 		if k == "text":
 			return TextShape(QPointF(*d["pos"]), str(d.get("text", "")), color, int(d.get("size", 18)))
 	except (KeyError, TypeError, ValueError):
@@ -386,6 +635,33 @@ class TextCmd(QUndoCommand):
 
 	def undo(self):
 		self.item.setPlainText(self.before)
+
+class PropsCmd(QUndoCommand):
+	"""other fill, middle line or label for a rectangle"""
+	def __init__(self, item, before, after):
+		super().__init__("Change rectangle")
+		self.item, self.before, self.after = item, dict(before), dict(after)
+
+	def redo(self):
+		self.item.setprops(self.after)
+
+	def undo(self):
+		self.item.setprops(self.before)
+
+class LevelsCmd(QUndoCommand):
+	"""other levels for Fibonacci drawings"""
+	def __init__(self, items, levels):
+		super().__init__("Change levels")
+		self.changes = [(it, list(it.levels)) for it in items]
+		self.levels = list(levels)
+
+	def redo(self):
+		for it, _ in self.changes:
+			it.setlevels(self.levels)
+
+	def undo(self):
+		for it, old in self.changes:
+			it.setlevels(old)
 
 class StyleCmd(QUndoCommand):
 	"""a new color or width (None keeps the old one) for items"""

@@ -280,7 +280,32 @@ The toolbar at the top of the graphics window draws on the graph:
 | Pencil | P | draws free hand |
 | Line, Arrow | L, A | drag from one end to the other; hold shift when you let go to keep it horizontal or vertical |
 | Circle | C | drag across the box of a circle or ellipse |
+| Rect | R | drag across a rectangle; double click it for its fill, middle line and label |
 | Text | T | click where the text goes and type; click elsewhere to finish. Double click a text to edit it again |
+| Fib | F | Fibonacci levels; see below |
+
+**Rect** draws a rectangle, just its border at first. Double click its
+border (anywhere on it once filled) to set:
+
+- **Fill**, with its color and **Transparency** (0% hides what is under it);
+- **Line across the middle**, dashed;
+- **Label** (FVG, OB...), aligned **Center**, **Left** or **Right**, written
+  inside the top of the rectangle, or above it when it is too low.
+
+**Fib** draws Fibonacci levels. Press on the first point (level 1) and drag
+to the second one (level 0), or click one and then the other. Then move the
+mouse and click where the lines end, or double click on the second point to
+take them to the right edge of the image. Esc drops a fib not finished. The
+arrow next to **Fib** picks the levels:
+
+| Set | Levels |
+|-----|--------|
+| OTE (the default) | 0.5, 0.62, 0.705, 0.79 |
+| Quadrants | 0, 0.25, 0.5, 0.75, 1 |
+| PO3 | the quadrants and −0.5, −1, −1.5, −2, −2.5, 1.5, 2, 2.5, 3, 3.5 |
+| Custom… | asks for the levels, starting with all the above; they are remembered |
+
+Picking a set with fibs selected changes their levels instead.
 
 **Color** and the width box set how the next drawings look, and change the
 ones selected. **Undo** (⌘Z) and **Redo** (⌘⇧Z) go back and forth through
@@ -419,6 +444,6 @@ when opened.
 | Graphics window | ← → | previous or next graph of the trade |
 | Graphics window | ↑ ↓ | previous or next trade |
 | Graphics window | Home, End | first or last trade |
-| Graphics window | S, P, L, A, C, T | select, pencil, line, arrow, circle, text |
+| Graphics window | S, P, L, A, C, R, T, F | select, pencil, line, arrow, circle, rect, text, fib |
 | Graphics window | ⌘Z, ⌘⇧Z, Del, Esc | undo, redo, delete the drawings selected, unselect |
 | Graphics window | ⌘S | save the drawings |
