@@ -263,6 +263,7 @@ the graphs of the selected trade, with the trade's notes beside the buttons
 | Fit | fits the graph to the window |
 | Zoom +, Zoom − | zooms in or out |
 | Double click | zooms in, zooms in again, then back to fit, in turns. Zooming keeps the point you clicked under the mouse |
+| Two finger double tap, pinch | on a trackpad, zoom like a double click, and in and out |
 | Drag | moves the graph around when it is larger than the window |
 | OS View | opens the graph in the system viewer |
 | Save (⌘S) | saves the drawings |
@@ -279,36 +280,75 @@ The toolbar at the top of the graphics window draws on the graph:
 | Select | S | click a drawing to select it, shift-click to add more, drag to move them; drag the graph itself to move around |
 | Pencil | P | draws free hand |
 | Line, Arrow | L, A | drag from one end to the other; hold shift when you let go to keep it horizontal or vertical |
-| Circle | C | drag across the box of a circle or ellipse |
+| Circle | C | drag across the box of a circle or ellipse. Double click a line, arrow or circle for its color, width, style and label |
 | Rect | R | drag across a rectangle; double click it for its fill, middle line and label |
 | Text | T | click where the text goes and type; click elsewhere to finish. Double click a text to edit it again |
 | Fib | F | Fibonacci levels; see below |
+
+**Line**, **Arrow** and **Circle** open a window when you double click
+them, to change their **Color**, **Width** and **Style** (solid, dashed,
+dotted) and give them a **Label**, with its **Text size** and **Label
+color**. The label goes **Above**, **Center** (across it; the line stops
+around the label) or **Below**, and **Left** (at its left end), **Center**
+(in its middle) or **Right**. For lines and arrows, **Right** puts the label
+past the right end of the line, kept inside the image.
 
 **Rect** draws a rectangle, just its border at first. Double click its
 border (anywhere on it once filled) to set:
 
 - **Fill**, with its color and **Transparency** (0% hides what is under it);
-- **Line across the middle**, dashed;
+- **Line across the middle**, dashed, with its color;
 - **Label** (FVG, OB...), aligned **Center**, **Left** or **Right**, written
-  inside the top of the rectangle, or above it when it is too low.
+  across the middle of the rectangle (the middle line stops around it), with
+  its **Label color**.
+
+The arrow next to **Rect** picks the kind of rectangle to draw: **Plain**
+(just the border, in the drawing color) or one already set up, with its
+colors, fill, middle line and label:
+
+| Kind | Looks like |
+|------|------------|
+| BRK | green border and fill, green middle line |
+| MB | green border and fill, green middle line |
+| FVG | black border, light orange fill, black middle line |
+| IFVG+ | orange border and fill, red middle line |
+| IFVG- | blue border, light cyan fill, black middle line |
+
+Picking a kind with rectangles selected changes them to it instead.
+
+In these windows the drawing shows each change at once; **Cancel** puts it
+back as it was.
 
 **Fib** draws Fibonacci levels. Press on the first point (level 1) and drag
 to the second one (level 0), or click one and then the other. Then move the
 mouse and click where the lines end, or double click on the second point to
-take them to the right edge of the image. Esc drops a fib not finished. The
-arrow next to **Fib** picks the levels:
+take them to the right edge of the image. While you draw it, a dashed line
+shows where the second point (level 0) is. Esc or the right button drops a
+fib not finished. Each level has its number just past the right end of its
+line, centered on it; lines taken to the edge of the image stop short of it
+to leave room for the numbers.
+The arrow next to **Fib** picks the levels:
 
 | Set | Levels |
 |-----|--------|
 | OTE (the default) | 0.5, 0.62, 0.705, 0.79 |
 | Quadrants | 0, 0.25, 0.5, 0.75, 1 |
 | PO3 | the quadrants and −0.5, −1, −1.5, −2, −2.5, 1.5, 2, 2.5, 3, 3.5 |
-| Custom… | asks for the levels, starting with all the above; they are remembered |
+| Custom… | a form with 20 levels in two columns: check the ones to draw and type their values |
 
-Picking a set with fibs selected changes their levels instead.
+The custom form starts with all the levels above, and two blank ones, and
+remembers what you set. Its **Draw the diagonal** box adds the dashed line
+from the first point to the second; the other sets never draw it. Picking a
+set with fibs selected changes their levels instead.
 
-**Color** and the width box set how the next drawings look, and change the
-ones selected. **Undo** (⌘Z) and **Redo** (⌘⇧Z) go back and forth through
+The **⧉** button at the start of the drawing buttons detaches them as a
+small floating bar that stays on top of every window, so you can keep it
+where it suits you. Click **⧉** again, or close the bar, to put it back.
+
+**Color**, the width box, the line style box (solid, dashed, dotted) and the
+text size box (**Aa 16** by default, for texts, labels and fib numbers) set
+how the next drawings look, and change the ones selected. **Clear** deletes
+every drawing on the graph; **Undo** brings them back. **Undo** (⌘Z) and **Redo** (⌘⇧Z) go back and forth through
 the changes made to the graph shown; **Delete** (or Del) removes what is
 selected and Esc unselects it and goes back to Select. Drawings stay on their
 place on the graph when you zoom.

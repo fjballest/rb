@@ -315,7 +315,8 @@ calendar and the trades table.
 `ImageViewer` (`imgwin.py`) shows one graph of a list at a time in an
 `ImageView` (`viewer.py`), a `QGraphicsView` that holds the graph and its
 drawings, in graph coordinates. `ImageView.mode` is `"fit"`, `"real"` or
-`"zoom"` and is kept across graphs and trades. Double clicks cycle through
+`"zoom"` and is kept across graphs and trades. Double clicks, and a two finger
+double tap on a trackpad (`viewportEvent`), cycle through
 `dstep` (zoom ×2, ×2 again, fit), keeping the clicked point under the mouse.
 The view sends the arrow, Home and End keys as `navigate` (its `navkeys` are
 set by `imgwin.NAVKEYS`), unless a text box is being edited; the buttons
@@ -339,7 +340,28 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   are kept in `QSettings("fjballest", "drawing")`, shared with DayJournal).
 - A fib is drawn in steps (`ImageView.fibstep`): the two points, by dragging
   or clicking, then a click for the right end of the lines, or a double
-  click on the second point to take them to the right edge.
+  click on the second point to take them to the right edge; the right
+  button or Esc drops it. The custom form (`FibDialog`) has 20 rows
+  (check, level) and the diagonal box; it is kept as JSON under
+  `customfibrows`.
+- The Rect menu of `DrawBar` picks a preset of `drawing.RECTSETS` (BRK, MB,
+  FVG, IFVG+, IFVG-: colors, fill, middle line, label), kept in
+  `ImageView.rectpreset` for the next rectangles; with rectangles selected
+  it changes them, in one undo step.
+- Every shape but the text boxes has a `dash` (solid, dash, dot); lines,
+  arrows, circles and rectangles a `label` with its `size` and
+  `labelcolor`, placed by `labelrect` (lines and circles also by `valign`
+  and `align`; a label past the right end is kept on the image by
+  `inscene`, and `clipout` keeps the line from crossing it). `PROPS` lists
+  what `setprops` changes; `PropsCmd` undoes it. A double click on a line,
+  arrow, circle or rectangle calls `ImageView.editshape`, which opens
+  `ShapeDialog` or `RectDialog` and applies their `changed` at once,
+  putting it back on Cancel. The bar's style and text size apply through
+  `setselprops` to what is selected, in one undo step; **Clear** is a
+  `DeleteCmd` of every shape. The fib numbers go past the end of each line,
+  and lines taken to the edge stop short to leave them room (`xs`).
+- `DrawBar.detach` moves the toolbar into a `FloatBar`, a tool window that
+  stays on top; `attach`, or closing it, puts it back in the window.
 
 `ImageViewer.drawchanged` compares `view.drawingdata()` with the file and
 keeps the drawing in `pending`, by graph path, while they differ; the title

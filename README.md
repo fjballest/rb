@@ -3,10 +3,30 @@ Just born for personal use.
 For sure it's full of bugs.
 Provided AS-IS
 
+RoadBook (rb) is a trading journal: it keeps your trades with their setup,
+features, notes and charts, and tells you which features make trades work.
 See near the end for a quick use guide, the [user manual](docs/MANUAL.md)
 for the details, and the [design document](docs/DESIGN.md) to find your way in the source.
+There are PDFs of both in `docs`.
 
-Uses PySide6 Qt for widgets.
+What it does:
+
+- Trades grouped by year, month and week, with their totals; a calendar,
+  by month or by year, colored by result.
+- AutoFeatures, which reads the notes of the trades and checks the features
+  named there (a final "s" is optional, and `*` in aka names matches any
+  letters).
+- Filters: by instrument, setup, features, direction, day, hour and dates,
+  and a text filter with `!` (not), `|` (or) and parentheses, also in a
+  quick box above the trades.
+- Stats and plots per result, day, week, month, setup, instrument and hour.
+- Charts for each trade, dropped on the trade form and read with OCR to
+  fill in the trade; the graphics window can draw on them (lines, arrows,
+  circles, rectangles with FVG, IFVG, BRK... presets, Fibonacci levels with
+  OTE, quadrants, PO3 or your own levels, text and labels).
+- Backups of the roadbook and its charts.
+
+Uses PySide6 Qt for widgets, and easyocr to read the charts.
 
 To build your exec just run
 
@@ -16,17 +36,29 @@ Or checkout [releases](https://github.com/fjballest/rb/releases) for binaries bu
 
 Some screenshots:
 
+The trades, grouped by month and week, with the quick text filter
+(`fvg | ifvg`) and the features of the trade selected:
+
 ![1](screenshots/screen1.png)
+
+The calendar, by month and by year:
 
 ![2](screenshots/screen2.png)
 
+![6](screenshots/screen6.png)
+
+The filter window:
+
 ![3](screenshots/screen3.png)
+
+Stats:
 
 ![4](screenshots/screen4.png)
 
-![5](screenshots/screen5.png)
+The graphics window for a trade, with an FVG, an IFVG- and a BRK
+rectangle, OTE Fibonacci levels and a labeled line drawn on the chart:
 
-![6](screenshots/screen6.png)
+![5](screenshots/screen5.png)
 
 When started, it looks for a "diary" directory at the home or documents directory.
 If it can be found and contains a roadbook, that one is loaded.
