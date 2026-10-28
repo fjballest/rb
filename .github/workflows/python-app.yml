@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.14"  # PySide6 6.10.1 needs < 3.15
       - name: Install torch (Windows)
         if: runner.os == 'Windows'
         run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
