@@ -5,7 +5,7 @@ import sys
 
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtWidgets import (
-	QWidget, QVBoxLayout, QHBoxLayout,
+	QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 	QCheckBox, QLabel, QFileDialog, QPlainTextEdit
 )
 import traceback
@@ -241,7 +241,14 @@ class TradeEdit(QDialog):
 		x = QWidget()
 		lay2 = QHBoxLayout()
 		lay2.addWidget(self.formGroupBox)
-		lay2.addWidget(self.featuresGroup)
+		feats = QVBoxLayout()
+		feats.addWidget(self.featuresGroup)
+		autobtn = QPushButton("AutoFeatures")
+		autobtn.setToolTip("Check the features whose name or aka names are in the notes above, "
+			"as AutoFeatures does for the trades listed. Features for other setups are not checked.")
+		autobtn.clicked.connect(self.autofeatures)
+		feats.addWidget(autobtn)
+		lay2.addLayout(feats)
 		x.setLayout(lay2)
 		mainLayout.addWidget(x)
 		mainLayout.addWidget(self.errors)
@@ -353,6 +360,18 @@ class TradeEdit(QDialog):
 				event.acceptProposedAction()
 		else:
 			event.ignore()
+
+	def autofeatures(self):
+		"""check the features named in the notes of the form"""
+		found = self.rb.featuresin(self.notesbox.toPlainText(), self.setupbox.currentText())
+		checked = set(self.featuresGroup.checked_items())
+		new = found - checked
+		if new:
+			items = [self.featuresGroup.model.item(r).text() for r in range(self.featuresGroup.model.rowCount())]
+			self.featuresGroup.set_items(items, checked | new)
+			self.errors.setText("AutoFeatures checked " + ", ".join(sorted(new)))
+		else:
+			self.errors.setText("AutoFeatures: no new features in the notes")
 
 	def setupchanged(self, txt):
 		if self.lastsetup == txt or self.rb is None:

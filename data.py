@@ -442,10 +442,9 @@ class RoadBook:
 			p += "(?-i:s)?"
 		return p
 
-	def autofeatures(self, trades) -> tuple[int, int]:
-		"""add to each trade the features whose name or aka names appear
-		as words in its notes, ignoring case (see namepattern). Features for other setups
-		are not added. Returns how many features were added, to how many trades."""
+	def featurepatterns(self) -> list:
+		"""(feature, regex) for each feature, to look for its name and aka
+		names as words, ignoring case (see namepattern)"""
 		pats = []
 		for f in self.features:
 			names = [f.feature] + list(f.aka or [])
@@ -454,23 +453,34 @@ class RoadBook:
 			if alts:
 				# whole words, also for names that start or end with a non word char
 				pats.append((f, re.compile(rf"(?<!\w)(?:{alts})(?!\w)", re.IGNORECASE)))
+		return pats
+
+	def featuresin(self, notes, setup, pats=None) -> set[str]:
+		"""the features named in notes, as AutoFeatures finds them, leaving
+		out the ones for other setups than setup"""
+		found = set()
+		if not notes:
+			return found
+		for f, pat in pats if pats is not None else self.featurepatterns():
+			if f.setups and setup not in f.setups:
+				continue
+			if pat.search(notes):
+				found.add(f.feature)
+		return found
+
+	def autofeatures(self, trades) -> tuple[int, int]:
+		"""add to each trade the features whose name or aka names appear
+		as words in its notes, ignoring case (see namepattern). Features for other setups
+		are not added. Returns how many features were added, to how many trades."""
+		pats = self.featurepatterns()
 		nfeat = ntrades = 0
 		for t in trades:
-			if not t.notes:
-				continue
-			added = 0
-			for f, pat in pats:
-				if t.has and f.feature in t.has:
-					continue
-				if f.setups and t.setup not in f.setups:
-					continue
-				if pat.search(t.notes):
-					if t.has is None:
-						t.has = set()
-					t.has.add(f.feature)
-					added += 1
-			if added:
-				nfeat += added
+			new = self.featuresin(t.notes, t.setup, pats) - set(t.has or [])
+			if new:
+				if t.has is None:
+					t.has = set()
+				t.has |= new
+				nfeat += len(new)
 				ntrades += 1
 		return nfeat, ntrades
 

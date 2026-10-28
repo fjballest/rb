@@ -109,6 +109,9 @@ described below. `listedtrades()` is the filtered list or all trades;
 AutoFeatures buttons) work on it, the latter matching feature names and aka
 names in the notes with one case-insensitive whole-word regex per feature
 (`namepattern`: optional lowercase final `s`, `*` wildcards in aka names).
+`featurepatterns` builds those regexes and `featuresin(notes, setup)`
+returns the feature names found in some notes; the trade form's
+AutoFeatures button uses the latter on the form's notes and setup.
 
 ## Storage
 

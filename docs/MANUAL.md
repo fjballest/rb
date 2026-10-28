@@ -143,9 +143,13 @@ The trade form has these fields:
 | Graphics | the screenshots of the trade |
 | Notes | free text |
 
-Check the features the trade had in the list of the form. If you type an
-instrument, setup or feature that does not exist yet, it is added to the
-roadbook when you accept.
+Check the features the trade had in the list of the form. The
+**AutoFeatures** button below the list checks the features named in the
+form's notes, as the Features tab's AutoFeatures does (see below), but only
+for this trade and for the setup chosen in the form. It checks features
+only, it never unchecks any, and nothing is saved until you press OK. If you
+type an instrument, setup or feature that does not exist yet, it is added to
+the roadbook when you accept.
 
 ### Screenshots
 
