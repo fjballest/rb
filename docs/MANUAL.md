@@ -34,7 +34,10 @@ At start RoadBook opens, in this order:
 1. the last roadbook you used, or
 2. a roadbook found in `$RBDIR` (or `/u/trade` when `RBDIR` is not set),
    your home directory or your documents directory. If several are found,
-   the one named `rb` is preferred.
+   the one named `rb` is preferred. Without `RBDIR`, when there is no `/u`
+   directory it looks in `~/u/trade`, and when there is no `~/u` either, in
+   `trade` in your documents directory (`~/Documents/trade` on macOS,
+   `Documents\trade` on Windows). New, Open and Save As start there too.
 
 To make your first roadbook, use **File ▸ New Roadbook…** (or the **New**
 button) and choose a directory and name. It comes with a set of example

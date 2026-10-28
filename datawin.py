@@ -21,7 +21,7 @@ from checklist import CheckBoxGroup
 from data import (
 	RoadBook, Trade, Setup, Feature, Instrument, Currency, Dir, TRADEVIEWORDER,
 	TRADEVIEWRDONLY, tradeexample,
-	setupexample, featureexample, instrumentexample, currencyexample
+	setupexample, featureexample, instrumentexample, currencyexample, tradedir
 )
 from calwin import TradeCalendar, daysign, tradeorder
 from filterwin import FilterWindow, TextFilterEdit
@@ -594,7 +594,7 @@ class DataWindow(QMainWindow):
 			if not self.askuser('unsaved changed. sure to create another one?'):
 				return
 		file_path, _ = QFileDialog.getSaveFileName(
-			self, "New Roadbook", "", "")
+			self, "New Roadbook", tradedir(), "")
 		if not file_path:
 			return
 		try:
@@ -635,7 +635,7 @@ class DataWindow(QMainWindow):
 			if not self.askuser('unsaved changed. sure to open another one?'):
 				return
 		file_path = QFileDialog.getExistingDirectory(
-			self, "Open Roadbook", "", QFileDialog.Option.ShowDirsOnly)
+			self, "Open Roadbook", tradedir(), QFileDialog.Option.ShowDirsOnly)
 		if not file_path:
 			return
 		if not RoadBook.isRoadBook(file_path):
@@ -682,7 +682,7 @@ class DataWindow(QMainWindow):
             	"Do not have a roadbook to save")
 			return
 		file_path, _ = QFileDialog.getSaveFileName(
-			self, "Save (Filtered) Roadbook as", "", "")
+			self, "Save (Filtered) Roadbook as", tradedir(), "")
 		if not file_path:
 			return
 		self.rb.save(file_path, filtered=True)

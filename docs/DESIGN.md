@@ -115,6 +115,12 @@ AutoFeatures button uses the latter on the form's notes and setup.
 
 ## Storage
 
+Roadbooks are looked for (`rb.locaterbs`) in `$RBDIR`, or else in
+`data.tradedirs()`: `/u/trade`, or `~/u/trade`, and when there is no `u`
+directory (`UDIRS`), `trade` in the system's documents directory
+(`QStandardPaths`) and the documents directory itself; then in the home and
+documents directories. `tradedir()` is where New, Open and Save As start.
+
 A roadbook is a directory:
 
 ```

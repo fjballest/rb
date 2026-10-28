@@ -4,7 +4,7 @@ import os
 import sys
 from datawin import DataWindow
 from menus import recentrbs
-from data import RoadBook
+from data import RoadBook, tradedirs
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QLoggingCategory, QStandardPaths
 #
@@ -30,10 +30,10 @@ def locaterbs():
 	if e is not None:
 		dirs += [e]
 	else:
-		dirs += ['/u/trade']
+		dirs += tradedirs()	# /u/trade, ~/u/trade or the documents' trade
 	dirs += QStandardPaths.standardLocations(QStandardPaths.StandardLocation.HomeLocation)
 	dirs += QStandardPaths.standardLocations(QStandardPaths.StandardLocation.DocumentsLocation)
-	for dir in dirs:
+	for dir in dict.fromkeys(dirs):	# each one once
 		rbs += dirrbs(dir)
 	return rbs
 

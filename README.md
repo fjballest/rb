@@ -60,8 +60,11 @@ rectangle, OTE Fibonacci levels and a labeled line drawn on the chart:
 
 ![5](screenshots/screen5.png)
 
-When started, it looks for a "diary" directory at the home or documents directory.
-If it can be found and contains a roadbook, that one is loaded.
+When started, it opens the roadbook used last, or one found in `/u/trade`,
+the home directory or the documents directory (the one named `rb` if there
+are several). When there is no `/u` directory it looks in `~/u/trade`, and
+when there is no `~/u` either, in `trade` in the documents directory
+(`~/Documents/trade/rb`, for example).
 
 To create a new roadbook, use the new roadbook icon (empty file icon) and select
 the directory where to create the roadbook and the name for the roadbook.

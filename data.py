@@ -13,6 +13,31 @@ from csv_mapper import load_objects_from_csv,write_objects_to_csv
 
 from newdata import NEWACCOUNT, NEWCURRENCIES, NEWFEATURES, NEWINSTRUMENTS, NEWSETUPS, NEWTRADES
 
+UDIRS = ("/u", "~/u")	# where the trade directory is, when there is one
+
+def documents() -> str:
+	"""the user's documents directory for this system (~/Documents on macOS,
+	the Documents folder on Windows, the XDG one on Linux)"""
+	from PySide6.QtCore import QStandardPaths
+	return QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation) \
+		or os.path.expanduser("~")
+
+def tradedirs() -> list[str]:
+	"""where roadbooks are kept: /u/trade, or ~/u/trade, and when there is
+	no u directory, trade in the documents directory and the documents
+	directory itself"""
+	for u in map(os.path.expanduser, UDIRS):
+		if os.path.isdir(u):
+			return [os.path.join(u, "trade")]
+	return [os.path.join(documents(), "trade"), documents()]
+
+def tradedir() -> str:
+	"""the directory to start in when choosing a roadbook"""
+	for d in tradedirs():
+		if os.path.isdir(d):
+			return d
+	return documents()
+
 ACCOUNTFILE = "account.csv"
 SETUPSFILE = "setups.csv"
 TRADESFILE = "trades.csv"
