@@ -76,10 +76,32 @@ side by side. **View ▸ Side Panels** shows or hides the right panels.
 | File | New Roadbook (⌘N), Open Roadbook (⌘O), Open Recent, Save (⌘S), Save As (⌘⇧S), Backups (⌘B), Quit (⌘Q) |
 | Edit | New Trade (⌘T), Edit Trade (⌘E), Delete Trade, Find and Replace (⌘F) |
 | View | one entry per tab (⌘1 to ⌘7), Expand or Collapse All Trades (⌘⇧E), Graphics (⌘G), Filter (⌘⇧F), Statistics, Side Panels |
+| Window | Minimize (⌘M), layouts for the windows shown (Tile ⌥⌘T), the windows shown |
 | Help | About |
 
 On Windows and Linux use Ctrl instead of ⌘. On macOS, Quit and About are in
 the application menu.
+
+**Window** arranges the windows shown (the main one, the graphics windows and their
+copies, filters, statistics) on the screen of the one you are in,
+which goes first:
+
+| Entry | What it does |
+|-------|--------------|
+| Minimize (⌘M) | minimizes this window |
+| Tile (⌥⌘T) | all the windows as a mosaic: two side by side, three with one wide below, four in a 2×2 grid, and so on |
+| Side by Side | all the windows in columns |
+| Stacked | all the windows in rows |
+| Main on the Left | this window on the left half, the others one over the other on the right |
+| Main on Top | this window on the top half, the others side by side below |
+| Cascade | all the windows a bit apart, one over the other |
+| Fill the Screen, Left Half, Right Half, Top Half, Bottom Half, Center | this window alone |
+
+At the end it lists the windows shown, to bring one to the front. The
+other windows keep more or less their order on the screen. A window that
+can't get as small as its place keeps its smallest size and stays on the
+screen.
+On macOS the graphics windows have the Window menu too.
 
 ## Trades
 
@@ -494,6 +516,7 @@ when opened.
 | Anywhere | ⌘F | find and replace in the table shown |
 | Anywhere | ⌘1 … ⌘7 | show a tab |
 | Anywhere | ⌘G, ⌘⇧F, ⌘⇧E | graphics, filter, expand or collapse all trades |
+| Anywhere | ⌘M, ⌥⌘T | minimize, tile the windows |
 | Tables | Home, End | scroll to the top or bottom |
 | Trades, on a group | Enter, Space, ←, → | toggle, toggle, collapse, expand |
 | Graphics window | ← → | previous or next graph of the trade |

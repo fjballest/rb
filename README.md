@@ -24,7 +24,8 @@ What it does:
   fill in the trade; the graphics window can draw on them (lines, arrows,
   circles, rectangles with FVG, IFVG, BRK... presets, Fibonacci levels with
   OTE, quadrants, PO3 or your own levels, text and labels). Dup opens
-  copies of it to see several charts at once.
+  copies of it to see several charts at once, and the Window menu lays
+  them out: tiled, side by side, halves...
 - Backups of the roadbook and its charts.
 
 Uses PySide6 Qt for widgets, and easyocr to read the charts.

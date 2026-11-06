@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QMenu, QMessageBox, QToolBar, QToolButton
 
 from data import RoadBook
 from icons import icon
+from winlayout import windowmenu
 
 RECENTMAX = 10
 QUICKMAX = 6	# roadbooks with their own toolbar button
@@ -122,6 +123,7 @@ class MainMenus:
 		for dock in d.rightdocks:
 			panels.addAction(dock.toggleViewAction())
 
+		mb.addMenu(windowmenu(d))
 		h = mb.addMenu("&Help")
 		h.addAction(mkaction(d, "&About RoadBook", self.about, role=QAction.MenuRole.AboutRole))
 

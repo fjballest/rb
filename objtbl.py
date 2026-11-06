@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 	QPushButton, QToolButton
 )
 from PySide6.QtCore import QTimer, Signal, QPersistentModelIndex
+from winlayout import narrow
 
 def findfield(flds, n):
 	for i, f in enumerate(flds):
@@ -769,6 +770,7 @@ class ObjectTable(QWidget):
 
 		self.btnlayout = btn_layout
 		self.btnpos = btn_layout.count()	# where addbutton puts the next one
+		narrow(*(btn_layout.itemAt(i).widget() for i in range(btn_layout.count())))
 		btn_layout.addStretch()
 		if self.info is not None:
 			self.infolabel = QLabel(self.info())
@@ -845,6 +847,7 @@ class ObjectTable(QWidget):
 		"""add a button after the others, calling fn when clicked"""
 		b = QPushButton(text)
 		b.setToolTip(tip)
+		narrow(b)
 		b.clicked.connect(lambda _=False: fn())
 		self.btnlayout.insertWidget(self.btnpos, b)
 		self.btnpos += 1

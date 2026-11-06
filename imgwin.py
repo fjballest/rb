@@ -6,10 +6,12 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 import json
 import os
+import sys
 
 from data import canonlist
 from viewer import ImageView
 from drawbar import DrawBar
+from winlayout import narrow, windowmenu
 
 # the drawings on a graph are kept next to it, with its name and this extension:
 # trade12dax.png -> trade12dax.drw
@@ -115,6 +117,8 @@ class ImageViewer(QMainWindow):
 		self.saveact.setShortcut(QKeySequence.StandardKey.Save)
 		self.saveact.triggered.connect(self.savedrawings)
 		self.addAction(self.saveact)
+		if sys.platform == "darwin":	# the menu bar is the screen's: give it the Window menu
+			self.menuBar().addMenu(windowmenu(self))
 
 		# --- Layout ---
 		button_layout = QHBoxLayout()
@@ -122,6 +126,7 @@ class ImageViewer(QMainWindow):
 				self.fit_button, self.zoom_in_button, self.zoom_out_button, self.preview_button,
 				self.save_button, self.dup_button):
 			b.setFocusPolicy(Qt.FocusPolicy.NoFocus)	# the keys go to the graph
+			narrow(b)
 			button_layout.addWidget(b)
 		button_layout.addWidget(self.notes, 1)
 

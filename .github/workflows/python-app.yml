@@ -36,13 +36,16 @@ jobs:
         run: ls -l dist
 
       - name: Rename executable
+        env:
+          VERSION: ${{ github.event.inputs.version }}
         run: |
+          # the version goes in the names: rb-v1.4-macos
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            mv dist/rb/rb.exe dist/rb-windows
+            mv dist/rb/rb.exe dist/rb-$VERSION-windows
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
-            mv dist/rb/rb dist/rb-linux
+            mv dist/rb/rb dist/rb-$VERSION-linux
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            mv dist/rb/rb dist/rb-macos
+            mv dist/rb/rb dist/rb-$VERSION-macos
           fi
         shell: bash
 
@@ -79,7 +82,4 @@ jobs:
           name: Release ${{ github.event.inputs.version }}
           draft: false
           prerelease: true
-          files: |
-            rb-linux
-            rb-windows
-            rb-macos
+          files: rb-*

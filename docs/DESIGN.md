@@ -338,6 +338,19 @@ its Prev and Next are disabled and its `navigate` only takes "less" and
 "more", so it never emits `moved` or `jumped`. The clones open are in
 `imgwin.views`, and `DataWindow.closeEvent` asks about their drawings too.
 
+`winlayout.py` (the same file in RoadBook and DayJournal; keep them the
+same) makes the Window menu (`windowmenu`). `windows()` are the visible
+top level windows of kind Window or Dialog (not tool windows, so not the
+floating draw bar or docks), sorted by their place on the screen with the
+active one first. The layouts in `ALL` take the screen rectangle and the
+number of windows and return a rectangle for each (`grid`, `split`,
+`mainleft`, `maintop`, `cascade`); those in `ONE` place the active window
+alone. `place` sets a window's frame on its rectangle and moves it back on
+the screen when its minimum size is larger. `narrow` lets the push buttons of the tables and the graphics window
+shrink to their text, so the windows fit those rectangles.
+The Window menu is in `MainMenus.mkmenubar`, and in the graphics windows
+only on macOS, where the menu bar is the screen's.
+
 Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
 `drawing.py` and `drawbar.py` the same in both:
 
