@@ -25,6 +25,7 @@ from data import (
 )
 from calwin import TradeCalendar, daysign, tradeorder
 from filterwin import FilterWindow, TextFilterEdit
+import imgwin
 from imgwin import ImageViewer
 from menus import MainMenus, addrecent
 from backup import BackupDialog
@@ -1106,10 +1107,10 @@ class DataWindow(QMainWindow):
 		self.updateinfo()
 
 	def closeEvent(self, ev):
-		g = self.graphwindow
-		if g is not None and not g.keepdrawings("quitting"):
-			ev.ignore()
-			return
+		for g in [self.graphwindow] + list(imgwin.views):	# and its clones
+			if g is not None and not g.keepdrawings("quitting"):
+				ev.ignore()
+				return
 		if self.rb and self.rb.dirty:
 			if not self.askuser('unsaved changed. sure to quit?'):
 				ev.ignore()

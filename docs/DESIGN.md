@@ -332,6 +332,11 @@ set by `imgwin.NAVKEYS`), unless a text box is being edited; the buttons
 don't take the focus, so the keys stay with the view. The window never
 selects trades itself: it emits `moved(delta)` and `jumped(last)`, and the
 main window selects the trade, which in turn calls `setimage()` back.
+**Dup** (`ImageViewer.dup`) opens a clone (`clone=True`) with the same
+graphs, graph and unsaved drawings; it is titled *View* instead of *Trade*,
+its Prev and Next are disabled and its `navigate` only takes "less" and
+"more", so it never emits `moved` or `jumped`. The clones open are in
+`imgwin.views`, and `DataWindow.closeEvent` asks about their drawings too.
 
 Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
 `drawing.py` and `drawbar.py` the same in both:

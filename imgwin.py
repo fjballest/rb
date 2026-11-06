@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
 	QHBoxLayout, QSizePolicy, QMessageBox
 )
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 import json
 import os
 
@@ -44,15 +44,20 @@ def savedrawing(graph, data):
 NAVKEYS = {Qt.Key.Key_Left: "less", Qt.Key.Key_Right: "more", Qt.Key.Key_Up: "prev",
 	Qt.Key.Key_Down: "next", Qt.Key.Key_Home: "first", Qt.Key.Key_End: "last"}
 
+views = []	# the clones open (see ImageViewer.dup), so they are kept
+
 class ImageViewer(QMainWindow):
 	moved = Signal(int)	# asks to show the next (+1) or previous (-1) trade
 	jumped = Signal(bool)	# asks to show the first (False) or last (True) trade
 
-	def __init__(self, file, parent=None, x=1400, y=1024, desc=''):
+	def __init__(self, file, parent=None, x=1400, y=1024, desc='', clone=False):
+		"""the graphics window of the trades; a clone (see dup) stays with
+		the graphs of its trade and doesn't move to other trades"""
 		super().__init__(parent)
 		if desc is None:
 			desc=''
 		self.desc = desc
+		self.clone = clone
 		self.file_path = ""
 		self.files = file
 		self.fileno = 0
@@ -89,6 +94,12 @@ class ImageViewer(QMainWindow):
 		self.preview_button = QPushButton("OS View")
 		self.save_button = QPushButton("Save")
 		self.save_button.setToolTip("save the drawings (⌘S)")
+		self.dup_button = QPushButton("Dup")
+		self.dup_button.setToolTip("open another window with this graph, to see several at once")
+		if clone:	# it stays with its trade
+			for b in (self.prev_button, self.next_button):
+				b.setEnabled(False)
+				b.setToolTip("this window stays with its trade")
 
 		self.prev_button.clicked.connect(lambda: self.moveTo(-1))
 		self.next_button.clicked.connect(lambda: self.moveTo(1))
@@ -99,6 +110,7 @@ class ImageViewer(QMainWindow):
 		self.actual_button.clicked.connect(self.actual_size)
 		self.preview_button.clicked.connect(self.preview)
 		self.save_button.clicked.connect(self.savedrawings)
+		self.dup_button.clicked.connect(self.dup)
 		self.saveact = QAction("Save", self)
 		self.saveact.setShortcut(QKeySequence.StandardKey.Save)
 		self.saveact.triggered.connect(self.savedrawings)
@@ -108,7 +120,7 @@ class ImageViewer(QMainWindow):
 		button_layout = QHBoxLayout()
 		for b in (self.prev_button, self.next_button, self.more_button, self.actual_button,
 				self.fit_button, self.zoom_in_button, self.zoom_out_button, self.preview_button,
-				self.save_button):
+				self.save_button, self.dup_button):
 			b.setFocusPolicy(Qt.FocusPolicy.NoFocus)	# the keys go to the graph
 			button_layout.addWidget(b)
 		button_layout.addWidget(self.notes, 1)
@@ -124,7 +136,7 @@ class ImageViewer(QMainWindow):
 		QTimer.singleShot(0, self.enable_fit_mode)
 
 	def updateTitle(self):
-		t = self.file_path
+		t = ("View " if self.clone else "Trade ") + self.file_path
 		if len(self.files) >= 2:
 			t += f" ({self.fileno+1} of {len(self.files)})"
 		if self.pending:
@@ -156,6 +168,8 @@ class ImageViewer(QMainWindow):
 		self.updateTitle()
 
 	def navigate(self, what):
+		if self.clone and what not in ("less", "more"):
+			return	# it stays with its trade
 		{"less": self.less, "more": self.more, "prev": lambda: self.moveTo(-1),
 			"next": lambda: self.moveTo(1), "first": lambda: self.jumpTo(False),
 			"last": lambda: self.jumpTo(True)}[what]()
@@ -173,6 +187,20 @@ class ImageViewer(QMainWindow):
 	def jumpTo(self, last):
 		self.jumped.emit(last)
 		self.updateTitle()
+
+	def dup(self):
+		"""open a clone of this window, showing the same graph, a bit lower
+		and to the right; it can go through the graphs of the trade only"""
+		self.view.commitedit()
+		w = ImageViewer(self.files, x=self.width(), y=self.height(), desc=self.desc, clone=True)
+		w.pending = dict(self.pending)	# the drawings as they are now
+		w.setimage(self.files, self.fileno)
+		w.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+		views.append(w)
+		w.destroyed.connect(lambda _=None, w=w: views.remove(w) if w in views else None)
+		w.move(self.pos() + QPoint(40, 40))
+		w.show()
+		return w
 
 	# ---------- Zoom controls ----------
 	def zoom(self, factor):

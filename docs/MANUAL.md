@@ -259,7 +259,8 @@ day works as in the month view.
 
 Opened with the **Graphics** button or **View ▸ Graphics** (⌘G). It shows
 the graphs of the selected trade, with the trade's notes beside the buttons
-(hover over them to read notes longer than three lines).
+(hover over them to read notes longer than three lines). Its title is
+*Trade* and the path of the graph shown.
 
 | Control | What it does |
 |---------|--------------|
@@ -274,6 +275,13 @@ the graphs of the selected trade, with the trade's notes beside the buttons
 | Drag | moves the graph around when it is larger than the window |
 | OS View | opens the graph in the system viewer |
 | Save (⌘S) | saves the drawings |
+| Dup | opens a copy of the window, titled *View* and the path of the graph, to see several graphs at once |
+
+A window opened with **Dup** stays with the graphs of its trade: Prev, Next,
+↑ ↓, Home and End do nothing there, but More and ← → go through the graphs
+of the trade, and you can zoom and draw as in the main one. Dup it again for
+more of them. Each one keeps its own unsaved drawings; quitting asks about
+those of every window.
 
 The zoom mode sticks: Real Size, Fit or a zoom factor stay in use as you move
 through graphs and trades.
