@@ -251,9 +251,23 @@ class DrawBar(QToolBar):
 		self.clearact.triggered.connect(view.clearall)
 		for a in (self.undoact, self.redoact, self.delact, self.clearact):
 			self.addAction(a)
+		self.addSeparator()
+		self.crossact = QAction("Cross", self)
+		self.crossact.setCheckable(True)
+		self.crossact.setToolTip("a horizontal and a vertical line through the mouse, "
+			"to compare levels across the image (X on the image)")
+		view.setcrosshair(fibsettings().value("crosshair", True) not in (False, "false"))
+		self.crossact.setChecked(view.crosshair)
+		self.crossact.toggled.connect(view.setcrosshair)
+		view.crosschanged.connect(self.crosschanged)
+		self.addAction(self.crossact)
 		view.scene().selectionChanged.connect(self.selchanged)
 		self.setcolor(view.color, apply=False)
 		self.selchanged()
+
+	def crosschanged(self, on):
+		self.crossact.setChecked(on)
+		fibsettings().setValue("crosshair", on)
 
 	def mkfibmenu(self):
 		a = self.toolacts["fib"]

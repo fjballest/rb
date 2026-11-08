@@ -4,8 +4,8 @@
 # holds the drawings made on it, in image coordinates. Shared by DayJournal
 # and pylg's graphics window.
 #
-from PySide6.QtCore import QEvent, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QUndoStack
+from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPen, QPixmap, QUndoStack
 from PySide6.QtWidgets import (
 	QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGraphicsPixmapItem,
 	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSlider
@@ -28,6 +28,7 @@ class ImageView(QGraphicsView):
 	navigate = Signal(str)		# keys for moving through the images (navkeys)
 	drawchanged = Signal()		# the drawings changed
 	toolchanged = Signal(str)
+	crosschanged = Signal(bool)	# the crosshair was turned on or off
 
 	def __init__(self, parent=None):
 		super().__init__(parent)
@@ -62,6 +63,10 @@ class ImageView(QGraphicsView):
 		self.loading = False
 		self.navkeys = NAVKEYS
 		self.dclickzoom = True	# double clicks on the image zoom; a trackpad double tap always does
+		# the crosshair: a horizontal and a vertical line through the mouse,
+		# across the image, to compare levels; cross is where, in the scene
+		self.crosshair = True
+		self.cross = None
 		self.settool("select")
 
 	def undochanged(self, _index):
@@ -73,6 +78,7 @@ class ImageView(QGraphicsView):
 		self.commitedit()
 		self.loading = True
 		self.drawing = None
+		self.cross = None
 		self.fibstep = None
 		self.fibdone.stop()
 		self.undo.clear()
@@ -183,11 +189,13 @@ class ImageView(QGraphicsView):
 		s = min(v.width() / r.width(), v.height() / r.height())
 		self.resetTransform()
 		self.scale(s, s)
+		self.refreshcross()
 
 	def realsize(self):
 		if self.pixitem:
 			self.mode = "real"
 			self.resetTransform()
+			self.refreshcross()
 
 	def zoom(self, factor, at=None):
 		"""zoom by factor keeping the image point at viewport point at in place"""
@@ -202,6 +210,7 @@ class ImageView(QGraphicsView):
 		d = (after - before) * self.scale_()
 		self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - round(d.x()))
 		self.verticalScrollBar().setValue(self.verticalScrollBar().value() - round(d.y()))
+		self.refreshcross()
 
 	def resizeEvent(self, ev):
 		super().resizeEvent(ev)
@@ -214,10 +223,9 @@ class ImageView(QGraphicsView):
 		self.tool = tool
 		if tool == "select":
 			self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-			self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
 		else:
 			self.setDragMode(QGraphicsView.DragMode.NoDrag)
-			self.viewport().setCursor(Qt.CursorShape.CrossCursor)
+		self.setcursor()
 		self.toolchanged.emit(tool)
 
 	def setcolor(self, color):
@@ -357,9 +365,83 @@ class ImageView(QGraphicsView):
 
 	def mouseMoveEvent(self, ev):
 		if self.drawing is not None:
+			self.setcross(None)
 			self.drawto(ev)
 			return
 		super().mouseMoveEvent(ev)
+		self.setcross(self.crossat(ev.position().toPoint(), ev.buttons()))
+
+	# ---- crosshair ----
+	def setcrosshair(self, on):
+		self.crosshair = bool(on)
+		self.setcursor()
+		self.setcross(self.crossat() if on else None)
+		self.crosschanged.emit(self.crosshair)
+
+	def crossat(self, at=None, buttons=None):
+		"""where the crosshair goes for the mouse at viewport point at (where
+		the mouse is), or None: off, out of the image, or while editing
+		(drawing, dragging, writing a text)"""
+		if not self.crosshair or self.pixitem is None or self.drawing is not None:
+			return None
+		if at is None:
+			at = self.viewport().mapFromGlobal(QCursor.pos())
+			if not self.viewport().rect().contains(at):
+				return None
+		if buttons is None:
+			buttons = QApplication.mouseButtons()
+		if buttons != Qt.MouseButton.NoButton:
+			return None
+		f = self.scene().focusItem()
+		if isinstance(f, TextShape) and f.editing():
+			return None
+		p = self.mapToScene(at)
+		return QPointF(p) if self.sceneRect().contains(p) else None
+
+	def setcross(self, p):
+		if p == self.cross:
+			return
+		old, self.cross = self.cross, p
+		for q in (old, p):	# repaint just the lines
+			if q is not None:
+				v = self.mapFromScene(q)
+				w = self.viewport().rect()
+				self.viewport().update(QRect(w.left(), v.y() - 2, w.width(), 5))
+				self.viewport().update(QRect(v.x() - 2, w.top(), 5, w.height()))
+
+	def drawForeground(self, painter, rect):
+		super().drawForeground(painter, rect)
+		p = self.cross
+		if p is None:
+			return
+		r = self.sceneRect()
+		painter.save()
+		# white lines in difference mode show on light and dark charts alike
+		painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Difference)
+		pen = QPen(QColor(255, 255, 255, 200), 1)
+		pen.setCosmetic(True)
+		pen.setStyle(Qt.PenStyle.DashLine)
+		painter.setPen(pen)
+		painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+		painter.drawLine(QPointF(r.left(), p.y()), QPointF(r.right(), p.y()))
+		painter.drawLine(QPointF(p.x(), r.top()), QPointF(p.x(), r.bottom()))
+		painter.restore()
+
+	def scrollContentsBy(self, dx, dy):
+		super().scrollContentsBy(dx, dy)
+		self.refreshcross()
+
+	def refreshcross(self):
+		"""the image moved or zoomed under the mouse"""
+		if self.cross is not None or self.crosshair:
+			self.cross = self.crossat()
+			self.viewport().update()
+
+	def setcursor(self):
+		"""a cross on the image while the crosshair is on; else the hand
+		to drag the image, or the cross to draw"""
+		cross = self.tool != "select" or self.crosshair
+		self.viewport().setCursor(Qt.CursorShape.CrossCursor if cross else Qt.CursorShape.OpenHandCursor)
 
 	def clamp(self, p):
 		"""p, moved inside the image"""
@@ -402,6 +484,9 @@ class ImageView(QGraphicsView):
 				self.undo.push(AddCmd(self.scene(), it))
 			return
 		super().mouseReleaseEvent(ev)
+		if self.tool == "select":
+			self.setcursor()	# the hand drag puts its own back
+			self.setcross(self.crossat(ev.position().toPoint(), ev.buttons()))
 		if self.tool == "select" and self.pressed:
 			moves = [(it, old, it.pos()) for it, old in self.pressed.items() if it.pos() != old]
 			self.pressed = {}
@@ -431,6 +516,8 @@ class ImageView(QGraphicsView):
 			self.fit()
 
 	def viewportEvent(self, ev):
+		if ev.type() == QEvent.Type.Leave:
+			self.setcross(None)
 		# trackpad gestures (macOS): a two finger double tap zooms like a
 		# double click, and pinching zooms in and out
 		if ev.type() == QEvent.Type.NativeGesture and self.pixitem is not None:
@@ -461,6 +548,8 @@ class ImageView(QGraphicsView):
 			self.cancelfib()
 			self.scene().clearSelection()
 			self.settool("select")
+		elif k == Qt.Key.Key_X and ev.modifiers() == Qt.KeyboardModifier.NoModifier:
+			self.setcrosshair(not self.crosshair)
 		elif k in TOOLKEYS and ev.modifiers() == Qt.KeyboardModifier.NoModifier:
 			self.settool(TOOLKEYS[k])
 		elif k in nav and plain:

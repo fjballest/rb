@@ -362,6 +362,14 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   keeps them inside the graph, snaps lines to horizontal or vertical with
   shift, and pushes each change on its `QUndoStack`, which is cleared when
   another graph is shown. It emits `drawchanged` on every change.
+- The crosshair: `ImageView.cross` is the scene point under the mouse
+  (`crossat`: None when off, out of the image, while drawing, with a button
+  down or while a text is edited), set on mouse moves, scrolls and zooms;
+  `drawForeground` draws the two lines across `sceneRect` with a cosmetic
+  white pen in difference mode, so they show on any chart, and `setcross`
+  repaints only the strips they cover. `setcrosshair` turns it on and off
+  (X, or the **Cross** button of `DrawBar`, which keeps it as `crosshair` in
+  the shared `QSettings("fjballest", "drawing")`).
 - `drawbar.DrawBar` is the toolbar: tools, color, width, undo, redo, delete,
   and the menu of fib levels (OTE, Quadrants, PO3, Custom; the custom ones
   are kept in `QSettings("fjballest", "drawing")`, shared with DayJournal).

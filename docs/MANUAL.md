@@ -390,6 +390,14 @@ the changes made to the graph shown; **Delete** (or Del) removes what is
 selected and Esc unselects it and goes back to Select. Drawings stay on their
 place on the graph when you zoom.
 
+The cursor is a crosshair: a dashed horizontal and vertical line through
+the mouse, across the whole graph, so you can see the same level or time at
+other places of the graph. It hides while you draw, drag the graph or write
+a text, and comes back when you move the mouse again. **Cross** on the
+drawing bar (or X with the graph focused) turns it off and on, for
+DayJournal and RoadBook alike; with it off, the cursor is the hand again
+when dragging the graph.
+
 Drawings are not saved until you press **Save** (⌘S); until then the title
 says *(unsaved)*. You can move to other graphs and trades and save them all
 later. Closing the window or quitting asks whether to save them. The drawings
