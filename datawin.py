@@ -694,9 +694,10 @@ class DataWindow(QMainWindow):
 		try:
 			w = TradeEdit(self.rb, trade, filepath=filepath)
 			w.changed.connect(self.dirtiedTrades)
-			w.exec()
+			return w.exec() == QDialog.DialogCode.Accepted
 		except Exception as e:
 			print(e, file=sys.stderr)
+			return False
 	def calendartrade(self, t):
 		"""a day was clicked in the calendar: select its first trade"""
 		self.tradestbl.selectobj(t)

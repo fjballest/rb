@@ -415,11 +415,11 @@ class ObjectTableModel(QAbstractTableModel):
 		"""add a row, editing it first when there is an editor; returns the new object or None"""
 		t = self.object_factory()
 		if self.editor is not None:
-			self.editor(t, filepath)
-			added = t.checkOut() is None
+			ok = self.editor(t, filepath)	# False when cancelled
+			added = ok is not False and t.checkOut() is None
 			if added:
 				self.insertRows(row, trade=t)
-			self.edited.emit()
+				self.edited.emit()	# nothing changed when it was cancelled
 			return t if added else None
 		self.insertRows(row, trade=t)
 		return t
