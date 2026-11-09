@@ -5,7 +5,7 @@
 # and pylg's graphics window.
 #
 from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPen, QPixmap, QUndoStack
+from PySide6.QtGui import QColor, QCursor, QIcon, QImage, QPainter, QPen, QPixmap, QUndoStack
 from PySide6.QtWidgets import (
 	QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGraphicsPixmapItem,
 	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSlider
@@ -370,6 +370,35 @@ class ImageView(QGraphicsView):
 			return
 		super().mouseMoveEvent(ev)
 		self.setcross(self.crossat(ev.position().toPoint(), ev.buttons()))
+
+	# ---- copying ----
+	def renderimage(self):
+		"""the image with its drawings, at the image's size, or None"""
+		if self.pixitem is None:
+			return None
+		self.commitedit()
+		r = self.sceneRect()
+		img = QImage(int(r.width()), int(r.height()), QImage.Format.Format_ARGB32)
+		img.fill(Qt.GlobalColor.white)
+		sel = self.scene().selectedItems()
+		for it in sel:	# without the selection handles
+			it.setSelected(False)
+		p = QPainter(img)
+		p.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
+		self.scene().render(p, QRectF(img.rect()), r)
+		p.end()
+		for it in sel:
+			it.setSelected(True)
+		return img
+
+	def copyimage(self):
+		"""put the image, with its drawings, on the clipboard, to paste it
+		in other programs"""
+		img = self.renderimage()
+		if img is None:
+			return False
+		QApplication.clipboard().setImage(img)
+		return True
 
 	# ---- crosshair ----
 	def setcrosshair(self, on):

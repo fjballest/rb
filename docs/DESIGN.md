@@ -299,6 +299,18 @@ because importing them takes seconds. When several files are dropped on a
 trade with no graphs, `TradeEdit.ocrbest` scores each one (`ocrscore`: a
 known instrument counts most) and makes the best the primary graph.
 
+- Instrument: `instrumentin` matches each text against `INSTRS` (Nasdaq
+  first, so NASDAX is the Nasdaq); the instrument named most wins.
+- Direction: the middles of the *Stop:*, *Objetivo:* and *Cerrado/Abierto
+  PyG* labels go to `_side`; a stop below the target or the entry is long.
+- Times: `timelabels` pairs each `yy-mm-dd` date text with its time (in the
+  same text or the box just right of it, with `:` read as `*`, `.`, `;`...)
+  and `labelcolor` takes the median color of the label (green entry, red
+  exit). `_times` takes the latest green and red ones and converts them
+  with `chartzone` (the *UTC±h* text, or New York for the Nasdaq) and
+  `tolocal`; it sets the date too. Without date labels it falls back to
+  `_dates`, the old text-only search. All of it uses one EasyOCR pass.
+
 ## Calendar
 
 `calwin.py`:
@@ -370,6 +382,9 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   repaints only the strips they cover. `setcrosshair` turns it on and off
   (X, or the **Cross** button of `DrawBar`, which keeps it as `crosshair` in
   the shared `QSettings("fjballest", "drawing")`).
+- `ImageView.renderimage` renders the scene (image and drawings, without the
+  selection) at the image's size; `copyimage`, `DrawBar`'s **Copy**
+  (⇧⌘C), puts it on the clipboard.
 - `drawbar.DrawBar` is the toolbar: tools, color, width, undo, redo, delete,
   and the menu of fib levels (OTE, Quadrants, PO3, Custom; the custom ones
   are kept in `QSettings("fjballest", "drawing")`, shared with DayJournal).

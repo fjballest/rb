@@ -184,6 +184,20 @@ screenshot (a known instrument, TP, stop, result, size, time) as the
 *primary* graph, and uses it to fill in empty fields. The others become extra
 graphs. The first OCR takes a while because the OCR engine loads then.
 
+What the OCR looks for, in TradingView captures:
+
+- **Instrument:** the one named most in the capture. MNQ1!, NQ…, Micro or
+  E-mini Nasdaq, NASDAX, US100 or USTEC are the NASDAQ; FDAX, FDXM, GER40,
+  DE40 or Alemania 40 are the DAX.
+- **Long or short:** where the position's labels are. A stop below the
+  target (or below the entry, the label in the middle) is a long; a stop
+  above it is a short.
+- **Times:** the labels of the time axis, the green one for the entry and the
+  red one for the exit (the latest of each, as charts with longer bars round
+  them down), and the trade's date from them. Chart times are turned into
+  local time: from the zone the chart shows (*UTC-5*), or New York for the
+  Nasdaq when it shows none.
+
 Dropping more files on an existing trade adds them as extra graphs. When you
 accept, new graphs are copied into the roadbook as
 `diarygraphs/trade<N><instrument>.png` for the primary one and
@@ -397,6 +411,10 @@ a text, and comes back when you move the mouse again. **Cross** on the
 drawing bar (or X with the graph focused) turns it off and on, for
 DayJournal and RoadBook alike; with it off, the cursor is the hand again
 when dragging the graph.
+
+**Copy** on the drawing bar (⇧⌘C) copies the graph with its drawings to
+the clipboard, at its own size, to paste it in a message, a document or
+another program.
 
 Drawings are not saved until you press **Save** (⌘S); until then the title
 says *(unsaved)*. You can move to other graphs and trades and save them all

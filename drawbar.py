@@ -8,7 +8,7 @@ from PySide6.QtCore import QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPixmap
 from PySide6.QtWidgets import (
 	QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QLabel, QLayout, QLineEdit,
-	QMainWindow, QMenu, QMessageBox, QToolBar, QToolButton, QVBoxLayout, QWidget
+	QMainWindow, QMenu, QMessageBox, QStatusBar, QToolBar, QToolButton, QVBoxLayout, QWidget
 )
 
 from drawing import FIBALL, FIBROWS, FIBSETS, RECTSETS, fmtlevels, parselevels
@@ -252,6 +252,11 @@ class DrawBar(QToolBar):
 		for a in (self.undoact, self.redoact, self.delact, self.clearact):
 			self.addAction(a)
 		self.addSeparator()
+		self.copyimgact = QAction("Copy", self)
+		self.copyimgact.setToolTip("copy the image, with its drawings, to paste it in other programs (⇧⌘C)")
+		self.copyimgact.setShortcut(QKeySequence("Ctrl+Shift+C"))
+		self.copyimgact.triggered.connect(self.copyimage)
+		self.addAction(self.copyimgact)
 		self.crossact = QAction("Cross", self)
 		self.crossact.setCheckable(True)
 		self.crossact.setToolTip("a horizontal and a vertical line through the mouse, "
@@ -264,6 +269,12 @@ class DrawBar(QToolBar):
 		view.scene().selectionChanged.connect(self.selchanged)
 		self.setcolor(view.color, apply=False)
 		self.selchanged()
+
+	def copyimage(self):
+		if self.view.copyimage():
+			sb = self.view.window().findChild(QStatusBar)
+			if sb is not None:
+				sb.showMessage("Image copied", 3000)
 
 	def crosschanged(self, on):
 		self.crossact.setChecked(on)
@@ -353,7 +364,7 @@ class DrawBar(QToolBar):
 		else:
 			lay = findlayout(self.parentWidget().layout(), self)
 			self.home = (lay, lay.indexOf(self)) if lay is not None else None
-		for a in (self.undoact, self.redoact):
+		for a in (self.undoact, self.redoact, self.copyimgact):
 			win.addAction(a)	# their keys still work in the window
 		f = self.floating = FloatBar(self, win)
 		f.layout().addWidget(self)
