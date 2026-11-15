@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 
 from PyInstaller.utils.hooks import collect_dynamic_libs
 
@@ -47,9 +48,14 @@ coll = COLLECT(
     upx_exclude=[],
     name='rb',
 )
+# the version About shows (version.py), for Info.plist too
+VERSION = {}
+exec(open(os.path.join(SPECPATH, 'version.py')).read(), VERSION)
+VERSION = VERSION['VERSION']
 app = BUNDLE(
     coll,
     name='rb2.app',
     icon='icon.icns',
     bundle_identifier=None,
+    version=VERSION,	# what Finder's Get Info shows
 )
