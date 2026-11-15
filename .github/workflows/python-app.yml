@@ -35,25 +35,27 @@ jobs:
       - name: list executable
         run: ls -l dist
 
-      - name: Rename executable
+      - name: Package the app
         env:
           VERSION: ${{ github.event.inputs.version }}
         run: |
-          # the version goes in the names: rb-v1.4-macos
+          # the whole build, not just its executable: it needs the libraries
+          # next to it (_internal), and on macOS the .app around it
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            mv dist/rb/rb.exe dist/rb-$VERSION-windows
+            (cd dist && 7z a -tzip -bd ../rb-$VERSION-windows.zip rb > /dev/null)
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
-            mv dist/rb/rb dist/rb-$VERSION-linux
+            tar -C dist -czf rb-$VERSION-linux.tar.gz rb
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            mv dist/rb/rb dist/rb-$VERSION-macos
+            ditto -c -k --keepParent "dist/rb2.app" rb-$VERSION-macos.zip
           fi
+          ls -l rb-$VERSION-*
         shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: rb-${{ matrix.os }}
-          path: dist/rb-*
+          path: rb-v*
 
   release:
     needs: build
@@ -71,9 +73,6 @@ jobs:
 
       - name: List downloaded files (Debugging)
         run: ls -R
-
-      - name: Make files executable (Linux/Mac)
-        run: chmod +x rb-* || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
