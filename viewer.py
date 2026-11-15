@@ -71,6 +71,7 @@ class ImageView(QGraphicsView):
 		# takes it first (to delete the image when the mouse is on a list of
 		# them, say): it says if it did
 		self.delkey = None
+		self.fibform = None	# see editfib
 		self.undo = QUndoStack(self)
 		self.undo.indexChanged.connect(self.undochanged)
 		self.loading = False
@@ -161,6 +162,21 @@ class ImageView(QGraphicsView):
 			it.edited = self.textedited
 		elif isinstance(it, (RectShape, LineShape, CircleShape)):
 			it.edit = self.editshape
+		elif isinstance(it, FibShape):
+			it.edit = self.editfib
+
+	def editfib(self, it):
+		"""the levels form for fib it, from a double click: fibform, set by
+		the window (the drawing bar), asks for them given its levels and
+		diagonal, and gives the new ones, or None"""
+		if self.fibform is None:
+			return
+		r = self.fibform(list(it.levels), it.diagonal)
+		if r is None:
+			return
+		levels, diagonal = r
+		if list(levels) != list(it.levels) or bool(diagonal) != bool(it.diagonal):
+			self.undo.push(LevelsCmd([it], levels, diagonal))
 
 	def editshape(self, it):
 		"""the dialog for the properties of rectangle, line, arrow or circle

@@ -387,7 +387,8 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   white pen in difference mode, so they show on any chart, and `setcross`
   repaints only the strips they cover. `DrawBar` keeps it always on, and
   its **Hide** button (H) hides all the drawings (`togglehidden`,
-  `setdrawingsshown`), becoming Show.
+  `setdrawingsshown`), becoming Show. A double click on a fib opens its
+  levels (`editfib`, with the `fibform` of `DrawBar`).
 - `ImageView.renderimage` renders the scene (image and drawings, without the
   selection) at the image's size; `copyimage`, `DrawBar`'s **Copy**
   (⇧⌘C), puts it on the clipboard.
@@ -409,8 +410,10 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   `QSettings("fjballest", "drawing")`. `mkfibmenu` and `mkshapemenu(kind)`
   rebuild the menus after them; picking one calls `ImageView.setpreset(kind,
   preset)` (`presets`, used when the next shape of that kind is made, and
-  applied to the ones selected). `SavedDialog` (Edit Saved…) renames,
-  removes and reorders them; built-in names can't be used.
+  applied to the ones selected). `SavedDialog` (Edit Saved…) edits
+  (`DrawBar.editpreset`: the `FibDialog`, or the shape's form on a
+  stand-in shape, with no name row), renames, removes and reorders them;
+  built-in names can't be used. The one in use is drawn as edited.
 - The Rect menu of `DrawBar` picks a preset of `drawing.RECTSETS` (BRK, MB,
   FVG, IFVG+, IFVG-: colors, fill, middle line, label), kept in
   `ImageView.rectpreset` for the next rectangles; with rectangles selected

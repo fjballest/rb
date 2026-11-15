@@ -73,7 +73,7 @@ def savefib(name, levels, diagonal):
 # what is saved of each kind of shape: its look, not its size or place
 SHAPEKEYS = {
 	"rect": ("color", "width", "fill", "alpha", "middle", "midcolor", "label", "align", "labelcolor", "dash"),
-	"line": ("color", "width", "dash", "label", "labelcolor", "valign", "align"),
+	"line": ("color", "width", "dash", "label", "labelcolor", "valign", "align", "extend"),
 	"arrow": ("color", "width", "dash", "label", "labelcolor", "valign", "align"),
 	"circle": ("color", "width", "dash", "label", "labelcolor", "valign", "align"),
 }
@@ -103,15 +103,19 @@ def setsaved(kind, d):
 	fibsettings().setValue(savedkey(kind), json.dumps(d))
 
 class SavedDialog(QDialog):
-	"""the sets saved in a menu: rename, remove or move them"""
-	def __init__(self, kind, taken, parent=None):
+	"""the sets saved in a menu: edit, rename, remove or move them. editor
+	is called with the kind and what is saved of one, to change it: it
+	gives the new one, or None"""
+	def __init__(self, kind, taken, parent=None, editor=None):
 		super().__init__(parent)
 		self.kind = kind
+		self.editor = editor
 		self.taken = set(taken)
 		self.sets = dict(saved(kind))
 		self.setWindowTitle(f"Saved {SHAPENAMES[kind]}s")
 		lay = QVBoxLayout(self)
-		lay.addWidget(QLabel(f"The ones saved in the {SHAPENAMES[kind]} menu. Double click one to rename it."))
+		lay.addWidget(QLabel(f"The ones saved in the {SHAPENAMES[kind]} menu. Double click one to rename it; "
+			"Edit changes it."))
 		row = QHBoxLayout()
 		self.list = QListWidget()
 		self.list.addItems(list(self.sets))
@@ -122,8 +126,10 @@ class SavedDialog(QDialog):
 		self.list.itemChanged.connect(self.renamed)
 		row.addWidget(self.list, 1)
 		col = QVBoxLayout()
-		for text, fn in (("Rename", self.rename), ("Remove", self.remove), ("Up", lambda: self.move(-1)),
-				("Down", lambda: self.move(1))):
+		for text, fn in (("Edit…", self.edit), ("Rename", self.rename), ("Remove", self.remove),
+				("Up", lambda: self.move(-1)), ("Down", lambda: self.move(1))):
+			if fn == self.edit and editor is None:
+				continue
 			b = QPushButton(text)
 			b.setAutoDefault(False)
 			b.clicked.connect(fn)
@@ -140,6 +146,15 @@ class SavedDialog(QDialog):
 
 	def names(self):
 		return [self.list.item(i).text() for i in range(self.list.count())]
+
+	def edit(self):
+		"""change the one selected, with the form of its kind"""
+		it = self.list.currentItem()
+		if it is None or self.editor is None:
+			return
+		new = self.editor(self.kind, self.sets[it.text()])
+		if new is not None:
+			self.sets[it.text()] = new
 
 	def rename(self):
 		it = self.list.currentItem()
@@ -233,13 +248,16 @@ class FibDialog(QDialog):
 		row.addWidget(clear)
 		lay.addLayout(row)
 		row = QHBoxLayout()
+		self.namerow = QWidget()	# the name and its label
+		self.namerow.setLayout(row)
+		row.setContentsMargins(0, 0, 0, 0)
 		row.addWidget(QLabel("Name:"))
 		self.namebox = QLineEdit()
 		self.namebox.setPlaceholderText("to keep these levels in the Fib menu")
 		self.namebox.setToolTip("a short name, like OTE2; the levels are saved under it and show up "
 			"in the menu. The same name replaces them")
 		row.addWidget(self.namebox, 1)
-		lay.addLayout(row)
+		lay.addWidget(self.namerow)
 		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 		bb.accepted.connect(self.accept)
 		bb.rejected.connect(self.reject)
@@ -433,6 +451,7 @@ class DrawBar(QToolBar):
 		self.addAction(self.copyimgact)
 		# the crosshair is always on; Hide hides all the drawings, and Show brings them back
 		view.setcrosshair(True)
+		view.fibform = self.fibform	# a double click on a fib changes its levels
 		self.hideact = QAction("Hide", self)
 		self.hideact.setToolTip("hide all the drawings, to see the image as it is (H on the image); "
 			"they are kept, and drawing shows them again")
@@ -498,7 +517,7 @@ class DrawBar(QToolBar):
 
 	def editsavedact(self, m, kind, on):
 		x = m.addAction("Edit Saved…")
-		x.setToolTip("rename, remove or reorder the ones saved")
+		x.setToolTip("edit, rename, remove or reorder the ones saved")
 		x.setEnabled(on)
 		x.triggered.connect(lambda _=False: self.editsaved(kind))
 
@@ -507,13 +526,55 @@ class DrawBar(QToolBar):
 		return {"fib": tuple(FIBSETS) + ("Custom",), "rect": ("Plain",) + tuple(RECTSETS)}.get(kind, ("Plain",))
 
 	def editsaved(self, kind):
-		dlg = SavedDialog(kind, self.builtin(kind), self.window())
+		dlg = SavedDialog(kind, self.builtin(kind), self.window(), editor=self.editpreset)
 		self.saveddlg = dlg	# for the tests
 		if dlg.exec() == QDialog.DialogCode.Accepted:
 			setsaved(kind, dlg.result_())
 			self.remakemenu(kind)
+			# the one in use may have been edited: draw with it as it is now
+			if kind == "fib" and self.fibname in savedfibs():
+				f = savedfibs()[self.fibname]
+				self.view.fiblevels, self.view.fibdiagonal = list(f["levels"]), f["diagonal"]	# not the ones selected
+			elif kind != "fib" and self.shapenames.get(kind) in savedshapes(kind):
+				self.view.setpreset(kind, self.shapesets(kind)[self.shapenames[kind]])
 		dlg.deleteLater()
 		self.saveddlg = None
+
+	def editpreset(self, kind, preset):
+		"""the form for a look saved of kind (the levels of a fib), to change
+		it: the new one, or None"""
+		if kind == "fib":
+			r = self.fibform(preset["levels"], preset["diagonal"], named=False)
+			return {"levels": r[0], "diagonal": bool(r[1])} if r else None
+		from PySide6.QtCore import QPointF, QRectF
+		from drawing import CircleShape, LineShape, RectShape
+		from viewer import RectDialog, ShapeDialog
+		d = {k: v for k, v in preset.items() if k not in ("color", "width")}
+		args = (preset.get("color", "#e53935"), float(preset.get("width", 2)))
+		try:
+			if kind == "rect":
+				it = RectShape(QRectF(0, 0, 100, 50), *args, **d)
+			elif kind == "circle":
+				it = CircleShape(QRectF(0, 0, 100, 50), *args, **d)
+			else:
+				it = LineShape(QPointF(0, 0), QPointF(100, 0), *args, kind == "arrow", **d)
+		except TypeError:
+			return None
+		dlg = (RectDialog if kind == "rect" else ShapeDialog)(it, self.window())
+		dlg.namebox.setText("")
+		form = dlg.layout()
+		if hasattr(form, "setRowVisible"):
+			form.setRowVisible(dlg.namebox, False)	# it has its name
+		self.shapedlg = dlg	# for the tests
+		ok = dlg.exec() == QDialog.DialogCode.Accepted
+		props = dlg.props()
+		dlg.deleteLater()
+		self.shapedlg = None
+		if not ok:
+			return None
+		new = dict(preset)
+		new.update({k: v for k, v in props.items() if k in SHAPEKEYS[kind]})
+		return {k: new[k] for k in SHAPEKEYS[kind] if k in new}
 
 	def remakemenu(self, kind):
 		if kind == "fib":
@@ -607,6 +668,29 @@ class DrawBar(QToolBar):
 		self.view.setfiblevels(levels, diagonal)
 		if not any(getattr(it, "kind", "") == "fib" for it in self.view.scene().selectedItems()):
 			self.view.settool("fib")	# else it was for the fibs selected
+
+	def fibform(self, levels, diagonal, named=True):
+		"""ask for other levels for a fib drawn with these: (levels, diagonal),
+		or None. A name given keeps them in the menu too (named: the form
+		asks for one)"""
+		rows = [(l in levels, f"{l:g}") for l in sorted(set(FIBALL) | set(levels))][:FIBROWS]
+		rows += [(False, "")] * (FIBROWS - len(rows))
+		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",))
+		dlg.setWindowTitle("Fib Levels")
+		if not named:
+			dlg.namerow.setVisible(False)
+		self.fibdlg = dlg	# for the tests
+		ok = dlg.exec()
+		rows, diagonal, saveas = dlg.rows(), dlg.diagonal(), dlg.name()
+		dlg.deleteLater()
+		self.fibdlg = None
+		if not ok:
+			return None
+		levels = rowlevels(rows)
+		if saveas:
+			savefib(saveas, levels, diagonal)
+			self.mkfibmenu()
+		return levels, diagonal
 
 	def detach(self):
 		"""move the bar to a window of its own that stays on top"""

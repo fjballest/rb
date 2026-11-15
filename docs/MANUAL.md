@@ -402,7 +402,10 @@ The arrow next to **Fib** picks the levels:
 The custom form starts with all the levels above, and two blank ones, and
 remembers what you set. Its **Draw the diagonal** box adds the dashed line
 from the first point to the second; the other sets never draw it. Picking a
-set with fibs selected changes their levels instead.
+set with fibs selected changes their levels instead. Double click a fib
+(on one of its lines) to open its levels, checked, and change them, or
+draw its diagonal; a name there keeps them in the menu too. **Undo** puts
+the old ones back.
 
 **Clear** in the custom form unchecks all the levels, to start a set from
 scratch. Type a short **Name** before OK to keep the levels in the Fib menu,
@@ -414,8 +417,10 @@ style, fill, middle line and label (not its size or place) go to the menu of
 its tool, and picking it there draws the next ones like it (or changes the
 ones selected). **Plain**, first in each menu, draws with the color, width
 and style chosen on the bar. **Edit Saved…** at the end of each menu lists
-the ones saved there, to rename (double click), remove or move them up and
-down. They are shared by DayJournal and RoadBook.
+the ones saved there, to change (**Edit…** opens its form: the levels of
+a fib, or the color, style, label... of a rectangle, line, arrow or
+circle), rename (double click), remove or move them up and down. They are
+shared by DayJournal and RoadBook. Lines keep **Extend** too.
 
 The **⧉** button at the start of the drawing buttons detaches them as a
 small floating bar that stays on top of every window, so you can keep it

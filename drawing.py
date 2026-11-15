@@ -704,6 +704,7 @@ class FibShape(QGraphicsItem):
 		self.diagonal = diagonal
 		self.dash, self.size = dash, size
 		self.live = False
+		self.edit = None	# called with it on a double click, to change its levels
 		self.setFlags(FLAGS)
 		self.setZValue(ZDRAW)
 
@@ -734,6 +735,12 @@ class FibShape(QGraphicsItem):
 	def setlive(self, on):
 		self.live = on
 		self.update()
+
+	def mouseDoubleClickEvent(self, ev):
+		if self.edit is not None:
+			self.edit(self)
+			return
+		super().mouseDoubleClickEvent(ev)
 
 	def setend(self, p):
 		"""move the second point; the lines end there for now"""
