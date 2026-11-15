@@ -28,7 +28,11 @@ edited through Qt table models, and written back on save.
 
 ## Running and building
 
+It needs Python 3.12 or later (the releases are built with 3.14) and
+macOS 14 or later on a Mac; a virtual environment keeps its packages apart:
+
 ```sh
+python3.14 -m venv ~/u/trade/.venv && . ~/u/trade/.venv/bin/activate
 pip install -r requirements.txt
 python3 rb.py                 # DEBUG=y prints OCR diagnostics
 pyinstaller --noconfirm rb.spec
