@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QMenu, QMessageBox, QToolBar, QToolButton
 from data import RoadBook
 from icons import icon
 from winlayout import windowmenu
+from version import VERSION
 
 RECENTMAX = 10
 QUICKMAX = 6	# roadbooks with their own toolbar button
@@ -216,4 +217,5 @@ class MainMenus:
 	def about(self):
 		QMessageBox.about(self.dwin, "About RoadBook",
 			"<b>RoadBook</b><p>A trading roadbook: trades, setups, features, "
-			"graphs and statistics.</p>")
+			"graphs and statistics.</p>"
+			f"<p>Version {VERSION}</p>")

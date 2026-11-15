@@ -41,6 +41,10 @@ pyinstaller --noconfirm rb.spec
 `.github/workflows/python-app.yml` builds executables for Linux, Windows
 and macOS with PyInstaller when run by hand on GitHub.
 
+`version.py` holds the version that About shows; the release workflow
+writes the tag it builds there. Fixes bump the third number (2.0.1), new
+features the second (2.1).
+
 The program has no test suite in the repository. Qt code can be tested
 without a display by setting `QT_QPA_PLATFORM=offscreen`, creating a
 `QApplication`, building the windows and calling their methods or sending
