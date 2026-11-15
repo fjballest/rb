@@ -432,10 +432,13 @@ place on the graph when you zoom.
 The cursor is a crosshair: a dashed horizontal and vertical line through
 the mouse, across the whole graph, so you can see the same level or time at
 other places of the graph. It hides while you draw, drag the graph or write
-a text, and comes back when you move the mouse again. **Cross** on the
-drawing bar (or X with the graph focused) turns it off and on, for
-DayJournal and RoadBook alike; with it off, the cursor is the hand again
-when dragging the graph.
+a text, and comes back when you move the mouse again. It is always on.
+
+**Hide** on the drawing bar (or H with the graph focused) hides all the
+drawings, to see the graph as it is; the button then says **Show**, and
+pressing it (or H) brings them back. Hidden drawings are kept and saved, and
+stay hidden as you go to other graphs, until you show them, draw something
+new or paste drawings.
 
 **Copy** on the drawing bar (⇧⌘C) copies the graph with its drawings to
 the clipboard, at its own size, to paste it in a message, a document or

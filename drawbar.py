@@ -431,15 +431,14 @@ class DrawBar(QToolBar):
 		self.copyimgact.setShortcut(QKeySequence("Ctrl+Shift+C"))
 		self.copyimgact.triggered.connect(self.copyimage)
 		self.addAction(self.copyimgact)
-		self.crossact = QAction("Cross", self)
-		self.crossact.setCheckable(True)
-		self.crossact.setToolTip("a horizontal and a vertical line through the mouse, "
-			"to compare levels across the image (X on the image)")
-		view.setcrosshair(fibsettings().value("crosshair", True) not in (False, "false"))
-		self.crossact.setChecked(view.crosshair)
-		self.crossact.toggled.connect(view.setcrosshair)
-		view.crosschanged.connect(self.crosschanged)
-		self.addAction(self.crossact)
+		# the crosshair is always on; Hide hides all the drawings, and Show brings them back
+		view.setcrosshair(True)
+		self.hideact = QAction("Hide", self)
+		self.hideact.setToolTip("hide all the drawings, to see the image as it is (H on the image); "
+			"they are kept, and drawing shows them again")
+		self.hideact.triggered.connect(view.togglehidden)
+		view.hiddenchanged.connect(self.hiddenchanged)
+		self.addAction(self.hideact)
 		view.scene().selectionChanged.connect(self.selchanged)
 		self.setcolor(view.color, apply=False)
 		self.selchanged()
@@ -450,9 +449,10 @@ class DrawBar(QToolBar):
 			if sb is not None:
 				sb.showMessage("Image copied", 3000)
 
-	def crosschanged(self, on):
-		self.crossact.setChecked(on)
-		fibsettings().setValue("crosshair", on)
+	def hiddenchanged(self, hidden):
+		self.hideact.setText("Show" if hidden else "Hide")
+		self.hideact.setToolTip("show the drawings again (H on the image)" if hidden else
+			"hide all the drawings, to see the image as it is (H on the image); they are kept, and drawing shows them again")
 
 	def fibsets(self):
 		"""the levels in the menu, built-in and saved: {name: (levels, diagonal)}"""

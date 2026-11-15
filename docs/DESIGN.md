@@ -385,9 +385,9 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   down or while a text is edited), set on mouse moves, scrolls and zooms;
   `drawForeground` draws the two lines across `sceneRect` with a cosmetic
   white pen in difference mode, so they show on any chart, and `setcross`
-  repaints only the strips they cover. `setcrosshair` turns it on and off
-  (X, or the **Cross** button of `DrawBar`, which keeps it as `crosshair` in
-  the shared `QSettings("fjballest", "drawing")`).
+  repaints only the strips they cover. `DrawBar` keeps it always on, and
+  its **Hide** button (H) hides all the drawings (`togglehidden`,
+  `setdrawingsshown`), becoming Show.
 - `ImageView.renderimage` renders the scene (image and drawings, without the
   selection) at the image's size; `copyimage`, `DrawBar`'s **Copy**
   (⇧⌘C), puts it on the clipboard.

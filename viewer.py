@@ -33,6 +33,7 @@ class ImageView(QGraphicsView):
 	drawchanged = Signal()		# the drawings changed
 	toolchanged = Signal(str)
 	crosschanged = Signal(bool)	# the crosshair was turned on or off
+	hiddenchanged = Signal(bool)	# the drawings were hidden (True) or shown again
 	shapesaved = Signal(str, str, dict)	# the look of a shape of kind was saved with this name
 
 	def __init__(self, parent=None):
@@ -79,10 +80,29 @@ class ImageView(QGraphicsView):
 		# across the image, to compare levels; cross is where, in the scene
 		self.crosshair = True
 		self.cross = None
+		self.hidden = False	# the drawings are hidden, for this image and the next ones
 		self.settool("select")
 
 	def undochanged(self, _index):
+		if self.hidden:	# an undo may bring one back
+			for it in self.shapes():
+				it.setVisible(False)
 		self.drawchanged.emit()
+
+	def setdrawingsshown(self, on):
+		"""show or hide all the drawings; they are kept, and saved, either way"""
+		self.hidden = not on
+		if self.hidden:
+			self.cancelfib()
+			self.commitedit()
+			self.scene().clearSelection()
+		for it in self.shapes():
+			it.setVisible(on)
+		self.viewport().update()
+		self.hiddenchanged.emit(self.hidden)
+
+	def togglehidden(self):
+		self.setdrawingsshown(self.hidden)
 
 	# ---- image ----
 	def setimage(self, path, drawing=None):
@@ -136,6 +156,7 @@ class ImageView(QGraphicsView):
 
 	def additem(self, it):
 		self.scene().addItem(it)
+		it.setVisible(not self.hidden)
 		if isinstance(it, TextShape):
 			it.edited = self.textedited
 		elif isinstance(it, (RectShape, LineShape, CircleShape)):
@@ -355,6 +376,8 @@ class ImageView(QGraphicsView):
 			return
 		if self.tool != "select" and not self.sceneRect().contains(p):
 			return	# drawings go on the image
+		if self.tool != "select" and self.hidden:
+			self.setdrawingsshown(True)	# drawing shows them again
 		if self.tool == "select":
 			h = self.handleat(ev.position().toPoint())
 			if h is not None:
@@ -677,6 +700,8 @@ class ImageView(QGraphicsView):
 		items = [it for it in map(fromdict, self.clipdrawings()) if it is not None]
 		if not items:
 			return False
+		if self.hidden:
+			self.setdrawingsshown(True)
 		box = QRectF()
 		for it in items:
 			box = box.united(it.mapRectToScene(it.boundingRect()))
@@ -737,8 +762,8 @@ class ImageView(QGraphicsView):
 			self.cancelfib()
 			self.scene().clearSelection()
 			self.settool("select")
-		elif k == Qt.Key.Key_X and ev.modifiers() == Qt.KeyboardModifier.NoModifier:
-			self.setcrosshair(not self.crosshair)
+		elif k == Qt.Key.Key_H and ev.modifiers() == Qt.KeyboardModifier.NoModifier:
+			self.togglehidden()
 		elif k in TOOLKEYS and ev.modifiers() == Qt.KeyboardModifier.NoModifier:
 			self.settool(TOOLKEYS[k])
 		elif k in nav and plain:
