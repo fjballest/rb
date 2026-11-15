@@ -1,3 +1,5 @@
+<img src="Icon.png" alt="RoadBook icon" width="128" align="right">
+
 Still in alpha.
 Just born for personal use.
 For sure it's full of bugs.
