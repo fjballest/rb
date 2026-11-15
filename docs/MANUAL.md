@@ -359,6 +359,7 @@ the side of where they were. **Undo** removes them.
 **Rect** draws a rectangle, just its border at first. Double click its
 border (anywhere on it once filled) to set:
 
+- **Width** and **Style** (solid, dashed or dotted) of its border;
 - **Fill**, with its color and **Transparency** (0% hides what is under it);
 - **Line across the middle**, dashed, with its color;
 - **Label** (FVG, OB...), aligned **Center**, **Left** or **Right**, written
@@ -407,7 +408,7 @@ from the first point to the second; the other sets never draw it. Its
 they go from the second point to where you clicked the third. Picking a
 set with fibs selected changes their levels instead. Double click a fib
 (on one of its lines) to open its levels, checked, and change them, or
-draw its diagonal; a name there keeps them in the menu too. The fib shows
+draw its diagonal, or set the **Width** and **Style** of its lines; a name there keeps them in the menu too. The fib shows
 the levels as you check or type them, and so do the fibs selected while the
 custom form is open; **OK** keeps them, **Cancel** puts them back, and
 **Undo** puts the old ones back. A color picked from the bar's **Color…**

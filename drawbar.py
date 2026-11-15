@@ -217,7 +217,7 @@ class FibDialog(QDialog):
 	to show it"""
 	changed = Signal()
 
-	def __init__(self, rows, diagonal, parent=None, taken=(), from2=False):
+	def __init__(self, rows, diagonal, parent=None, taken=(), from2=False, style=None):
 		super().__init__(parent)
 		self.taken = set(taken)	# names that can't be used: the built-in sets
 		self.setWindowTitle("Custom Fib Levels")
@@ -257,6 +257,18 @@ class FibDialog(QDialog):
 		clear.clicked.connect(self.clear)
 		row.addWidget(clear)
 		lay.addLayout(row)
+		self.width = self.dash = None
+		if style is not None:	# (width, dash) of a fib drawn
+			from viewer import DASHNAMES, WIDTHS, combo
+			row = QHBoxLayout()
+			row.addWidget(QLabel("Width:"))
+			self.width = combo([(f"{w:g} px", w) for w in WIDTHS], style[0])
+			row.addWidget(self.width)
+			row.addWidget(QLabel("Style:"))
+			self.dash = combo(DASHNAMES, style[1])
+			row.addWidget(self.dash)
+			row.addStretch()
+			lay.addLayout(row)
 		row = QHBoxLayout()
 		self.namerow = QWidget()	# the name and its label
 		self.namerow.setLayout(row)
@@ -277,6 +289,9 @@ class FibDialog(QDialog):
 			e.textChanged.connect(lambda *_: self.changed.emit())
 		self.diagbox.toggled.connect(lambda *_: self.changed.emit())
 		self.from2box.toggled.connect(lambda *_: self.changed.emit())
+		for c in (self.width, self.dash):
+			if c is not None:
+				c.currentIndexChanged.connect(lambda *_: self.changed.emit())
 
 	def shown(self):
 		"""the levels, diagonal and from2 as they are now, or None if they
@@ -288,6 +303,10 @@ class FibDialog(QDialog):
 
 	def from2(self):
 		return self.from2box.isChecked()
+
+	def style(self):
+		"""the width and line style picked, when it asks for them"""
+		return () if self.width is None else (self.width.currentData(), self.dash.currentData())
 
 	def rows(self):
 		return [(c.isChecked(), e.text().strip()) for c, e in zip(self.checks, self.edits)]
@@ -706,23 +725,25 @@ class DrawBar(QToolBar):
 		if not any(getattr(it, "kind", "") == "fib" for it in self.view.scene().selectedItems()):
 			self.view.settool("fib")	# else it was for the fibs selected
 
-	def fibform(self, levels, diagonal, named=True, show=None, from2=False):
+	def fibform(self, levels, diagonal, named=True, show=None, from2=False, style=None):
 		"""ask for other levels for a fib drawn with these: (levels,
 		diagonal, from2), or None. A name given keeps them in the menu too
 		(named: the form asks for one). show(levels, diagonal, from2), if
 		given, is called on every change that gives levels, to show them
-		while the form is open"""
+		while the form is open. With style, (width, dash) of the fib, it
+		asks for those too, and they go after from2 in what it gives and
+		in what show gets"""
 		rows = [(l in levels, f"{l:g}") for l in sorted(set(FIBALL) | set(levels))][:FIBROWS]
 		rows += [(False, "")] * (FIBROWS - len(rows))
-		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",), from2=from2)
+		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",), from2=from2, style=style)
 		dlg.setWindowTitle("Fib Levels")
 		if not named:
 			dlg.namerow.setVisible(False)
 		if show is not None:
-			dlg.changed.connect(lambda: (lambda r: r and show(*r))(dlg.shown()))
+			dlg.changed.connect(lambda: (lambda r: r and show(*r, *dlg.style()))(dlg.shown()))
 		self.fibdlg = dlg	# for the tests
 		ok = dlg.exec()
-		rows, diagonal, from2, saveas = dlg.rows(), dlg.diagonal(), dlg.from2(), dlg.name()
+		rows, diagonal, from2, saveas, picked = dlg.rows(), dlg.diagonal(), dlg.from2(), dlg.name(), dlg.style()
 		dlg.deleteLater()
 		self.fibdlg = None
 		if not ok:
@@ -731,7 +752,7 @@ class DrawBar(QToolBar):
 		if saveas:
 			savefib(saveas, levels, diagonal, from2)
 			self.mkfibmenu()
-		return levels, diagonal, from2
+		return (levels, diagonal, from2) + picked
 
 	def presetmenu(self, m, kind, items):
 		"""fill menu m, the context menu of the drawings items of kind, with

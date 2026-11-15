@@ -177,11 +177,24 @@ class ImageView(QGraphicsView):
 		if self.fibform is None:
 			return
 		old = (list(it.levels), it.diagonal, it.from2)
-		r = self.fibform(list(it.levels), it.diagonal, show=it.setlevels, from2=it.from2)
+		style = {"width": it.width, "dash": it.dash}
+		def show(levels, diagonal, from2, width, dash):
+			it.setlevels(levels, diagonal, from2)
+			it.setprops({"width": width, "dash": dash})
+		r = self.fibform(list(it.levels), it.diagonal, show=show, from2=it.from2, style=(it.width, it.dash))
 		it.setlevels(*old)	# back as it was: the change is one undo step
+		it.setprops(style)
 		if r is None:
 			return
-		self.applyfib([it], *r)
+		levels, diagonal, from2, width, dash = r
+		new = {"width": width, "dash": dash}
+		if new == style:
+			self.applyfib([it], levels, diagonal, from2)
+			return
+		self.undo.beginMacro("Change fib")	# one undo step for both
+		self.applyfib([it], levels, diagonal, from2)
+		self.undo.push(PropsCmd(it, style, new))
+		self.undo.endMacro()
 
 	def applyfib(self, items, levels, diagonal, from2=False):
 		"""levels, diagonal and from2 for the fibs items, in one undo step"""
@@ -848,8 +861,8 @@ def nametaken(dlg):
 	return False
 
 class RectDialog(QDialog):
-	"""asks for the fill, middle line and label of a rectangle; changed is
-	emitted on every change, to show it"""
+	"""asks for the border width and style, fill, middle line and label of a
+	rectangle; changed is emitted on every change, to show it"""
 	changed = Signal()
 
 	def __init__(self, it, parent=None):
@@ -857,6 +870,10 @@ class RectDialog(QDialog):
 		self.setWindowTitle("Rectangle")
 		self.fillcolor = it.fill or it.color
 		form = QFormLayout(self)
+		self.width = combo([(f"{w:g} px", w) for w in WIDTHS], it.width)
+		form.addRow("Width:", self.width)
+		self.dash = combo(DASHNAMES, it.dash)
+		form.addRow("Style:", self.dash)
 		self.fillbox = QCheckBox("Fill")
 		self.fillbox.setChecked(bool(it.fill))
 		self.colorbtn = QPushButton()
@@ -905,7 +922,8 @@ class RectDialog(QDialog):
 		self.showcolor()
 		self.enable()
 		for sig in (self.fillbox.toggled, self.alpha.valueChanged, self.middlebox.toggled, self.midcolor.picked,
-				self.label.textChanged, self.align.currentIndexChanged, self.labelcolor.picked):
+				self.label.textChanged, self.align.currentIndexChanged, self.labelcolor.picked,
+				self.width.currentIndexChanged, self.dash.currentIndexChanged):
 			sig.connect(lambda *_: self.changed.emit())
 
 	def name(self):
@@ -937,7 +955,8 @@ class RectDialog(QDialog):
 		show(pickcolor(old, self, "Fill color", show) or old)
 
 	def props(self):
-		return {"fill": self.fillcolor if self.fillbox.isChecked() else None,
+		return {"width": self.width.currentData(), "dash": self.dash.currentData(),
+			"fill": self.fillcolor if self.fillbox.isChecked() else None,
 			"alpha": round((100 - self.alpha.value()) * 255 / 100),
 			"middle": self.middlebox.isChecked(), "label": self.label.text().strip(),
 			"align": self.align.currentData(),

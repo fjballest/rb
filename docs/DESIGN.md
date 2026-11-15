@@ -427,7 +427,9 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   of its kind selected, without changing what the bar draws next. A fib's
   `from2` (the **From 2** box) starts its lines at `p2` (`FibShape.start`);
   it goes with its levels and diagonal everywhere (`LevelsCmd`, the custom
-  rows, the sets saved).
+  rows, the sets saved). The form of a fib drawn (`fibform`'s `style`)
+  also asks for its width and dash, a `PropsCmd` in the same undo step;
+  `RectDialog` asks for the border's width and dash too.
 - The Rect menu of `DrawBar` picks a preset of `drawing.RECTSETS` (BRK, MB,
   FVG, IFVG+, IFVG-: colors, fill, middle line, label), kept in
   `ImageView.rectpreset` for the next rectangles; with rectangles selected
