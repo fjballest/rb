@@ -23,8 +23,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.14"  # PySide6 6.10.1 needs < 3.15
-      - name: Install torch (Windows)
-        if: runner.os == 'Windows'
+      - name: Install torch, CPU only (Windows, Linux)
+        # the Linux default brings CUDA, which makes the release too big to upload
+        if: runner.os != 'macOS'
         run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
       - name: Install dependencies
         run: pip install -r requirements.txt
