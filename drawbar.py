@@ -8,7 +8,7 @@ from PySide6.QtCore import QSettings, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
 	QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLayout,
-	QLineEdit, QListWidget, QMainWindow, QMenu, QMessageBox, QPushButton, QStatusBar, QToolBar, QToolButton, QVBoxLayout,
+	QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QStatusBar, QToolBar, QToolButton, QVBoxLayout,
 	QWidget
 )
 
@@ -59,17 +59,30 @@ def customrows():
 
 # the sets saved by name from the custom forms, in the menus after the built-in ones
 def savedfibs():
-	"""{name: {"levels": [...], "diagonal": bool, "from2": bool}}"""
+	"""{name: {"levels": [...], "diagonal": bool, "from2": bool}}, with
+	"width" and "dash" too when they were set"""
 	try:
 		d = json.loads(str(fibsettings().value("savedfibs", "") or "{}"))
-		return {str(n): {"levels": [float(l) for l in v["levels"]], "diagonal": bool(v.get("diagonal")),
-			"from2": bool(v.get("from2"))} for n, v in d.items() if v.get("levels")}
+		return {str(n): fibpreset(v) for n, v in d.items() if v.get("levels")}
 	except (ValueError, KeyError, TypeError, AttributeError):
 		return {}
 
-def savefib(name, levels, diagonal, from2=False):
+def fibpreset(v):
+	"""a fib set as kept: its levels, diagonal, from2, and its width and dash if set"""
+	f = {"levels": [float(l) for l in v["levels"]], "diagonal": bool(v.get("diagonal")), "from2": bool(v.get("from2"))}
+	if v.get("width") is not None:
+		f["width"] = float(v["width"])
+	if v.get("dash"):
+		f["dash"] = str(v["dash"])
+	return f
+
+def fibstyle(f):
+	"""the width and dash of fib set f, those it has"""
+	return {k: f[k] for k in ("width", "dash") if k in f}
+
+def savefib(name, levels, diagonal, from2=False, style=None):
 	d = savedfibs()
-	d[name] = {"levels": list(levels), "diagonal": bool(diagonal), "from2": bool(from2)}
+	d[name] = fibpreset({"levels": list(levels), "diagonal": diagonal, "from2": from2, **(style or {})})
 	fibsettings().setValue("savedfibs", json.dumps(d))
 
 # what is saved of each kind of shape: its look, not its size or place
@@ -104,27 +117,69 @@ def setsaved(kind, d):
 	"""keep d, {name: what is saved}, as the sets saved of kind, in its order"""
 	fibsettings().setValue(savedkey(kind), json.dumps(d))
 
+# the built-in sets can be edited too: what was changed of them is kept apart
+def edited(kind):
+	"""{built-in name: it as edited}"""
+	try:
+		d = json.loads(str(fibsettings().value(f"edited{kind}s", "") or "{}"))
+		return {str(n): v for n, v in d.items() if isinstance(v, dict)}
+	except (ValueError, TypeError):
+		return {}
+
+def setedited(kind, d):
+	fibsettings().setValue(f"edited{kind}s", json.dumps(d))
+
+def builtinsets(kind):
+	"""the built-in sets of kind, {name: preset}, as edited: the fib levels
+	and the rectangle looks; the other kinds have none"""
+	if kind == "fib":
+		base = {n: {"levels": list(ls), "diagonal": False, "from2": False} for n, ls in FIBSETS.items()}
+	elif kind == "rect":
+		base = {n: dict(p) for n, p in RECTSETS.items()}
+	else:
+		return {}
+	for n, v in edited(kind).items():
+		if n in base:
+			try:
+				base[n] = fibpreset(v) if kind == "fib" else {k: v[k] for k in SHAPEKEYS[kind] if k in v}
+			except (KeyError, TypeError, ValueError):
+				pass
+	return base
+
+BUILTIN = Qt.ItemDataRole.UserRole + 1	# list items of the built-in sets
+
 class SavedDialog(QDialog):
-	"""the sets saved in a menu: edit, rename, remove or move them. editor
-	is called with the kind and what is saved of one, to change it: it
-	gives the new one, or None"""
+	"""the sets in a menu: the built-in ones, to edit them (Remove puts one
+	back as it came), and the ones saved, to edit, rename, remove or move.
+	editor is called with the kind and one of them, to change it: it gives
+	the new one, or None"""
 	def __init__(self, kind, taken, parent=None, editor=None):
 		super().__init__(parent)
 		self.kind = kind
 		self.editor = editor
 		self.taken = set(taken)
 		self.sets = dict(saved(kind))
-		self.setWindowTitle(f"Saved {SHAPENAMES[kind]}s")
+		self.builtins = builtinsets(kind)
+		self.edited = {n: v for n, v in edited(kind).items() if n in self.builtins}
+		self.setWindowTitle(f"{SHAPENAMES[kind]} Sets" if kind == "fib" else f"{SHAPENAMES[kind]} Looks")
 		lay = QVBoxLayout(self)
-		lay.addWidget(QLabel(f"The ones saved in the {SHAPENAMES[kind]} menu. Double click one to rename it; "
-			"Edit changes it."))
+		lay.addWidget(QLabel(f"The ones in the {SHAPENAMES[kind]} menu. Edit changes one; double click a saved "
+			"one to rename it. Remove puts a built-in one back as it came."))
 		row = QHBoxLayout()
 		self.list = QListWidget()
-		self.list.addItems(list(self.sets))
-		for i in range(self.list.count()):
-			it = self.list.item(i)
+		for n in self.builtins:
+			it = QListWidgetItem(f"{n} (built-in)")
+			it.setData(Qt.ItemDataRole.UserRole, n)
+			it.setData(BUILTIN, True)
+			self.list.addItem(it)
+		for n in self.sets:
+			if n in self.builtins:
+				continue
+			it = QListWidgetItem(n)
 			it.setFlags(it.flags() | Qt.ItemFlag.ItemIsEditable)
-			it.setData(Qt.ItemDataRole.UserRole, it.text())
+			it.setData(Qt.ItemDataRole.UserRole, n)
+			self.list.addItem(it)
+		self.nbuiltin = sum(1 for n in self.builtins)
 		self.list.itemChanged.connect(self.renamed)
 		row.addWidget(self.list, 1)
 		col = QVBoxLayout()
@@ -143,24 +198,42 @@ class SavedDialog(QDialog):
 		bb.accepted.connect(self.accept)
 		bb.rejected.connect(self.reject)
 		lay.addWidget(bb)
-		if self.list.count():
+		if self.list.count() > self.nbuiltin:
+			self.list.setCurrentRow(self.nbuiltin)	# the first saved one
+		elif self.list.count():
 			self.list.setCurrentRow(0)
 
 	def names(self):
-		return [self.list.item(i).text() for i in range(self.list.count())]
+		"""the saved ones, in their order"""
+		return [self.list.item(i).text() for i in range(self.nbuiltin, self.list.count())]
+
+	def select(self, name):
+		"""make name, built-in or saved, the current one"""
+		for i in range(self.list.count()):
+			if self.list.item(i).data(Qt.ItemDataRole.UserRole) == name:
+				self.list.setCurrentRow(i)
+
+	def isbuiltin(self, it):
+		return it is not None and bool(it.data(BUILTIN))
 
 	def edit(self):
 		"""change the one selected, with the form of its kind"""
 		it = self.list.currentItem()
 		if it is None or self.editor is None:
 			return
-		new = self.editor(self.kind, self.sets[it.text()])
+		name = it.data(Qt.ItemDataRole.UserRole)
+		if self.isbuiltin(it):
+			new = self.editor(self.kind, self.edited.get(name, self.builtins[name]))
+			if new is not None:
+				self.edited[name] = new
+			return
+		new = self.editor(self.kind, self.sets[name])
 		if new is not None:
-			self.sets[it.text()] = new
+			self.sets[name] = new
 
 	def rename(self):
 		it = self.list.currentItem()
-		if it is not None:
+		if it is not None and not self.isbuiltin(it):
 			self.list.editItem(it)
 
 	def renamed(self, it):
@@ -181,13 +254,17 @@ class SavedDialog(QDialog):
 
 	def remove(self):
 		r = self.list.currentRow()
-		if r >= 0:
-			it = self.list.takeItem(r)
-			self.sets.pop(it.text(), None)
+		if r < 0:
+			return
+		if self.isbuiltin(self.list.item(r)):
+			self.edited.pop(self.list.item(r).data(Qt.ItemDataRole.UserRole), None)	# as it came
+			return
+		it = self.list.takeItem(r)
+		self.sets.pop(it.text(), None)
 
 	def move(self, d):
 		r = self.list.currentRow()
-		if 0 <= r + d < self.list.count() and r >= 0:
+		if self.nbuiltin <= r + d < self.list.count() and r >= self.nbuiltin:
 			self.list.blockSignals(True)
 			it = self.list.takeItem(r)
 			self.list.insertItem(r + d, it)
@@ -197,6 +274,10 @@ class SavedDialog(QDialog):
 	def result_(self):
 		"""what is saved, in the order shown"""
 		return {n: self.sets[n] for n in self.names()}
+
+	def edited_(self):
+		"""the built-in ones changed: {name: it as edited}"""
+		return dict(self.edited)
 
 def rowlevels(rows):
 	"""the levels of the rows that are on, sorted; ValueError if one is not
@@ -520,10 +601,11 @@ class DrawBar(QToolBar):
 			"hide all the drawings, to see the image as it is (H on the image); they are kept, and drawing shows them again")
 
 	def fibsets(self):
-		"""the levels in the menu, built-in and saved: {name: (levels, diagonal, from2)}"""
-		sets = {n: (ls, False, False) for n, ls in FIBSETS.items()}
+		"""the levels in the menu, built-in (as edited) and saved: {name:
+		{levels, diagonal, from2, and width and dash when set}}"""
+		sets = builtinsets("fib")
 		for n, v in savedfibs().items():
-			sets.setdefault(n, (v["levels"], v["diagonal"], v["from2"]))
+			sets.setdefault(n, v)
 		return sets
 
 	def mkfibmenu(self):
@@ -532,10 +614,10 @@ class DrawBar(QToolBar):
 		g = QActionGroup(m)
 		self.fibacts = {}
 		mine = [n for n in savedfibs() if n not in FIBSETS]
-		for name, (levels, *_) in self.fibsets().items():
+		for name, f in self.fibsets().items():
 			if mine and name == mine[0]:
 				m.addSeparator()
-			x = m.addAction(f"{name}: {fmtlevels(levels)}")
+			x = m.addAction(f"{name}: {fmtlevels(f['levels'])}")
 			x.triggered.connect(lambda _=False, n=name: self.setfib(n))
 			self.fibacts[name] = x
 		m.addSeparator()
@@ -546,11 +628,15 @@ class DrawBar(QToolBar):
 		for x in self.fibacts.values():
 			x.setCheckable(True)
 			g.addAction(x)
-		self.editsavedact(m, "fib", bool(mine))
+		self.editsavedact(m, "fib", True)
 		self.setmenu(a, m)
 		if getattr(self, "fibname", None) not in self.fibacts:
 			self.fibname = "OTE"
 		self.fibacts[self.fibname].setChecked(True)
+		f = self.fibsets().get(self.fibname)
+		if f is not None:	# the next fibs, as the set is now (it may have been edited)
+			v = self.view
+			v.fiblevels, v.fibdiagonal, v.fibfrom2, v.fibstyle = list(f["levels"]), f["diagonal"], f["from2"], fibstyle(f)
 
 	def setmenu(self, a, m):
 		old = a.menu()
@@ -563,7 +649,7 @@ class DrawBar(QToolBar):
 
 	def editsavedact(self, m, kind, on):
 		x = m.addAction("Edit Saved…")
-		x.setToolTip("edit, rename, remove or reorder the ones saved")
+		x.setToolTip("edit the built-in ones, and edit, rename, remove or reorder the ones saved")
 		x.setEnabled(on)
 		x.triggered.connect(lambda _=False: self.editsaved(kind))
 
@@ -576,13 +662,15 @@ class DrawBar(QToolBar):
 		self.saveddlg = dlg	# for the tests
 		if dlg.exec() == QDialog.DialogCode.Accepted:
 			setsaved(kind, dlg.result_())
+			setedited(kind, dlg.edited_())
 			self.remakemenu(kind)
 			# the one in use may have been edited: draw with it as it is now
-			if kind == "fib" and self.fibname in savedfibs():
-				f = savedfibs()[self.fibname]
+			if kind == "fib" and self.fibname in self.fibsets():
+				f = self.fibsets()[self.fibname]
 				# not the ones selected
 				self.view.fiblevels, self.view.fibdiagonal, self.view.fibfrom2 = list(f["levels"]), f["diagonal"], f["from2"]
-			elif kind != "fib" and self.shapenames.get(kind) in savedshapes(kind):
+				self.view.fibstyle = fibstyle(f)
+			elif kind != "fib" and self.shapenames.get(kind) in self.shapesets(kind):
 				self.view.setpreset(kind, self.shapesets(kind)[self.shapenames[kind]])
 		dlg.deleteLater()
 		self.saveddlg = None
@@ -591,8 +679,15 @@ class DrawBar(QToolBar):
 		"""the form for a look saved of kind (the levels of a fib), to change
 		it: the new one, or None"""
 		if kind == "fib":
-			r = self.fibform(preset["levels"], preset["diagonal"], named=False, from2=preset.get("from2", False))
-			return {"levels": r[0], "diagonal": bool(r[1]), "from2": bool(r[2])} if r else None
+			style = (preset.get("width", self.view.width), preset.get("dash", self.view.dash))
+			r = self.fibform(preset["levels"], preset["diagonal"], named=False, from2=preset.get("from2", False),
+				style=style)
+			if r is None:
+				return None
+			f = {"levels": r[0], "diagonal": bool(r[1]), "from2": bool(r[2])}
+			if (r[3], r[4]) != style or "width" in preset or "dash" in preset:
+				f.update({"width": r[3], "dash": r[4]})	# kept only once it has its own
+			return f
 		from PySide6.QtCore import QPointF, QRectF
 		from drawing import CircleShape, LineShape, RectShape
 		from viewer import RectDialog, ShapeDialog
@@ -631,7 +726,7 @@ class DrawBar(QToolBar):
 
 	def shapesets(self, kind):
 		"""the looks in the menu of kind, built-in and saved: {name: properties}"""
-		sets = dict(RECTSETS) if kind == "rect" else {}
+		sets = builtinsets(kind)
 		for n, v in savedshapes(kind).items():
 			sets.setdefault(n, v)
 		return sets
@@ -659,7 +754,7 @@ class DrawBar(QToolBar):
 		m.addSeparator()
 		h = m.addAction(f"To save one: double click it and give it a name")
 		h.setEnabled(False)
-		self.editsavedact(m, kind, bool(mine))
+		self.editsavedact(m, kind, bool(mine) or bool(builtinsets(kind)))
 		self.setmenu(a, m)
 		if self.shapenames.get(kind) not in acts:
 			self.shapenames[kind] = "Plain"
@@ -690,6 +785,7 @@ class DrawBar(QToolBar):
 	def setfib(self, name):
 		"""use the levels of set name for the fibs, asking for the custom ones"""
 		diagonal = from2 = False
+		style = {}
 		if name == "Custom":
 			rows, diagonal, from2 = customrows()
 			dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",), from2=from2)
@@ -718,10 +814,11 @@ class DrawBar(QToolBar):
 				self.mkfibmenu()
 				name = saveas
 		else:
-			levels, diagonal, from2 = self.fibsets()[name]
+			f = self.fibsets()[name]
+			levels, diagonal, from2, style = f["levels"], f["diagonal"], f["from2"], fibstyle(f)
 		self.fibname = name
 		self.fibacts[name].setChecked(True)
-		self.view.setfiblevels(levels, diagonal, from2)
+		self.view.setfiblevels(levels, diagonal, from2, style)
 		if not any(getattr(it, "kind", "") == "fib" for it in self.view.scene().selectedItems()):
 			self.view.settool("fib")	# else it was for the fibs selected
 
@@ -750,7 +847,7 @@ class DrawBar(QToolBar):
 			return None
 		levels = rowlevels(rows)
 		if saveas:
-			savefib(saveas, levels, diagonal, from2)
+			savefib(saveas, levels, diagonal, from2, dict(zip(("width", "dash"), picked)))
 			self.mkfibmenu()
 		return (levels, diagonal, from2) + picked
 
@@ -761,12 +858,15 @@ class DrawBar(QToolBar):
 		The one they have is checked"""
 		g = QActionGroup(m)
 		if kind == "fib":
-			for name, (levels, diagonal, from2) in self.fibsets().items():
-				x = m.addAction(f"{name}: {fmtlevels(levels)}")
+			for name, f in self.fibsets().items():
+				x = m.addAction(f"{name}: {fmtlevels(f['levels'])}")
 				x.setCheckable(True)
+				st = fibstyle(f)
 				x.setChecked(all((list(it.levels), bool(it.diagonal), bool(it.from2)) ==
-					(list(levels), bool(diagonal), bool(from2)) for it in items))
-				x.triggered.connect(lambda _=False, r=(levels, diagonal, from2): self.view.applyfib(items, *r))
+					(list(f["levels"]), f["diagonal"], f["from2"]) and all(getattr(it, k) == v for k, v in st.items())
+					for it in items))
+				x.triggered.connect(lambda _=False, f=f, st=st:
+					self.view.applyfib(items, f["levels"], f["diagonal"], f["from2"], st))
 				g.addAction(x)
 			return
 		if kind not in SHAPEKEYS:

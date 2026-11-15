@@ -427,7 +427,14 @@ and style chosen on the bar. **Edit Saved…** at the end of each menu lists
 the ones saved there, to change (**Edit…** opens its form: the levels of
 a fib, or the color, style, label... of a rectangle, line, arrow or
 circle), rename (double click), remove or move them up and down. They are
-shared by DayJournal and RoadBook. Lines keep **Extend** too.
+shared by DayJournal and RoadBook. Lines keep **Extend** too. A fib set's
+form there also has its line **Width** and **Style**; once set, the fibs
+drawn with it use them instead of the bar's.
+
+The built-in ones (the OTE, Quadrants and PO3 fib sets, and the BRK, MB,
+FVG... rectangles) are listed there first, marked built-in: **Edit…**
+changes them like the saved ones, and **Remove** puts one back as it came
+instead of taking it out of the menu. They can't be renamed or moved.
 
 Click a drawing with the right mouse button for a menu of the
 configurations of its kind: the fib sets, or the rectangle looks and the

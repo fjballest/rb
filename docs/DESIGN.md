@@ -420,7 +420,13 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   applied to the ones selected). `SavedDialog` (Edit Saved…) edits
   (`DrawBar.editpreset`: the `FibDialog`, or the shape's form on a
   stand-in shape, with no name row), renames, removes and reorders them;
-  built-in names can't be used. The one in use is drawn as edited.
+  built-in names can't be used. The one in use is drawn as edited. The
+  built-in sets are listed first and can be edited as well: what changed
+  of them is kept apart (`edited`, `setedited`: `editedfibs`,
+  `editedrects`) and `builtinsets` lays it over `FIBSETS` and `RECTSETS`;
+  Remove drops the change. A fib set may keep `width` and `dash`
+  (`fibpreset`, `fibstyle`), which `ImageView.fibstyle` uses for the next
+  fibs and `applyfib` gives the ones selected.
   The context menu of a drawing (`ImageView.contextMenuEvent`) is filled by
   `DrawBar.presetmenu`, set as `view.presetmenu`: the fib sets or the looks
   of its kind, applied by `applyfib` or `applypreset` to it and the others

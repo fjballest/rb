@@ -59,6 +59,7 @@ class ImageView(QGraphicsView):
 		self.fiblevels = list(FIBSETS["OTE"])
 		self.fibdiagonal = False
 		self.fibfrom2 = False	# the next fibs start their lines at the second point
+		self.fibstyle = {}		# the width and dash of the next fibs, when their set has them
 		self.rectpreset = None	# the RECTSETS entry for the next rectangles, None for a plain one
 		self.presets = {}		# kind -> the look for the next shapes of it (see setpreset)
 		self.fibdone = QTimer(self, singleShot=True)	# a click ends it, unless it was a double click
@@ -196,11 +197,23 @@ class ImageView(QGraphicsView):
 		self.undo.push(PropsCmd(it, style, new))
 		self.undo.endMacro()
 
-	def applyfib(self, items, levels, diagonal, from2=False):
-		"""levels, diagonal and from2 for the fibs items, in one undo step"""
+	def applyfib(self, items, levels, diagonal, from2=False, style=None):
+		"""levels, diagonal and from2 for the fibs items, and the width and
+		dash in style, if any, in one undo step"""
 		new = (list(levels), bool(diagonal), bool(from2))
-		if any((list(it.levels), bool(it.diagonal), bool(it.from2)) != new for it in items):
+		style = dict(style or {})
+		levelsto = [it for it in items if (list(it.levels), bool(it.diagonal), bool(it.from2)) != new]
+		styleto = [it for it in items if any(getattr(it, k) != v for k, v in style.items())]
+		if not levelsto and not styleto:
+			return
+		self.undo.beginMacro("Change fibs")
+		if levelsto:
 			self.undo.push(LevelsCmd(items, *new))
+		for it in styleto:
+			before = {k: getattr(it, k) for k in style}
+			it.setprops(style)
+			self.undo.push(PropsCmd(it, before, style))
+		self.undo.endMacro()
 
 	def editshape(self, it):
 		"""the dialog for the properties of rectangle, line, arrow or circle
@@ -321,16 +334,17 @@ class ImageView(QGraphicsView):
 		if sel:
 			self.undo.push(StyleCmd(sel, None, width))
 
-	def setfiblevels(self, levels, diagonal=False, from2=False):
+	def setfiblevels(self, levels, diagonal=False, from2=False, style=None):
 		"""the levels for the next fibs, and for the fibs selected, whether
-		they have their diagonal, and whether their lines start at the
-		second point"""
+		they have their diagonal, whether their lines start at the second
+		point, and their width and dash (style; the bar's when not there)"""
 		self.fiblevels = list(levels)
 		self.fibdiagonal = diagonal
 		self.fibfrom2 = from2
+		self.fibstyle = dict(style or {})
 		sel = [it for it in self.scene().selectedItems() if isinstance(it, FibShape)]
 		if sel:
-			self.undo.push(LevelsCmd(sel, levels, diagonal, from2))
+			self.applyfib(sel, levels, diagonal, from2, style)
 
 	def setrectpreset(self, preset):
 		self.setpreset("rect", preset)
@@ -452,8 +466,8 @@ class ImageView(QGraphicsView):
 			d.update(self.rectpreset or {})
 			self.drawing = RectShape(QRectF(p, p), d.pop("color", self.color), d.pop("width", self.width), **d)
 		elif self.tool == "fib":
-			self.drawing = FibShape(p, p, self.fiblevels, self.color, self.width, diagonal=self.fibdiagonal,
-				dash=self.dash, size=self.textsize, from2=self.fibfrom2)
+			self.drawing = FibShape(p, p, self.fiblevels, self.color, self.fibstyle.get("width", self.width),
+				diagonal=self.fibdiagonal, dash=self.fibstyle.get("dash", self.dash), size=self.textsize, from2=self.fibfrom2)
 			self.drawing.setlive(True)
 			self.fibstep = "drag"
 		elif self.tool == "text":
