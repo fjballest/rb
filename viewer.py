@@ -10,7 +10,7 @@ from PySide6.QtCore import QEvent, QMimeData, QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QCursor, QIcon, QImage, QKeySequence, QPainter, QPen, QPixmap, QUndoStack
 from PySide6.QtWidgets import (
 	QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGraphicsPixmapItem,
-	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSlider
+	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox, QPushButton, QSlider
 )
 
 from drawing import (
@@ -58,6 +58,7 @@ class ImageView(QGraphicsView):
 		self.fibstep = None
 		self.fiblevels = list(FIBSETS["OTE"])
 		self.fibdiagonal = False
+		self.fibfrom2 = False	# the next fibs start their lines at the second point
 		self.rectpreset = None	# the RECTSETS entry for the next rectangles, None for a plain one
 		self.presets = {}		# kind -> the look for the next shapes of it (see setpreset)
 		self.fibdone = QTimer(self, singleShot=True)	# a click ends it, unless it was a double click
@@ -72,6 +73,10 @@ class ImageView(QGraphicsView):
 		# them, say): it says if it did
 		self.delkey = None
 		self.fibform = None	# see editfib
+		# the configurations of a kind of drawing for its context menu: set by
+		# the window (the drawing bar), called with the menu, the kind and the
+		# drawings, to add them (see contextMenuEvent)
+		self.presetmenu = None
 		self.undo = QUndoStack(self)
 		self.undo.indexChanged.connect(self.undochanged)
 		self.loading = False
@@ -171,14 +176,18 @@ class ImageView(QGraphicsView):
 		diagonal, and gives the new ones, or None"""
 		if self.fibform is None:
 			return
-		old = (list(it.levels), it.diagonal)
-		r = self.fibform(list(it.levels), it.diagonal, show=it.setlevels)
+		old = (list(it.levels), it.diagonal, it.from2)
+		r = self.fibform(list(it.levels), it.diagonal, show=it.setlevels, from2=it.from2)
 		it.setlevels(*old)	# back as it was: the change is one undo step
 		if r is None:
 			return
-		levels, diagonal = r
-		if list(levels) != list(it.levels) or bool(diagonal) != bool(it.diagonal):
-			self.undo.push(LevelsCmd([it], levels, diagonal))
+		self.applyfib([it], *r)
+
+	def applyfib(self, items, levels, diagonal, from2=False):
+		"""levels, diagonal and from2 for the fibs items, in one undo step"""
+		new = (list(levels), bool(diagonal), bool(from2))
+		if any((list(it.levels), bool(it.diagonal), bool(it.from2)) != new for it in items):
+			self.undo.push(LevelsCmd(items, *new))
 
 	def editshape(self, it):
 		"""the dialog for the properties of rectangle, line, arrow or circle
@@ -299,14 +308,16 @@ class ImageView(QGraphicsView):
 		if sel:
 			self.undo.push(StyleCmd(sel, None, width))
 
-	def setfiblevels(self, levels, diagonal=False):
-		"""the levels for the next fibs, and for the fibs selected, and whether
-		they have their diagonal"""
+	def setfiblevels(self, levels, diagonal=False, from2=False):
+		"""the levels for the next fibs, and for the fibs selected, whether
+		they have their diagonal, and whether their lines start at the
+		second point"""
 		self.fiblevels = list(levels)
 		self.fibdiagonal = diagonal
+		self.fibfrom2 = from2
 		sel = [it for it in self.scene().selectedItems() if isinstance(it, FibShape)]
 		if sel:
-			self.undo.push(LevelsCmd(sel, levels, diagonal))
+			self.undo.push(LevelsCmd(sel, levels, diagonal, from2))
 
 	def setrectpreset(self, preset):
 		self.setpreset("rect", preset)
@@ -319,10 +330,14 @@ class ImageView(QGraphicsView):
 		if kind == "rect":
 			self.rectpreset = self.presets[kind]
 		sel = [it for it in self.scene().selectedItems() if getattr(it, "kind", "") == kind]
-		if not sel or not preset:
+		self.applypreset(sel, preset)
+
+	def applypreset(self, items, preset):
+		"""the look preset for the shapes items, in one undo step"""
+		if not items or not preset:
 			return
 		self.undo.beginMacro("Change drawings")
-		for it in sel:
+		for it in items:
 			before = {k: getattr(it, k) for k in preset}
 			it.setprops(preset)
 			self.undo.push(PropsCmd(it, before, preset))
@@ -425,7 +440,7 @@ class ImageView(QGraphicsView):
 			self.drawing = RectShape(QRectF(p, p), d.pop("color", self.color), d.pop("width", self.width), **d)
 		elif self.tool == "fib":
 			self.drawing = FibShape(p, p, self.fiblevels, self.color, self.width, diagonal=self.fibdiagonal,
-				dash=self.dash, size=self.textsize)
+				dash=self.dash, size=self.textsize, from2=self.fibfrom2)
 			self.drawing.setlive(True)
 			self.fibstep = "drag"
 		elif self.tool == "text":
@@ -662,6 +677,30 @@ class ImageView(QGraphicsView):
 			self.zoomstep(at)
 		else:
 			super().mouseDoubleClickEvent(ev)
+
+	def contextMenuEvent(self, ev):
+		"""the right button on a drawing: a menu with the configurations of
+		its kind (the fib levels, the looks saved), to change it, and the
+		other ones of its kind selected, to the one picked"""
+		if self.drawing is not None or self.presetmenu is None:
+			return super().contextMenuEvent(ev)
+		shapes = set(self.shapes())
+		it = next((i for i in self.items(ev.pos()) if i in shapes), None)
+		if it is None:
+			return super().contextMenuEvent(ev)
+		if not it.isSelected():
+			self.scene().clearSelection()
+			it.setSelected(True)
+		items = [i for i in self.scene().selectedItems() if getattr(i, "kind", "") == it.kind]
+		m = QMenu(self)
+		self.presetmenu(m, it.kind, items)
+		if m.isEmpty():
+			m.deleteLater()
+			return super().contextMenuEvent(ev)
+		self.ctxmenu = m	# for the tests
+		m.exec(ev.globalPos())
+		self.ctxmenu = None
+		m.deleteLater()
 
 	def zoomstep(self, at):
 		"""zoom in at viewport point at, zoom in again, then fit"""

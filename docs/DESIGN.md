@@ -417,6 +417,13 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   (`DrawBar.editpreset`: the `FibDialog`, or the shape's form on a
   stand-in shape, with no name row), renames, removes and reorders them;
   built-in names can't be used. The one in use is drawn as edited.
+  The context menu of a drawing (`ImageView.contextMenuEvent`) is filled by
+  `DrawBar.presetmenu`, set as `view.presetmenu`: the fib sets or the looks
+  of its kind, applied by `applyfib` or `applypreset` to it and the others
+  of its kind selected, without changing what the bar draws next. A fib's
+  `from2` (the **From 2** box) starts its lines at `p2` (`FibShape.start`);
+  it goes with its levels and diagonal everywhere (`LevelsCmd`, the custom
+  rows, the sets saved).
 - The Rect menu of `DrawBar` picks a preset of `drawing.RECTSETS` (BRK, MB,
   FVG, IFVG+, IFVG-: colors, fill, middle line, label), kept in
   `ImageView.rectpreset` for the next rectangles; with rectangles selected

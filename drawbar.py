@@ -38,13 +38,14 @@ def fibsettings():
 	return QSettings("fjballest", "drawing")
 
 def customrows():
-	"""the rows of the custom levels form, [(on, text)...], and whether the
-	diagonal is drawn"""
+	"""the rows of the custom levels form, [(on, text)...], whether the
+	diagonal is drawn, and whether the lines start at the second point"""
 	st = fibsettings()
 	try:
 		d = json.loads(str(st.value("customfibrows", "")))
 		rows = [(bool(on), str(t)) for on, t in d["rows"]][:FIBROWS]
 		diag = bool(d.get("diagonal"))
+		from2 = bool(d.get("from2"))
 	except (ValueError, KeyError, TypeError):
 		try:	# what was kept before the form: just the levels used
 			used = set(parselevels(str(st.value("customfib", ""))))
@@ -52,23 +53,23 @@ def customrows():
 			used = set(FIBALL)
 		levels = sorted(set(FIBALL) | used)
 		rows = [(l in used, f"{l:g}") for l in levels]
-		diag = False
+		diag = from2 = False
 	rows += [(False, "")] * (FIBROWS - len(rows))
-	return rows, diag
+	return rows, diag, from2
 
 # the sets saved by name from the custom forms, in the menus after the built-in ones
 def savedfibs():
-	"""{name: {"levels": [...], "diagonal": bool}}"""
+	"""{name: {"levels": [...], "diagonal": bool, "from2": bool}}"""
 	try:
 		d = json.loads(str(fibsettings().value("savedfibs", "") or "{}"))
-		return {str(n): {"levels": [float(l) for l in v["levels"]], "diagonal": bool(v.get("diagonal"))}
-			for n, v in d.items() if v.get("levels")}
+		return {str(n): {"levels": [float(l) for l in v["levels"]], "diagonal": bool(v.get("diagonal")),
+			"from2": bool(v.get("from2"))} for n, v in d.items() if v.get("levels")}
 	except (ValueError, KeyError, TypeError, AttributeError):
 		return {}
 
-def savefib(name, levels, diagonal):
+def savefib(name, levels, diagonal, from2=False):
 	d = savedfibs()
-	d[name] = {"levels": list(levels), "diagonal": bool(diagonal)}
+	d[name] = {"levels": list(levels), "diagonal": bool(diagonal), "from2": bool(from2)}
 	fibsettings().setValue("savedfibs", json.dumps(d))
 
 # what is saved of each kind of shape: its look, not its size or place
@@ -203,19 +204,20 @@ def rowlevels(rows):
 	return parselevels(" ".join(t for on, t in rows if on and t.strip()))
 
 def customlevels():
-	rows, diag = customrows()
+	rows, diag, from2 = customrows()
 	try:
-		return rowlevels(rows), diag
+		return rowlevels(rows), diag, from2
 	except ValueError:
-		return list(FIBALL), diag
+		return list(FIBALL), diag, from2
 
 class FibDialog(QDialog):
 	"""the custom fib levels: FIBROWS levels in two columns, each one with a
-	check to use it, and whether to draw the diagonal; changed is emitted on
-	every change, to show it"""
+	check to use it, whether to draw the diagonal, and whether the lines
+	start at the second point (From 2); changed is emitted on every change,
+	to show it"""
 	changed = Signal()
 
-	def __init__(self, rows, diagonal, parent=None, taken=()):
+	def __init__(self, rows, diagonal, parent=None, taken=(), from2=False):
 		super().__init__(parent)
 		self.taken = set(taken)	# names that can't be used: the built-in sets
 		self.setWindowTitle("Custom Fib Levels")
@@ -242,8 +244,12 @@ class FibDialog(QDialog):
 		self.diagbox = QCheckBox("Draw the diagonal")
 		self.diagbox.setToolTip("the dashed line from the first point to the second")
 		self.diagbox.setChecked(diagonal)
+		self.from2box = QCheckBox("From 2")
+		self.from2box.setToolTip("the lines start at the second point, not at the first, and go to the third")
+		self.from2box.setChecked(from2)
 		row = QHBoxLayout()
 		row.addWidget(self.diagbox)
+		row.addWidget(self.from2box)
 		row.addStretch()
 		clear = QPushButton("Clear")
 		clear.setToolTip("uncheck all the levels")
@@ -270,14 +276,18 @@ class FibDialog(QDialog):
 			c.toggled.connect(lambda *_: self.changed.emit())
 			e.textChanged.connect(lambda *_: self.changed.emit())
 		self.diagbox.toggled.connect(lambda *_: self.changed.emit())
+		self.from2box.toggled.connect(lambda *_: self.changed.emit())
 
 	def shown(self):
-		"""the levels and diagonal as they are now, or None if they are not
-		levels yet"""
+		"""the levels, diagonal and from2 as they are now, or None if they
+		are not levels yet"""
 		try:
-			return rowlevels(self.rows()), self.diagonal()
+			return rowlevels(self.rows()), self.diagonal(), self.from2()
 		except ValueError:
 			return None
+
+	def from2(self):
+		return self.from2box.isChecked()
 
 	def rows(self):
 		return [(c.isChecked(), e.text().strip()) for c, e in zip(self.checks, self.edits)]
@@ -468,6 +478,7 @@ class DrawBar(QToolBar):
 		# the crosshair is always on; Hide hides all the drawings, and Show brings them back
 		view.setcrosshair(True)
 		view.fibform = self.fibform	# a double click on a fib changes its levels
+		view.presetmenu = self.presetmenu	# the right button on a drawing
 		self.hideact = QAction("Hide", self)
 		self.hideact.setToolTip("hide all the drawings, to see the image as it is (H on the image); "
 			"they are kept, and drawing shows them again")
@@ -490,10 +501,10 @@ class DrawBar(QToolBar):
 			"hide all the drawings, to see the image as it is (H on the image); they are kept, and drawing shows them again")
 
 	def fibsets(self):
-		"""the levels in the menu, built-in and saved: {name: (levels, diagonal)}"""
-		sets = {n: (ls, False) for n, ls in FIBSETS.items()}
+		"""the levels in the menu, built-in and saved: {name: (levels, diagonal, from2)}"""
+		sets = {n: (ls, False, False) for n, ls in FIBSETS.items()}
 		for n, v in savedfibs().items():
-			sets.setdefault(n, (v["levels"], v["diagonal"]))
+			sets.setdefault(n, (v["levels"], v["diagonal"], v["from2"]))
 		return sets
 
 	def mkfibmenu(self):
@@ -502,7 +513,7 @@ class DrawBar(QToolBar):
 		g = QActionGroup(m)
 		self.fibacts = {}
 		mine = [n for n in savedfibs() if n not in FIBSETS]
-		for name, (levels, _) in self.fibsets().items():
+		for name, (levels, *_) in self.fibsets().items():
 			if mine and name == mine[0]:
 				m.addSeparator()
 			x = m.addAction(f"{name}: {fmtlevels(levels)}")
@@ -550,7 +561,8 @@ class DrawBar(QToolBar):
 			# the one in use may have been edited: draw with it as it is now
 			if kind == "fib" and self.fibname in savedfibs():
 				f = savedfibs()[self.fibname]
-				self.view.fiblevels, self.view.fibdiagonal = list(f["levels"]), f["diagonal"]	# not the ones selected
+				# not the ones selected
+				self.view.fiblevels, self.view.fibdiagonal, self.view.fibfrom2 = list(f["levels"]), f["diagonal"], f["from2"]
 			elif kind != "fib" and self.shapenames.get(kind) in savedshapes(kind):
 				self.view.setpreset(kind, self.shapesets(kind)[self.shapenames[kind]])
 		dlg.deleteLater()
@@ -560,8 +572,8 @@ class DrawBar(QToolBar):
 		"""the form for a look saved of kind (the levels of a fib), to change
 		it: the new one, or None"""
 		if kind == "fib":
-			r = self.fibform(preset["levels"], preset["diagonal"], named=False)
-			return {"levels": r[0], "diagonal": bool(r[1])} if r else None
+			r = self.fibform(preset["levels"], preset["diagonal"], named=False, from2=preset.get("from2", False))
+			return {"levels": r[0], "diagonal": bool(r[1]), "from2": bool(r[2])} if r else None
 		from PySide6.QtCore import QPointF, QRectF
 		from drawing import CircleShape, LineShape, RectShape
 		from viewer import RectDialog, ShapeDialog
@@ -658,50 +670,51 @@ class DrawBar(QToolBar):
 
 	def setfib(self, name):
 		"""use the levels of set name for the fibs, asking for the custom ones"""
-		diagonal = False
+		diagonal = from2 = False
 		if name == "Custom":
-			rows, diagonal = customrows()
-			dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",))
+			rows, diagonal, from2 = customrows()
+			dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",), from2=from2)
 			sel = [it for it in self.view.scene().selectedItems() if isinstance(it, FibShape)]
-			old = [(it, list(it.levels), it.diagonal) for it in sel]
+			old = [(it, list(it.levels), it.diagonal, it.from2) for it in sel]
 			def show():	# the fibs selected show the levels as they are edited
 				r = dlg.shown()
-				for it, _, _ in old if r else ():
+				for it, *_ in old if r else ():
 					it.setlevels(*r)
 			dlg.changed.connect(show)
 			self.fibdlg = dlg	# for the tests
 			ok = dlg.exec()
-			rows, diagonal, saveas = dlg.rows(), dlg.diagonal(), dlg.name()
+			rows, diagonal, from2, saveas = dlg.rows(), dlg.diagonal(), dlg.from2(), dlg.name()
 			dlg.deleteLater()
 			self.fibdlg = None
-			for it, lv, dg in old:	# back as they were: the change is one undo step
-				it.setlevels(lv, dg)
+			for it, lv, dg, f2 in old:	# back as they were: the change is one undo step
+				it.setlevels(lv, dg, f2)
 			if not ok:
 				self.fibacts[self.fibname].setChecked(True)
 				return
-			fibsettings().setValue("customfibrows", json.dumps({"rows": rows, "diagonal": diagonal}))
+			fibsettings().setValue("customfibrows", json.dumps({"rows": rows, "diagonal": diagonal, "from2": from2}))
 			levels = rowlevels(rows)
 			if saveas:
-				savefib(saveas, levels, diagonal)
+				savefib(saveas, levels, diagonal, from2)
 				self.fibname = saveas
 				self.mkfibmenu()
 				name = saveas
 		else:
-			levels, diagonal = self.fibsets()[name]
+			levels, diagonal, from2 = self.fibsets()[name]
 		self.fibname = name
 		self.fibacts[name].setChecked(True)
-		self.view.setfiblevels(levels, diagonal)
+		self.view.setfiblevels(levels, diagonal, from2)
 		if not any(getattr(it, "kind", "") == "fib" for it in self.view.scene().selectedItems()):
 			self.view.settool("fib")	# else it was for the fibs selected
 
-	def fibform(self, levels, diagonal, named=True, show=None):
-		"""ask for other levels for a fib drawn with these: (levels, diagonal),
-		or None. A name given keeps them in the menu too (named: the form
-		asks for one). show(levels, diagonal), if given, is called on every
-		change that gives levels, to show them while the form is open"""
+	def fibform(self, levels, diagonal, named=True, show=None, from2=False):
+		"""ask for other levels for a fib drawn with these: (levels,
+		diagonal, from2), or None. A name given keeps them in the menu too
+		(named: the form asks for one). show(levels, diagonal, from2), if
+		given, is called on every change that gives levels, to show them
+		while the form is open"""
 		rows = [(l in levels, f"{l:g}") for l in sorted(set(FIBALL) | set(levels))][:FIBROWS]
 		rows += [(False, "")] * (FIBROWS - len(rows))
-		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",))
+		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",), from2=from2)
 		dlg.setWindowTitle("Fib Levels")
 		if not named:
 			dlg.namerow.setVisible(False)
@@ -709,16 +722,43 @@ class DrawBar(QToolBar):
 			dlg.changed.connect(lambda: (lambda r: r and show(*r))(dlg.shown()))
 		self.fibdlg = dlg	# for the tests
 		ok = dlg.exec()
-		rows, diagonal, saveas = dlg.rows(), dlg.diagonal(), dlg.name()
+		rows, diagonal, from2, saveas = dlg.rows(), dlg.diagonal(), dlg.from2(), dlg.name()
 		dlg.deleteLater()
 		self.fibdlg = None
 		if not ok:
 			return None
 		levels = rowlevels(rows)
 		if saveas:
-			savefib(saveas, levels, diagonal)
+			savefib(saveas, levels, diagonal, from2)
 			self.mkfibmenu()
-		return levels, diagonal
+		return levels, diagonal, from2
+
+	def presetmenu(self, m, kind, items):
+		"""fill menu m, the context menu of the drawings items of kind, with
+		the configurations of that kind in the bar's menu: the fib levels,
+		or the looks built-in and saved; picking one changes items to it.
+		The one they have is checked"""
+		g = QActionGroup(m)
+		if kind == "fib":
+			for name, (levels, diagonal, from2) in self.fibsets().items():
+				x = m.addAction(f"{name}: {fmtlevels(levels)}")
+				x.setCheckable(True)
+				x.setChecked(all((list(it.levels), bool(it.diagonal), bool(it.from2)) ==
+					(list(levels), bool(diagonal), bool(from2)) for it in items))
+				x.triggered.connect(lambda _=False, r=(levels, diagonal, from2): self.view.applyfib(items, *r))
+				g.addAction(x)
+			return
+		if kind not in SHAPEKEYS:
+			return
+		for name, preset in self.shapesets(kind).items():
+			x = m.addAction(name)
+			x.setCheckable(True)
+			x.setChecked(all(getattr(it, k, None) == v for it in items for k, v in preset.items()))
+			x.triggered.connect(lambda _=False, p=dict(preset): self.view.applypreset(items, p))
+			g.addAction(x)
+		if m.isEmpty():
+			x = m.addAction(f"No saved {SHAPENAMES[kind].lower()}s: double click it to save its look")
+			x.setEnabled(False)
 
 	def detach(self):
 		"""move the bar to a window of its own that stays on top"""

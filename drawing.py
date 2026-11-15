@@ -686,13 +686,14 @@ class FibShape(QGraphicsItem):
 	edge of the image when extend, with its level past the right end (the
 	lines end before the edge of the image so it fits), of size. The lines
 	are solid, dashed or dotted (dash). The diagonal from p1 to p2 is drawn
-	only when diagonal. While it is being drawn (live) a dashed line shows
-	where the second point is."""
+	only when diagonal. With from2 the lines start at the x of p2 instead
+	of the leftmost point. While it is being drawn (live) a dashed line
+	shows where the second point is."""
 	SIZE = 14
 	PROPS = ("dash", "size")
 
 	def __init__(self, p1, p2, levels, color, width, right=None, extend=False, diagonal=False, dash="solid",
-			size=SIZE):
+			size=SIZE, from2=False):
 		super().__init__()
 		self.kind = "fib"
 		self.p1, self.p2 = QPointF(p1), QPointF(p2)
@@ -702,6 +703,7 @@ class FibShape(QGraphicsItem):
 		self.right = max(p1.x(), p2.x()) if right is None else right
 		self.extend = extend
 		self.diagonal = diagonal
+		self.from2 = from2
 		self.dash, self.size = dash, size
 		self.live = False
 		self.edit = None	# called with it on a double click, to change its levels
@@ -713,12 +715,20 @@ class FibShape(QGraphicsItem):
 		self.color, self.width = color, width
 		self.update()
 
-	def setlevels(self, levels, diagonal=None):
+	def setlevels(self, levels, diagonal=None, from2=None):
 		self.prepareGeometryChange()
 		self.levels = list(levels)
 		if diagonal is not None:
 			self.diagonal = diagonal
+		if from2 is not None:
+			self.from2 = from2
 		self.update()
+
+	def start(self, p1=None, p2=None):
+		"""the x where the lines start: that of p2 with from2, else that of
+		the leftmost point"""
+		p1, p2 = p1 or self.p1, p2 or self.p2
+		return p2.x() if self.from2 else min(p1.x(), p2.x())
 
 	def setprops(self, d):
 		setprops(self, d)
@@ -751,13 +761,13 @@ class FibShape(QGraphicsItem):
 	def setright(self, x, extend=False):
 		"""where the lines end, in scene x; never left of both points"""
 		self.prepareGeometryChange()
-		self.right = max(self.mapFromScene(QPointF(x, 0)).x(), min(self.p1.x(), self.p2.x()) + 1)
+		self.right = max(self.mapFromScene(QPointF(x, 0)).x(), self.start() + 1)
 		self.extend = extend
 
 	def xs(self):
 		"""the left and right ends of the lines, leaving room for the levels
 		before the right edge of the image"""
-		left = min(self.p1.x(), self.p2.x())
+		left = self.start()
 		right = self.right
 		if self.scene() is not None:
 			edge = self.mapFromScene(QPointF(self.scene().sceneRect().right(), 0)).x() - self.labelwidth()
@@ -820,6 +830,8 @@ class FibShape(QGraphicsItem):
 		d = {"kind": "fib", "p1": pt(self.mapToScene(self.p1)), "p2": pt(self.mapToScene(self.p2)),
 			"right": round(right, 1), "extend": self.extend, "diagonal": self.diagonal, "levels": self.levels,
 			"color": self.color, "width": self.width}
+		if self.from2:
+			d["from2"] = True
 		if self.dash != "solid":
 			d["dash"] = self.dash
 		if self.size != self.SIZE:
@@ -851,7 +863,7 @@ class FibShape(QGraphicsItem):
 			p2 = q
 		else:
 			right, extend = q.x(), False
-		right = max(right, min(p1.x(), p2.x()) + 1) if i == 2 else max(right, p1.x(), p2.x())
+		right = max(right, self.start(p1, p2) + 1) if i == 2 else max(right, p1.x(), p2.x())
 		self.setgeom((p1, p2, right, extend))
 
 class TextShape(QGraphicsTextItem):
@@ -1005,7 +1017,7 @@ def fromdict(d):
 		if k == "fib":
 			return FibShape(QPointF(*d["p1"]), QPointF(*d["p2"]), [float(l) for l in d["levels"]], color,
 				float(d.get("width", 1)), float(d["right"]), bool(d.get("extend")), bool(d.get("diagonal")),
-				dash, float(d.get("size", FibShape.SIZE)))
+				dash, float(d.get("size", FibShape.SIZE)), bool(d.get("from2")))
 		if k == "text":
 			return TextShape(QPointF(*d["pos"]), str(d.get("text", "")), color, int(d.get("size", 18)))
 	except (KeyError, TypeError, ValueError):
@@ -1106,19 +1118,20 @@ class PropsCmd(QUndoCommand):
 
 class LevelsCmd(QUndoCommand):
 	"""other levels for Fibonacci drawings"""
-	def __init__(self, items, levels, diagonal=False):
+	def __init__(self, items, levels, diagonal=False, from2=None):
 		super().__init__("Change levels")
-		self.changes = [(it, list(it.levels), it.diagonal) for it in items]
+		self.changes = [(it, list(it.levels), it.diagonal, it.from2) for it in items]
 		self.levels = list(levels)
 		self.diagonal = diagonal
+		self.from2 = from2	# None keeps it
 
 	def redo(self):
-		for it, _, _ in self.changes:
-			it.setlevels(self.levels, self.diagonal)
+		for it, _, _, _ in self.changes:
+			it.setlevels(self.levels, self.diagonal, self.from2)
 
 	def undo(self):
-		for it, old, diag in self.changes:
-			it.setlevels(old, diag)
+		for it, old, diag, f2 in self.changes:
+			it.setlevels(old, diag, f2)
 
 class StyleCmd(QUndoCommand):
 	"""a new color or width (None keeps the old one) for items"""
