@@ -4,8 +4,10 @@
 # holds the drawings made on it, in image coordinates. Shared by DayJournal
 # and pylg's graphics window.
 #
-from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QIcon, QImage, QPainter, QPen, QPixmap, QUndoStack
+import json
+
+from PySide6.QtCore import QEvent, QMimeData, QPointF, QRect, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QCursor, QIcon, QImage, QKeySequence, QPainter, QPen, QPixmap, QUndoStack
 from PySide6.QtWidgets import (
 	QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGraphicsPixmapItem,
 	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSlider
@@ -17,6 +19,7 @@ from drawing import (
 )
 
 DCLICKZOOM = 2.0
+DRAWMIME = "application/x-drawings"	# drawings copied, as saved (see drawingdata)
 HANDLE = 7	# the size of the handles of a drawing selected, in pixels
 TOOLS = ("select", "pencil", "line", "arrow", "circle", "rect", "text", "fib")
 TOOLKEYS = {Qt.Key.Key_S: "select", Qt.Key.Key_P: "pencil", Qt.Key.Key_L: "line", Qt.Key.Key_A: "arrow",
@@ -644,11 +647,84 @@ class ImageView(QGraphicsView):
 				return True
 		return super().viewportEvent(ev)
 
+	# ---- copying and pasting drawings ----
+	def copydrawings(self):
+		"""put the drawings selected on the clipboard; whether there were any"""
+		sel = [it for it in self.shapes() if it.isSelected()]
+		if not sel:
+			return False
+		md = QMimeData()
+		md.setData(DRAWMIME, json.dumps({"version": DRAWVERSION, "shapes": [it.todict() for it in sel]}).encode())
+		QApplication.clipboard().setMimeData(md)
+		return True
+
+	def clipdrawings(self):
+		"""the drawings on the clipboard, as saved, or []"""
+		md = QApplication.clipboard().mimeData()
+		if md is None or not md.hasFormat(DRAWMIME):
+			return []
+		try:
+			shapes = json.loads(bytes(md.data(DRAWMIME)).decode()).get("shapes", [])
+		except (ValueError, AttributeError):
+			return []
+		return [d for d in shapes if isinstance(d, dict)]
+
+	def pastedrawings(self, at=None):
+		"""add the drawings on the clipboard, centered at scene point at (the
+		mouse, when it is on the image), selected; whether there were any"""
+		if self.pixitem is None:
+			return False
+		items = [it for it in map(fromdict, self.clipdrawings()) if it is not None]
+		if not items:
+			return False
+		box = QRectF()
+		for it in items:
+			box = box.united(it.mapRectToScene(it.boundingRect()))
+		if at is None:
+			v = self.viewport().mapFromGlobal(QCursor.pos())
+			at = self.mapToScene(v) if self.viewport().rect().contains(v) else None
+		if at is None or not self.sceneRect().contains(at):
+			at = box.center() + QPointF(20, 20)	# next to where it was
+		off = at - box.center()
+		self.scene().clearSelection()
+		self.undo.beginMacro("Paste")
+		for it in items:
+			it.setPos(it.pos() + off)
+			self.additem(it)
+			it.setSelected(True)
+			self.undo.push(AddCmd(self.scene(), it))
+		self.undo.endMacro()
+		return True
+
+	def clipkey(self, ev):
+		"""copy or paste, for key event ev, or None"""
+		mac = ev.modifiers() & ~Qt.KeyboardModifier.KeypadModifier == Qt.KeyboardModifier.MetaModifier	# control on macOS
+		if ev.matches(QKeySequence.StandardKey.Copy) or (mac and ev.key() == Qt.Key.Key_C):
+			return "copy"
+		if ev.matches(QKeySequence.StandardKey.Paste) or (mac and ev.key() == Qt.Key.Key_V):
+			return "paste"
+		return None
+
+	def event(self, ev):
+		# copy and paste of drawings come here before the window's shortcuts
+		if ev.type() == QEvent.Type.ShortcutOverride:
+			f = self.scene().focusItem()
+			c = self.clipkey(ev)
+			if not (isinstance(f, TextShape) and f.editing()) and (
+					(c == "copy" and any(it.isSelected() for it in self.shapes()))
+					or (c == "paste" and self.pixitem is not None and self.clipdrawings())):
+				ev.accept()
+				return True
+		return super().event(ev)
+
 	# ---- keys ----
 	def keyPressEvent(self, ev):
 		f = self.scene().focusItem()
 		if isinstance(f, TextShape) and f.editing():
 			super().keyPressEvent(ev)	# typing in a text box
+			return
+		c = self.clipkey(ev)
+		if (c == "copy" and self.copydrawings()) or (c == "paste" and self.pastedrawings()):
 			return
 		k = ev.key()
 		nav = self.navkeys
@@ -864,6 +940,16 @@ class ShapeDialog(QDialog):
 				"to the top and bottom, any other to where it meets the edges")
 			form.addRow("", self.extend)
 			self.extend.toggled.connect(lambda *_: self.changed.emit())
+			# extended, Left and Right put the label at that end; Top and Bottom for a vertical line
+			vertical = it.vertical()
+			def relabel(on):
+				names = ("Center", "Top", "Bottom") if on and vertical else [n for n, _ in ALIGNS]
+				for i, n in enumerate(names):
+					self.align.setItemText(i, n)
+				self.align.setToolTip("at the end of the line extended, the line stopping before it" if on else
+					"at its left, in its middle, or at its right, past its end")
+			self.extend.toggled.connect(relabel)
+			relabel(it.extend)
 		namerow(self, form, {"line": "Line", "arrow": "Arrow", "circle": "Circle"}.get(it.kind, "Line"), {"Plain"})
 		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 		bb.accepted.connect(self.accept)

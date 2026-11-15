@@ -346,7 +346,15 @@ past the right end of the line, kept inside the image.
 A line (not an arrow) also has **Extend across the image**: a horizontal
 line then goes from the left edge to the right one, a vertical one from top
 to bottom, and any other to where it meets the edges. Its ends stay where
-they were, for its label and handles.
+they were, for its handles. Extended, **Left** and **Right** put the label
+at that end of the line, across it, and the line stops before it (for a
+vertical line the form says **Top** and **Bottom**); **Center** keeps it in
+the middle of its two points.
+
+To copy drawings, select them and press ⌘C (Ctrl+C elsewhere). ⌘V pastes
+them under the mouse, selected, on this image or on another one (in
+DayJournal or RoadBook); with the mouse off the image they go a little to
+the side of where they were. **Undo** removes them.
 
 **Rect** draws a rectangle, just its border at first. Double click its
 border (anywhere on it once filled) to set:

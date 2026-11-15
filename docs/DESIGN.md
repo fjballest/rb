@@ -372,7 +372,10 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   `GeomCmd`, `TextCmd`, `StyleCmd`). Lines, circles, rectangles and fibs
   have handles (`handles`, `movehandle`, `geom`, `setgeom`): the view draws
   them on the ones selected and dragging one reshapes it. A line with
-  `extend` is drawn across the image (`drawn`), keeping its two points.
+  `extend` is drawn across the image (`drawn`), keeping its two points; a
+  label aligned left or right goes at that end (`endlabelrect`). The view
+  copies the drawings selected to the clipboard (`DRAWMIME`) and pastes
+  them under the mouse (`copydrawings`, `pastedrawings`).
 - `ImageView` turns the mouse into shapes for the tool chosen (`settool`),
   keeps them inside the graph, snaps lines to horizontal or vertical with
   shift, and pushes each change on its `QUndoStack`, which is cleared when

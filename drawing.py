@@ -122,12 +122,35 @@ class LineShape(QGraphicsLineItem):
 	def extended(self):
 		return self.extend and self.kind == "line" and self.scene() is not None
 
-	def drawn(self):
-		"""the line as drawn: extended to the edges of the image, if so"""
+	def vertical(self):
 		l = self.line()
-		if not self.extended() or l.length() < 1e-6:
-			return l
+		return abs(l.dx()) < abs(l.dy())
+
+	def endlabel(self):
+		"""whether its label goes at an end of it extended: at the left or
+		right end (align), the top or bottom one for a vertical line"""
+		return self.extended() and bool(self.label) and self.align in ("left", "right")
+
+	def drawn(self):
+		"""the line as drawn: extended to the edges of the image, if so,
+		stopping before a label at one of its ends"""
+		if not self.extended():
+			return self.line()
 		r = self.mapRectFromScene(self.scene().sceneRect())
+		if self.endlabel():
+			lr = self.labelrect()
+			gap = 3
+			if self.vertical():
+				r.setTop(lr.bottom() + gap) if self.align == "left" else r.setBottom(lr.top() - gap)
+			else:
+				r.setLeft(lr.right() + gap) if self.align == "left" else r.setRight(lr.left() - gap)
+		return self.clipped(r)
+
+	def clipped(self, r):
+		"""the line through its two points, between the sides of rectangle r"""
+		l = self.line()
+		if l.length() < 1e-6:
+			return l
 		lo, hi = -math.inf, math.inf	# where it is inside r, as l.p1() + t (l.p2() - l.p1())
 		for a, d, mn, mx in ((l.x1(), l.dx(), r.left(), r.right()), (l.y1(), l.dy(), r.top(), r.bottom())):
 			if abs(d) < 1e-9:
@@ -155,6 +178,8 @@ class LineShape(QGraphicsLineItem):
 		"""where the label goes, or None"""
 		if not self.label:
 			return None
+		if self.endlabel():
+			return self.endlabelrect()
 		l = self.line()
 		a, b = sorted((l.p1(), l.p2()), key=lambda p: (p.x(), p.y()))
 		fm = QFontMetricsF(labelfont(self.size))
@@ -168,6 +193,20 @@ class LineShape(QGraphicsLineItem):
 			x, y = (a.x() + b.x()) / 2 - w / 2, (a.y() + b.y()) / 2
 		top = {"above": y - gap - h, "below": y + gap}.get(self.valign, y - h / 2)
 		return inscene(self, QRectF(x, top, w, h))
+
+	def endlabelrect(self):
+		"""the label at an end of the line extended, across it"""
+		fm = QFontMetricsF(labelfont(self.size))
+		w, h = fm.horizontalAdvance(self.label) + 4, fm.height()
+		l = self.clipped(self.mapRectFromScene(self.scene().sceneRect()))
+		a, b = sorted((l.p1(), l.p2()), key=(lambda p: p.y()) if self.vertical() else (lambda p: p.x()))
+		first = self.align == "left"	# the left or top end
+		e = a if first else b
+		if self.vertical():
+			r = QRectF(e.x() - w / 2, e.y() if first else e.y() - h, w, h)
+		else:
+			r = QRectF(e.x() if first else e.x() - w, e.y() - h / 2, w, h)
+		return inscene(self, r)
 
 	def boundingRect(self):
 		d = self.drawn()
