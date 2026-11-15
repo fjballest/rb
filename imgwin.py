@@ -152,8 +152,7 @@ class ImageViewer(QMainWindow):
 		self.notes.setToolTip(self.desc)	# all of it, when it needs more than three lines
 
 	def preview(self):
-		if self.file_path is not None:
-			os.system(f"open {self.file_path}")
+		self.view.osview()	# with its drawings
 
 	def setimage(self, files, no=0, desc=None):
 		"""show files[no]; desc None keeps the notes of the trade being shown"""

@@ -309,7 +309,7 @@ the graphs of the selected trade, with the trade's notes beside the buttons
 | Double click | zooms in, zooms in again, then back to fit, in turns. Zooming keeps the point you clicked under the mouse |
 | Two finger double tap, pinch | on a trackpad, zoom like a double click, and in and out |
 | Drag | moves the graph around when it is larger than the window |
-| OS View | opens the graph in the system viewer |
+| OS View | opens the graph in the system viewer, with the drawings shown on it, as a PNG at its size |
 | Save (⌘S) | saves the drawings |
 | Dup | opens a copy of the window, titled *View* and the path of the graph, to see several graphs at once |
 

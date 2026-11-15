@@ -5,6 +5,10 @@
 # and pylg's graphics window.
 #
 import json
+import os
+import subprocess
+import sys
+import tempfile
 
 from PySide6.QtCore import QEvent, QMimeData, QPointF, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor, QIcon, QImage, QKeySequence, QPainter, QPen, QPixmap, QUndoStack
@@ -565,6 +569,31 @@ class ImageView(QGraphicsView):
 		QApplication.clipboard().setImage(img)
 		return True
 
+	def exportimage(self):
+		"""the file to show in the system's viewer: the image itself when
+		nothing is drawn on it, else a PNG of it with its drawings, at its
+		size, made in a temporary folder and named after it"""
+		if self.pixitem is None:
+			return None
+		if not any(it.isVisible() for it in self.shapes()):
+			return self.path
+		d = os.path.join(tempfile.gettempdir(), "drawn-images")
+		os.makedirs(d, exist_ok=True)
+		name = os.path.splitext(os.path.basename(self.path))[0] or "image"
+		out = os.path.join(d, name + ".png")
+		if not self.renderimage().save(out, "PNG"):
+			return None
+		return out
+
+	def osview(self):
+		"""open what is shown, drawings included, in the system's viewer
+		(Preview on macOS); False when there is no image"""
+		p = self.exportimage()
+		if p is None:
+			return False
+		openfile(p)
+		return True
+
 	# ---- crosshair ----
 	def setcrosshair(self, on):
 		self.crosshair = bool(on)
@@ -860,6 +889,16 @@ class ImageView(QGraphicsView):
 			super().keyPressEvent(ev)
 
 ALIGNS = (("Center", "center"), ("Left", "left"), ("Right", "right"))
+
+def openfile(p):
+	"""open p with the program the system has for it"""
+	if sys.platform == "darwin":
+		subprocess.Popen(["open", p])
+	elif sys.platform.startswith("win"):
+		os.startfile(p)
+	else:
+		subprocess.Popen(["xdg-open", p])
+
 
 def namerow(dlg, form, menu, taken):
 	"""the Save as field of the form for a shape: a name to keep its look
