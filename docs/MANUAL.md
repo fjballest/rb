@@ -392,6 +392,19 @@ remembers what you set. Its **Draw the diagonal** box adds the dashed line
 from the first point to the second; the other sets never draw it. Picking a
 set with fibs selected changes their levels instead.
 
+**Clear** in the custom form unchecks all the levels, to start a set from
+scratch. Type a short **Name** before OK to keep the levels in the Fib menu,
+after the built-in sets; the same name replaces them.
+
+Rectangles, lines, arrows and circles can be kept the same way: double click
+one, set how it looks, and type a name in **Save as**. Its color, width,
+style, fill, middle line and label (not its size or place) go to the menu of
+its tool, and picking it there draws the next ones like it (or changes the
+ones selected). **Plain**, first in each menu, draws with the color, width
+and style chosen on the bar. **Edit Saved…** at the end of each menu lists
+the ones saved there, to rename (double click), remove or move them up and
+down. They are shared by DayJournal and RoadBook.
+
 The **⧉** button at the start of the drawing buttons detaches them as a
 small floating bar that stays on top of every window, so you can keep it
 where it suits you. Click **⧉** again, or close the bar, to put it back.

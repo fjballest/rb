@@ -5,10 +5,11 @@
 import json
 
 from PySide6.QtCore import QSettings, QSize, Qt
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPixmap
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-	QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QLabel, QLayout, QLineEdit,
-	QMainWindow, QMenu, QMessageBox, QStatusBar, QToolBar, QToolButton, QVBoxLayout, QWidget
+	QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLayout,
+	QLineEdit, QListWidget, QMainWindow, QMenu, QMessageBox, QPushButton, QStatusBar, QToolBar, QToolButton, QVBoxLayout,
+	QWidget
 )
 
 from drawing import FIBALL, FIBROWS, FIBSETS, RECTSETS, fmtlevels, parselevels
@@ -54,6 +55,132 @@ def customrows():
 	rows += [(False, "")] * (FIBROWS - len(rows))
 	return rows, diag
 
+# the sets saved by name from the custom forms, in the menus after the built-in ones
+def savedfibs():
+	"""{name: {"levels": [...], "diagonal": bool}}"""
+	try:
+		d = json.loads(str(fibsettings().value("savedfibs", "") or "{}"))
+		return {str(n): {"levels": [float(l) for l in v["levels"]], "diagonal": bool(v.get("diagonal"))}
+			for n, v in d.items() if v.get("levels")}
+	except (ValueError, KeyError, TypeError, AttributeError):
+		return {}
+
+def savefib(name, levels, diagonal):
+	d = savedfibs()
+	d[name] = {"levels": list(levels), "diagonal": bool(diagonal)}
+	fibsettings().setValue("savedfibs", json.dumps(d))
+
+# what is saved of each kind of shape: its look, not its size or place
+SHAPEKEYS = {
+	"rect": ("color", "width", "fill", "alpha", "middle", "midcolor", "label", "align", "labelcolor", "dash"),
+	"line": ("color", "width", "dash", "label", "labelcolor", "valign", "align"),
+	"arrow": ("color", "width", "dash", "label", "labelcolor", "valign", "align"),
+	"circle": ("color", "width", "dash", "label", "labelcolor", "valign", "align"),
+}
+SHAPENAMES = {"rect": "Rect", "line": "Line", "arrow": "Arrow", "circle": "Circle", "fib": "Fib"}
+
+def savedkey(kind):
+	return "savedfibs" if kind == "fib" else f"saved{kind}s"
+
+def savedshapes(kind):
+	"""{name: the properties of the shape, as in RECTSETS}, in their order"""
+	try:
+		d = json.loads(str(fibsettings().value(savedkey(kind), "") or "{}"))
+		return {str(n): {k: v[k] for k in SHAPEKEYS[kind] if k in v} for n, v in d.items() if "color" in v}
+	except (ValueError, TypeError, AttributeError):
+		return {}
+
+def saveshape(kind, name, preset):
+	d = savedshapes(kind)
+	d[name] = {k: preset[k] for k in SHAPEKEYS[kind] if k in preset}
+	fibsettings().setValue(savedkey(kind), json.dumps(d))
+
+def saved(kind):
+	return savedfibs() if kind == "fib" else savedshapes(kind)
+
+def setsaved(kind, d):
+	"""keep d, {name: what is saved}, as the sets saved of kind, in its order"""
+	fibsettings().setValue(savedkey(kind), json.dumps(d))
+
+class SavedDialog(QDialog):
+	"""the sets saved in a menu: rename, remove or move them"""
+	def __init__(self, kind, taken, parent=None):
+		super().__init__(parent)
+		self.kind = kind
+		self.taken = set(taken)
+		self.sets = dict(saved(kind))
+		self.setWindowTitle(f"Saved {SHAPENAMES[kind]}s")
+		lay = QVBoxLayout(self)
+		lay.addWidget(QLabel(f"The ones saved in the {SHAPENAMES[kind]} menu. Double click one to rename it."))
+		row = QHBoxLayout()
+		self.list = QListWidget()
+		self.list.addItems(list(self.sets))
+		for i in range(self.list.count()):
+			it = self.list.item(i)
+			it.setFlags(it.flags() | Qt.ItemFlag.ItemIsEditable)
+			it.setData(Qt.ItemDataRole.UserRole, it.text())
+		self.list.itemChanged.connect(self.renamed)
+		row.addWidget(self.list, 1)
+		col = QVBoxLayout()
+		for text, fn in (("Rename", self.rename), ("Remove", self.remove), ("Up", lambda: self.move(-1)),
+				("Down", lambda: self.move(1))):
+			b = QPushButton(text)
+			b.setAutoDefault(False)
+			b.clicked.connect(fn)
+			col.addWidget(b)
+		col.addStretch()
+		row.addLayout(col)
+		lay.addLayout(row)
+		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+		bb.accepted.connect(self.accept)
+		bb.rejected.connect(self.reject)
+		lay.addWidget(bb)
+		if self.list.count():
+			self.list.setCurrentRow(0)
+
+	def names(self):
+		return [self.list.item(i).text() for i in range(self.list.count())]
+
+	def rename(self):
+		it = self.list.currentItem()
+		if it is not None:
+			self.list.editItem(it)
+
+	def renamed(self, it):
+		old = it.data(Qt.ItemDataRole.UserRole)
+		new = " ".join(it.text().split())
+		if not new or new in self.taken or self.names().count(new) > 1:
+			if new and new != old:
+				QMessageBox.warning(self, self.windowTitle(), f"{new} is already in the menu.")
+			self.list.blockSignals(True)
+			it.setText(old)
+			self.list.blockSignals(False)
+			return
+		self.list.blockSignals(True)
+		it.setText(new)
+		it.setData(Qt.ItemDataRole.UserRole, new)
+		self.list.blockSignals(False)
+		self.sets[new] = self.sets.pop(old)
+
+	def remove(self):
+		r = self.list.currentRow()
+		if r >= 0:
+			it = self.list.takeItem(r)
+			self.sets.pop(it.text(), None)
+
+	def move(self, d):
+		r = self.list.currentRow()
+		if 0 <= r + d < self.list.count() and r >= 0:
+			self.list.blockSignals(True)
+			it = self.list.takeItem(r)
+			self.list.insertItem(r + d, it)
+			self.list.setCurrentRow(r + d)
+			self.list.blockSignals(False)
+
+	def result_(self):
+		"""what is saved, in the order shown"""
+		return {n: self.sets[n] for n in self.names()}
+
 def rowlevels(rows):
 	"""the levels of the rows that are on, sorted; ValueError if one is not
 	a number or there are none"""
@@ -69,8 +196,9 @@ def customlevels():
 class FibDialog(QDialog):
 	"""the custom fib levels: FIBROWS levels in two columns, each one with a
 	check to use it, and whether to draw the diagonal"""
-	def __init__(self, rows, diagonal, parent=None):
+	def __init__(self, rows, diagonal, parent=None, taken=()):
 		super().__init__(parent)
+		self.taken = set(taken)	# names that can't be used: the built-in sets
 		self.setWindowTitle("Custom Fib Levels")
 		lay = QVBoxLayout(self)
 		lay.addWidget(QLabel("The levels checked are drawn: 0 is at the second point, 1 at the first."))
@@ -95,7 +223,23 @@ class FibDialog(QDialog):
 		self.diagbox = QCheckBox("Draw the diagonal")
 		self.diagbox.setToolTip("the dashed line from the first point to the second")
 		self.diagbox.setChecked(diagonal)
-		lay.addWidget(self.diagbox)
+		row = QHBoxLayout()
+		row.addWidget(self.diagbox)
+		row.addStretch()
+		clear = QPushButton("Clear")
+		clear.setToolTip("uncheck all the levels")
+		clear.setAutoDefault(False)
+		clear.clicked.connect(self.clear)
+		row.addWidget(clear)
+		lay.addLayout(row)
+		row = QHBoxLayout()
+		row.addWidget(QLabel("Name:"))
+		self.namebox = QLineEdit()
+		self.namebox.setPlaceholderText("to keep these levels in the Fib menu")
+		self.namebox.setToolTip("a short name, like OTE2; the levels are saved under it and show up "
+			"in the menu. The same name replaces them")
+		row.addWidget(self.namebox, 1)
+		lay.addLayout(row)
 		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 		bb.accepted.connect(self.accept)
 		bb.rejected.connect(self.reject)
@@ -107,7 +251,18 @@ class FibDialog(QDialog):
 	def diagonal(self):
 		return self.diagbox.isChecked()
 
+	def clear(self):
+		for c in self.checks:
+			c.setChecked(False)
+
+	def name(self):
+		return " ".join(self.namebox.text().split())
+
 	def accept(self):
+		if self.name() in self.taken:
+			QMessageBox.warning(self, "Fib levels", f"{self.name()} is one of the sets already in the menu; "
+				"give these levels another name.")
+			return
 		bad = [t for on, t in self.rows() if on and t]
 		bad = [t for t in bad if not isnumber(t)]
 		if bad:
@@ -146,14 +301,30 @@ class FloatBar(QWidget):
 def rectswatch(d):
 	"""an icon for the rectangle preset d: its fill and border"""
 	pm = QPixmap(16, 12)
-	c = QColor(d["fill"])
-	c.setAlpha(max(d["alpha"], 90))
+	c = QColor(d.get("fill") or "#ffffff")
+	c.setAlpha(max(d.get("alpha", 64), 90) if d.get("fill") else 255)
 	pm.fill(c)
 	p = QPainter(pm)
 	p.setPen(QColor(d["color"]))
 	p.drawRect(0, 0, 15, 11)
 	p.setPen(QColor(d.get("midcolor") or d["color"]))
 	p.drawLine(2, 6, 13, 6)
+	p.end()
+	return QIcon(pm)
+
+def lineswatch(d, kind):
+	"""an icon for a saved line, arrow or circle: its color and style"""
+	pm = QPixmap(16, 12)
+	pm.fill(Qt.GlobalColor.transparent)
+	p = QPainter(pm)
+	p.setRenderHint(QPainter.RenderHint.Antialiasing)
+	pen = QPen(QColor(d.get("color", "#000000")), min(3.0, float(d.get("width", 2))))
+	pen.setStyle({"dash": Qt.PenStyle.DashLine, "dot": Qt.PenStyle.DotLine}.get(d.get("dash"), Qt.PenStyle.SolidLine))
+	p.setPen(pen)
+	if kind == "circle":
+		p.drawEllipse(2, 1, 12, 10)
+	else:
+		p.drawLine(1, 10, 14, 2)
 	p.end()
 	return QIcon(pm)
 
@@ -188,8 +359,11 @@ class DrawBar(QToolBar):
 			self.addAction(a)
 			self.toolacts[tool] = a
 		self.toolacts["select"].setChecked(True)
+		self.shapeacts, self.shapenames = {}, {}
 		self.mkfibmenu()
-		self.mkrectmenu()
+		for kind in ("rect", "line", "arrow", "circle"):
+			self.mkshapemenu(kind)
+		view.shapesaved.connect(self.shapesaved)
 		view.toolchanged.connect(self.toolchanged)
 		self.addSeparator()
 		self.colorbtn = QToolButton(self)
@@ -280,73 +454,154 @@ class DrawBar(QToolBar):
 		self.crossact.setChecked(on)
 		fibsettings().setValue("crosshair", on)
 
+	def fibsets(self):
+		"""the levels in the menu, built-in and saved: {name: (levels, diagonal)}"""
+		sets = {n: (ls, False) for n, ls in FIBSETS.items()}
+		for n, v in savedfibs().items():
+			sets.setdefault(n, (v["levels"], v["diagonal"]))
+		return sets
+
 	def mkfibmenu(self):
 		a = self.toolacts["fib"]
 		m = QMenu(self)
 		g = QActionGroup(m)
 		self.fibacts = {}
-		for name, levels in FIBSETS.items():
+		mine = [n for n in savedfibs() if n not in FIBSETS]
+		for name, (levels, _) in self.fibsets().items():
+			if mine and name == mine[0]:
+				m.addSeparator()
 			x = m.addAction(f"{name}: {fmtlevels(levels)}")
 			x.triggered.connect(lambda _=False, n=name: self.setfib(n))
 			self.fibacts[name] = x
+		m.addSeparator()
 		x = m.addAction("Custom…")
+		x.setToolTip("your own levels; give them a name to keep them in this menu")
 		x.triggered.connect(lambda _=False: self.setfib("Custom"))
 		self.fibacts["Custom"] = x
 		for x in self.fibacts.values():
 			x.setCheckable(True)
 			g.addAction(x)
+		self.editsavedact(m, "fib", bool(mine))
+		self.setmenu(a, m)
+		if getattr(self, "fibname", None) not in self.fibacts:
+			self.fibname = "OTE"
+		self.fibacts[self.fibname].setChecked(True)
+
+	def setmenu(self, a, m):
+		old = a.menu()
 		a.setMenu(m)
+		if old is not None:
+			old.deleteLater()
 		b = self.widgetForAction(a)
 		if b is not None:
 			b.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-		self.fibname = "OTE"
-		self.fibacts["OTE"].setChecked(True)
 
-	def mkrectmenu(self):
-		a = self.toolacts["rect"]
+	def editsavedact(self, m, kind, on):
+		x = m.addAction("Edit Saved…")
+		x.setToolTip("rename, remove or reorder the ones saved")
+		x.setEnabled(on)
+		x.triggered.connect(lambda _=False: self.editsaved(kind))
+
+	def builtin(self, kind):
+		"""the names in the menu of kind that are not saved ones"""
+		return {"fib": tuple(FIBSETS) + ("Custom",), "rect": ("Plain",) + tuple(RECTSETS)}.get(kind, ("Plain",))
+
+	def editsaved(self, kind):
+		dlg = SavedDialog(kind, self.builtin(kind), self.window())
+		self.saveddlg = dlg	# for the tests
+		if dlg.exec() == QDialog.DialogCode.Accepted:
+			setsaved(kind, dlg.result_())
+			self.remakemenu(kind)
+		dlg.deleteLater()
+		self.saveddlg = None
+
+	def remakemenu(self, kind):
+		if kind == "fib":
+			self.mkfibmenu()
+		else:
+			self.mkshapemenu(kind)
+
+	def shapesets(self, kind):
+		"""the looks in the menu of kind, built-in and saved: {name: properties}"""
+		sets = dict(RECTSETS) if kind == "rect" else {}
+		for n, v in savedshapes(kind).items():
+			sets.setdefault(n, v)
+		return sets
+
+	def mkshapemenu(self, kind):
+		"""the menu of the tool for kind (rect, line, arrow, circle): a plain
+		one, the built-in looks (rectangles) and the ones saved"""
+		a = self.toolacts[kind]
 		m = QMenu(self)
 		g = QActionGroup(m)
-		self.rectacts = {}
-		for name in ("Plain",) + tuple(RECTSETS):
-			x = m.addAction(name if name != "Plain" else "Plain: just the border")
+		acts = self.shapeacts[kind] = {}
+		sets = self.shapesets(kind)
+		mine = [n for n in savedshapes(kind) if n not in self.builtin(kind)]
+		plain = "Plain: just the border" if kind == "rect" else "Plain: the color, width and style chosen"
+		for name in ("Plain",) + tuple(sets):
+			if mine and name == mine[0]:
+				m.addSeparator()
+			x = m.addAction(plain if name == "Plain" else name)
 			if name != "Plain":
-				x.setIcon(rectswatch(RECTSETS[name]))
+				x.setIcon(rectswatch(sets[name]) if kind == "rect" else lineswatch(sets[name], kind))
 			x.setCheckable(True)
 			g.addAction(x)
-			x.triggered.connect(lambda _=False, n=name: self.setrect(n))
-			self.rectacts[name] = x
-		a.setMenu(m)
-		b = self.widgetForAction(a)
-		if b is not None:
-			b.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-		self.rectname = "Plain"
-		self.rectacts["Plain"].setChecked(True)
+			x.triggered.connect(lambda _=False, n=name: self.setshape(kind, n))
+			acts[name] = x
+		m.addSeparator()
+		h = m.addAction(f"To save one: double click it and give it a name")
+		h.setEnabled(False)
+		self.editsavedact(m, kind, bool(mine))
+		self.setmenu(a, m)
+		if self.shapenames.get(kind) not in acts:
+			self.shapenames[kind] = "Plain"
+			self.view.setpreset(kind, None)
+		acts[self.shapenames[kind]].setChecked(True)
+		if kind == "rect":	# the names used before
+			self.rectacts, self.rectname = acts, self.shapenames[kind]
+
+	def shapesaved(self, kind, name, preset):
+		"""a shape was saved with a name in its form: keep it in the menu"""
+		saveshape(kind, name, preset)
+		self.remakemenu(kind)
+
+	def setshape(self, kind, name):
+		"""draw shapes of kind with the look name (Plain, built-in or saved);
+		the ones selected change to it"""
+		self.shapenames[kind] = name
+		self.shapeacts[kind][name].setChecked(True)
+		if kind == "rect":
+			self.rectname = name
+		self.view.setpreset(kind, self.shapesets(kind).get(name))
+		if not any(getattr(it, "kind", "") == kind for it in self.view.scene().selectedItems()):
+			self.view.settool(kind)
 
 	def setrect(self, name):
-		"""draw rectangles of kind name (Plain or one of RECTSETS); the ones
-		selected change to it"""
-		self.rectname = name
-		self.rectacts[name].setChecked(True)
-		self.view.setrectpreset(RECTSETS.get(name))
-		if not any(getattr(it, "kind", "") == "rect" for it in self.view.scene().selectedItems()):
-			self.view.settool("rect")
+		self.setshape("rect", name)
 
 	def setfib(self, name):
 		"""use the levels of set name for the fibs, asking for the custom ones"""
 		diagonal = False
 		if name == "Custom":
 			rows, diagonal = customrows()
-			dlg = FibDialog(rows, diagonal, self.window())
+			dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",))
+			self.fibdlg = dlg	# for the tests
 			ok = dlg.exec()
-			rows, diagonal = dlg.rows(), dlg.diagonal()
+			rows, diagonal, saveas = dlg.rows(), dlg.diagonal(), dlg.name()
 			dlg.deleteLater()
+			self.fibdlg = None
 			if not ok:
 				self.fibacts[self.fibname].setChecked(True)
 				return
 			fibsettings().setValue("customfibrows", json.dumps({"rows": rows, "diagonal": diagonal}))
 			levels = rowlevels(rows)
+			if saveas:
+				savefib(saveas, levels, diagonal)
+				self.fibname = saveas
+				self.mkfibmenu()
+				name = saveas
 		else:
-			levels = FIBSETS[name]
+			levels, diagonal = self.fibsets()[name]
 		self.fibname = name
 		self.fibacts[name].setChecked(True)
 		self.view.setfiblevels(levels, diagonal)

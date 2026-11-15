@@ -8,12 +8,12 @@ from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor, QIcon, QImage, QPainter, QPen, QPixmap, QUndoStack
 from PySide6.QtWidgets import (
 	QApplication, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGraphicsPixmapItem,
-	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSlider
+	QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSlider
 )
 
 from drawing import (
 	DRAWVERSION, FIBSETS, AddCmd, CircleShape, DeleteCmd, FibShape, LevelsCmd, LineShape, MoveCmd, PencilShape,
-	PropsCmd, RectShape, StyleCmd, TextCmd, TextShape, allprops, fromdict
+	PropsCmd, RECTSETS, RectShape, StyleCmd, TextCmd, TextShape, allprops, fromdict
 )
 
 DCLICKZOOM = 2.0
@@ -29,6 +29,7 @@ class ImageView(QGraphicsView):
 	drawchanged = Signal()		# the drawings changed
 	toolchanged = Signal(str)
 	crosschanged = Signal(bool)	# the crosshair was turned on or off
+	shapesaved = Signal(str, str, dict)	# the look of a shape of kind was saved with this name
 
 	def __init__(self, parent=None):
 		super().__init__(parent)
@@ -53,6 +54,7 @@ class ImageView(QGraphicsView):
 		self.fiblevels = list(FIBSETS["OTE"])
 		self.fibdiagonal = False
 		self.rectpreset = None	# the RECTSETS entry for the next rectangles, None for a plain one
+		self.presets = {}		# kind -> the look for the next shapes of it (see setpreset)
 		self.fibdone = QTimer(self, singleShot=True)	# a click ends it, unless it was a double click
 		self.fibdone.setInterval(QApplication.doubleClickInterval())
 		self.fibdone.timeout.connect(lambda: self.endfib(False))
@@ -134,15 +136,21 @@ class ImageView(QGraphicsView):
 		it; the drawing shows the changes while it is open"""
 		before = allprops(it)
 		dlg = RectDialog(it, self) if isinstance(it, RectShape) else ShapeDialog(it, self)
+		self.shapedlg = dlg	# for the tests
 		dlg.changed.connect(lambda: it.setprops(dlg.props()))
 		ok = dlg.exec() == QDialog.DialogCode.Accepted
 		after = dict(before)
 		after.update(dlg.props())
 		dlg.deleteLater()
+		saveas = dlg.name() if ok else ""
 		if ok and after != before:
 			self.undo.push(PropsCmd(it, before, after))
-		else:
+		elif not ok:
 			it.setprops(before)
+		if saveas:
+			preset = {"color": it.color, "width": it.width, "dash": it.dash}
+			preset.update({k: v for k, v in after.items() if k != "size"})
+			self.shapesaved.emit(it.kind, saveas, preset)
 		self.drawchanged.emit()
 
 	def setselprops(self, d, text):
@@ -252,13 +260,19 @@ class ImageView(QGraphicsView):
 			self.undo.push(LevelsCmd(sel, levels, diagonal))
 
 	def setrectpreset(self, preset):
-		"""the RECTSETS entry for the next rectangles (None for a plain one),
-		and for the rectangles selected"""
-		self.rectpreset = dict(preset) if preset else None
-		sel = [it for it in self.scene().selectedItems() if isinstance(it, RectShape)]
+		self.setpreset("rect", preset)
+
+	def setpreset(self, kind, preset):
+		"""the look for the next shapes of kind (rect, line, arrow, circle: a
+		RECTSETS entry or one saved; None for the plain one), and for the
+		ones selected"""
+		self.presets[kind] = dict(preset) if preset else None
+		if kind == "rect":
+			self.rectpreset = self.presets[kind]
+		sel = [it for it in self.scene().selectedItems() if getattr(it, "kind", "") == kind]
 		if not sel or not preset:
 			return
-		self.undo.beginMacro("Change rectangles")
+		self.undo.beginMacro("Change drawings")
 		for it in sel:
 			before = {k: getattr(it, k) for k in preset}
 			it.setprops(preset)
@@ -340,11 +354,16 @@ class ImageView(QGraphicsView):
 			focus.clearFocus()	# ends editing a text
 		self.scene().clearSelection()
 		if self.tool in ("line", "arrow"):
-			self.drawing = LineShape(p, p, self.color, self.width, self.tool == "arrow", self.dash, size=self.textsize)
+			d = {"dash": self.dash, "size": self.textsize}
+			d.update(self.presets.get(self.tool) or {})
+			self.drawing = LineShape(p, p, d.pop("color", self.color), d.pop("width", self.width),
+				self.tool == "arrow", **d)
 		elif self.tool == "pencil":
 			self.drawing = PencilShape([p], self.color, self.width, self.dash)
 		elif self.tool == "circle":
-			self.drawing = CircleShape(QRectF(p, p), self.color, self.width, self.dash, size=self.textsize)
+			d = {"dash": self.dash, "size": self.textsize}
+			d.update(self.presets.get("circle") or {})
+			self.drawing = CircleShape(QRectF(p, p), d.pop("color", self.color), d.pop("width", self.width), **d)
 		elif self.tool == "rect":
 			d = {"dash": self.dash, "size": self.textsize}
 			d.update(self.rectpreset or {})
@@ -588,6 +607,23 @@ class ImageView(QGraphicsView):
 
 ALIGNS = (("Center", "center"), ("Left", "left"), ("Right", "right"))
 
+def namerow(dlg, form, menu, taken):
+	"""the Save as field of the form for a shape: a name to keep its look
+	in the menu of its tool"""
+	dlg.namebox = QLineEdit()
+	dlg.namebox.setPlaceholderText(f"to keep this look in the {menu} menu")
+	dlg.namebox.setToolTip(f"a short name, like OB; how it looks (color, width, style, label...) is "
+		f"saved under it and shows up in the {menu} menu. The same name replaces it")
+	form.addRow("Save as:", dlg.namebox)
+	dlg.taken = taken
+
+def nametaken(dlg):
+	"""warn when the name given is one of the built-in ones"""
+	if dlg.name() in dlg.taken:
+		QMessageBox.warning(dlg, dlg.windowTitle(), f"{dlg.name()} is already in the menu; use another name.")
+		return True
+	return False
+
 class RectDialog(QDialog):
 	"""asks for the fill, middle line and label of a rectangle; changed is
 	emitted on every change, to show it"""
@@ -635,6 +671,7 @@ class RectDialog(QDialog):
 		form.addRow("Aligned:", self.align)
 		self.labelcolor = ColorButton(it.labelcolor or it.color, "Label color", self)
 		form.addRow("Label color:", self.labelcolor)
+		namerow(self, form, "Rect", set(RECTSETS) | {"Plain"})
 		self.color = it.color
 		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 		bb.accepted.connect(self.accept)
@@ -647,6 +684,14 @@ class RectDialog(QDialog):
 		for sig in (self.fillbox.toggled, self.alpha.valueChanged, self.middlebox.toggled, self.midcolor.picked,
 				self.label.textChanged, self.align.currentIndexChanged, self.labelcolor.picked):
 			sig.connect(lambda *_: self.changed.emit())
+
+	def name(self):
+		return " ".join(self.namebox.text().split())
+
+	def accept(self):
+		if nametaken(self):
+			return
+		super().accept()
 
 	def enable(self):
 		on = self.fillbox.isChecked()
@@ -746,6 +791,7 @@ class ShapeDialog(QDialog):
 		self.labelsame = it.labelcolor is None	# the label follows the color until one is picked
 		self.labelcolor.picked.connect(self.labelpicked)
 		self.color.picked.connect(self.colorpicked)
+		namerow(self, form, {"line": "Line", "arrow": "Arrow", "circle": "Circle"}.get(it.kind, "Line"), {"Plain"})
 		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 		bb.accepted.connect(self.accept)
 		bb.rejected.connect(self.reject)
@@ -754,6 +800,14 @@ class ShapeDialog(QDialog):
 				self.label.textChanged, self.valign.currentIndexChanged, self.align.currentIndexChanged,
 				self.size.currentIndexChanged, self.labelcolor.picked):
 			sig.connect(lambda *_: self.changed.emit())
+
+	def name(self):
+		return " ".join(self.namebox.text().split())
+
+	def accept(self):
+		if nametaken(self):
+			return
+		super().accept()
 
 	def colorpicked(self):
 		if self.labelsame:

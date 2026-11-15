@@ -394,6 +394,17 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   button or Esc drops it. The custom form (`FibDialog`) has 20 rows
   (check, level) and the diagonal box; it is kept as JSON under
   `customfibrows`.
+- Sets saved by name: the custom fib levels (`FibDialog`'s Name, `savefib`,
+  `savedfibs`) and the look of rectangles, lines, arrows and circles (the
+  Save as field `namerow` adds to `RectDialog` and `ShapeDialog`; the view
+  emits `shapesaved(kind, name, preset)` and `DrawBar.shapesaved` keeps the
+  `SHAPEKEYS` of it with `saveshape`), as JSON under `savedfibs`,
+  `savedrects`, `savedlines`, `savedarrows` and `savedcircles` in
+  `QSettings("fjballest", "drawing")`. `mkfibmenu` and `mkshapemenu(kind)`
+  rebuild the menus after them; picking one calls `ImageView.setpreset(kind,
+  preset)` (`presets`, used when the next shape of that kind is made, and
+  applied to the ones selected). `SavedDialog` (Edit Saved…) renames,
+  removes and reorders them; built-in names can't be used.
 - The Rect menu of `DrawBar` picks a preset of `drawing.RECTSETS` (BRK, MB,
   FVG, IFVG+, IFVG-: colors, fill, middle line, label), kept in
   `ImageView.rectpreset` for the next rectangles; with rectangles selected
