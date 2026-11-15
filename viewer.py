@@ -856,6 +856,14 @@ class ShapeDialog(QDialog):
 		self.labelsame = it.labelcolor is None	# the label follows the color until one is picked
 		self.labelcolor.picked.connect(self.labelpicked)
 		self.color.picked.connect(self.colorpicked)
+		self.extend = None
+		if it.kind == "line":
+			self.extend = QCheckBox("Extend across the image")
+			self.extend.setChecked(it.extend)
+			self.extend.setToolTip("a horizontal line goes to the left and right edges, a vertical one "
+				"to the top and bottom, any other to where it meets the edges")
+			form.addRow("", self.extend)
+			self.extend.toggled.connect(lambda *_: self.changed.emit())
 		namerow(self, form, {"line": "Line", "arrow": "Arrow", "circle": "Circle"}.get(it.kind, "Line"), {"Plain"})
 		bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 		bb.accepted.connect(self.accept)
@@ -885,4 +893,5 @@ class ShapeDialog(QDialog):
 		return {"color": self.color.color, "width": self.width.currentData(), "dash": self.dash.currentData(),
 			"label": self.label.text().strip(), "valign": self.valign.currentData(),
 			"align": self.align.currentData(), "size": self.size.currentData(),
-			"labelcolor": None if self.labelsame else self.labelcolor.color}
+			"labelcolor": None if self.labelsame else self.labelcolor.color} | (
+			{"extend": self.extend.isChecked()} if self.extend is not None else {})

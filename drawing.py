@@ -85,20 +85,25 @@ def labeldict(it, d):
 class LineShape(QGraphicsLineItem):
 	"""a line, with a head at its end when arrow, solid, dashed or dotted
 	(dash), and a label above, across or below it (valign) at its left end,
-	its middle or past its right end (align). Double click calls edit(self)"""
-	PROPS = ("dash", "label", "labelcolor", "valign", "align", "size")
+	its middle or past its right end (align). A line (not an arrow) can
+	extend across the image: a horizontal one to the left and right edges,
+	a vertical one to the top and bottom, any other to where it meets them.
+	Double click calls edit(self)"""
+	PROPS = ("dash", "label", "labelcolor", "valign", "align", "size", "extend")
 
 	def __init__(self, p1, p2, color, width, arrow=False, dash="solid", label="", labelcolor=None,
-			valign="above", align="center", size=LABELSIZE):
+			valign="above", align="center", size=LABELSIZE, extend=False):
 		super().__init__(QLineF(p1, p2))
 		self.kind = "arrow" if arrow else "line"
 		self.color = color
 		self.width = width
 		self.dash, self.label, self.labelcolor, self.valign, self.align, self.size = (
 			dash, label, labelcolor, valign, align, size)
+		self.extend = bool(extend)
 		self.edit = None
 		self.setPen(mkpen(color, width, dash))
-		self.setFlags(FLAGS)
+		# extended, its ends depend on where it is on the image
+		self.setFlags(FLAGS | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 		self.setZValue(ZDRAW)
 
 	def setstyle(self, color, width):
@@ -108,6 +113,32 @@ class LineShape(QGraphicsLineItem):
 
 	def setprops(self, d):
 		setprops(self, d)
+
+	def itemChange(self, change, value):
+		if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and self.extended():
+			self.prepareGeometryChange()
+		return super().itemChange(change, value)
+
+	def extended(self):
+		return self.extend and self.kind == "line" and self.scene() is not None
+
+	def drawn(self):
+		"""the line as drawn: extended to the edges of the image, if so"""
+		l = self.line()
+		if not self.extended() or l.length() < 1e-6:
+			return l
+		r = self.mapRectFromScene(self.scene().sceneRect())
+		lo, hi = -math.inf, math.inf	# where it is inside r, as l.p1() + t (l.p2() - l.p1())
+		for a, d, mn, mx in ((l.x1(), l.dx(), r.left(), r.right()), (l.y1(), l.dy(), r.top(), r.bottom())):
+			if abs(d) < 1e-9:
+				if not mn <= a <= mx:
+					return l
+				continue
+			t1, t2 = sorted(((mn - a) / d, (mx - a) / d))
+			lo, hi = max(lo, t1), min(hi, t2)
+		if lo > hi:
+			return l
+		return QLineF(l.pointAt(lo), l.pointAt(hi))
 
 	def head(self):
 		l = self.line()
@@ -139,7 +170,8 @@ class LineShape(QGraphicsLineItem):
 		return inscene(self, QRectF(x, top, w, h))
 
 	def boundingRect(self):
-		r = super().boundingRect()
+		d = self.drawn()
+		r = super().boundingRect().united(QRectF(d.p1(), d.p2()).normalized())
 		h = self.head()
 		if h is not None:
 			r = r.united(h.boundingRect())
@@ -150,7 +182,7 @@ class LineShape(QGraphicsLineItem):
 
 	def shape(self):
 		path = QPainterPath()
-		l = self.line()
+		l = self.drawn()
 		path.moveTo(l.p1())
 		path.lineTo(l.p2())
 		s = QPainterPathStroker()
@@ -182,7 +214,7 @@ class LineShape(QGraphicsLineItem):
 			painter.setPen(mkpen(self.color, 1))
 			painter.drawPolygon(h)
 		else:
-			painter.drawLine(l)
+			painter.drawLine(self.drawn())
 		if lr is not None:
 			painter.restore()
 		if self.isSelected():
@@ -199,7 +231,10 @@ class LineShape(QGraphicsLineItem):
 	def todict(self):
 		l = self.line()
 		p1, p2 = self.mapToScene(l.p1()), self.mapToScene(l.p2())
-		return labeldict(self, {"kind": self.kind, "p1": pt(p1), "p2": pt(p2), "color": self.color, "width": self.width})
+		d = labeldict(self, {"kind": self.kind, "p1": pt(p1), "p2": pt(p2), "color": self.color, "width": self.width})
+		if self.extend and self.kind == "line":
+			d["extend"] = True
+		return d
 
 	def setend(self, p):
 		self.prepareGeometryChange()
@@ -235,7 +270,7 @@ class CircleShape(QGraphicsEllipseItem):
 	"""a circle or ellipse, solid, dashed or dotted (dash), with a label
 	above, across or below it (valign), at its left, middle or right
 	(align). Double click calls edit(self)"""
-	PROPS = LineShape.PROPS
+	PROPS = ("dash", "label", "labelcolor", "valign", "align", "size")
 
 	def __init__(self, rect, color, width, dash="solid", label="", labelcolor=None, valign="above",
 			align="center", size=LABELSIZE):
@@ -322,9 +357,10 @@ class CircleShape(QGraphicsEllipseItem):
 		r = self.rect()
 		return r.width() < 4 and r.height() < 4
 
-	# its corners can be dragged when it is selected (see handles)
+	# its corners, and the middle of its sides, can be dragged when it is
+	# selected (see handles)
 	def handles(self):
-		return [self.mapToScene(c) for c in corners(self.rect())]
+		return [self.mapToScene(c) for c in corners(self.rect()) + sides(self.rect())]
 
 	def geom(self):
 		return QRectF(self.rect())
@@ -335,8 +371,10 @@ class CircleShape(QGraphicsEllipseItem):
 		self.origin = g.topLeft()
 
 	def movehandle(self, i, p, start, straight=False):
-		"""move corner i to scene point p, the opposite one staying put"""
-		self.setgeom(QRectF(corners(start)[(i + 2) % 4], self.mapFromScene(p)).normalized())
+		"""move corner i (0 to 3) to scene point p, the opposite one staying
+		put; straight moves it only across or only up and down, as the mouse
+		goes most. Handles 4 to 7 move just the left, right, top or bottom side."""
+		self.setgeom(reshaped(start, i, self.mapFromScene(p), straight))
 
 # the rectangles in the menu of the Rect tool: their border, fill, middle line and label
 RECTSETS = {
@@ -493,9 +531,10 @@ class RectShape(QGraphicsRectItem):
 		r = self.rect()
 		return r.width() < 4 and r.height() < 4
 
-	# its corners can be dragged when it is selected (see handles)
+	# its corners, and the middle of its sides, can be dragged when it is
+	# selected (see handles)
 	def handles(self):
-		return [self.mapToScene(c) for c in corners(self.rect())]
+		return [self.mapToScene(c) for c in corners(self.rect()) + sides(self.rect())]
 
 	def geom(self):
 		return QRectF(self.rect())
@@ -506,8 +545,10 @@ class RectShape(QGraphicsRectItem):
 		self.origin = g.topLeft()
 
 	def movehandle(self, i, p, start, straight=False):
-		"""move corner i to scene point p, the opposite one staying put"""
-		self.setgeom(QRectF(corners(start)[(i + 2) % 4], self.mapFromScene(p)).normalized())
+		"""move corner i (0 to 3) to scene point p, the opposite one staying
+		put; straight moves it only across or only up and down, as the mouse
+		goes most. Handles 4 to 7 move just the left, right, top or bottom side."""
+		self.setgeom(reshaped(start, i, self.mapFromScene(p), straight))
 
 class PencilShape(QGraphicsPathItem):
 	"""a free hand stroke"""
@@ -864,6 +905,26 @@ def corners(r):
 	"""the corners of rectangle r, clockwise from the top left"""
 	return [r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()]
 
+def sides(r):
+	"""the middle of the left, right, top and bottom sides of rectangle r"""
+	c = r.center()
+	return [QPointF(r.left(), c.y()), QPointF(r.right(), c.y()), QPointF(c.x(), r.top()), QPointF(c.x(), r.bottom())]
+
+def reshaped(r, i, q, straight=False):
+	"""rectangle r with its handle i (corners, then sides) dragged to q"""
+	r = QRectF(r)
+	if i >= 4:
+		{4: r.setLeft, 5: r.setRight, 6: r.setTop, 7: r.setBottom}[i](q.x() if i < 6 else q.y())
+		return r.normalized()
+	c = corners(r)[i]
+	if straight:
+		q = QPointF(q)
+		if abs(q.x() - c.x()) >= abs(q.y() - c.y()):
+			q.setY(c.y())
+		else:
+			q.setX(c.x())
+	return QRectF(corners(r)[(i + 2) % 4], q).normalized()
+
 def selpen(painter):
 	p = QPen(QColor(30, 120, 255), 0, Qt.PenStyle.DashLine)
 	painter.setPen(p)
@@ -885,7 +946,7 @@ def fromdict(d):
 			"size": float(d.get("size", LABELSIZE))}
 		if k in ("line", "arrow"):
 			return LineShape(QPointF(*d["p1"]), QPointF(*d["p2"]), color, float(d.get("width", 3)), k == "arrow",
-				dash, **label)
+				dash, **label, extend=bool(d.get("extend")))
 		if k == "circle":
 			return CircleShape(QRectF(*d["rect"]), color, float(d.get("width", 3)), dash, **label)
 		if k == "rect":

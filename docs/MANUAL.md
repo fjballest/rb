@@ -328,7 +328,7 @@ The toolbar at the top of the graphics window draws on the graph:
 
 | Tool | Key | What it does |
 |------|-----|--------------|
-| Select | S | click a drawing to select it, shift-click to add more, drag to move them; drag a handle (the small squares on the one selected: a line's ends, a box's corners, a fib's points and right end) to reshape it; drag the graph itself to move around |
+| Select | S | click a drawing to select it, shift-click to add more, drag to move them; drag a handle (the small squares on the one selected: a line's ends, a box's corners and sides, a fib's points and right end) to reshape it, a side moving only that side, and shift keeping a line's end or a corner level or plumb; drag the graph itself to move around |
 | Pencil | P | draws free hand |
 | Line, Arrow | L, A | drag from one end to the other; hold shift when you let go to keep it horizontal or vertical |
 | Circle | C | drag across the box of a circle or ellipse. Double click a line, arrow or circle for its color, width, style and label |
@@ -343,6 +343,10 @@ color**. The label goes **Above**, **Center** (across it; the line stops
 around the label) or **Below**, and **Left** (at its left end), **Center**
 (in its middle) or **Right**. For lines and arrows, **Right** puts the label
 past the right end of the line, kept inside the image.
+A line (not an arrow) also has **Extend across the image**: a horizontal
+line then goes from the left edge to the right one, a vertical one from top
+to bottom, and any other to where it meets the edges. Its ends stay where
+they were, for its label and handles.
 
 **Rect** draws a rectangle, just its border at first. Double click its
 border (anywhere on it once filled) to set:
