@@ -379,8 +379,9 @@ colors, fill, middle line and label:
 
 Picking a kind with rectangles selected changes them to it instead.
 
-In these windows the drawing shows each change at once; **Cancel** puts it
-back as it was.
+In these windows the drawing shows each change at once, colors too while
+you pick them; **OK** keeps the result and **Cancel** puts it back as it
+was.
 
 **Fib** draws Fibonacci levels. Press on the first point (level 1) and drag
 to the second one (level 0), or click one and then the other. Then move the
@@ -404,8 +405,11 @@ remembers what you set. Its **Draw the diagonal** box adds the dashed line
 from the first point to the second; the other sets never draw it. Picking a
 set with fibs selected changes their levels instead. Double click a fib
 (on one of its lines) to open its levels, checked, and change them, or
-draw its diagonal; a name there keeps them in the menu too. **Undo** puts
-the old ones back.
+draw its diagonal; a name there keeps them in the menu too. The fib shows
+the levels as you check or type them, and so do the fibs selected while the
+custom form is open; **OK** keeps them, **Cancel** puts them back, and
+**Undo** puts the old ones back. A color picked from the bar's **Color…**
+shows on what is selected while you pick it, the same way.
 
 **Clear** in the custom form unchecks all the levels, to start a set from
 scratch. Type a short **Name** before OK to keep the levels in the Fib menu,

@@ -388,7 +388,10 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   repaints only the strips they cover. `DrawBar` keeps it always on, and
   its **Hide** button (H) hides all the drawings (`togglehidden`,
   `setdrawingsshown`), becoming Show. A double click on a fib opens its
-  levels (`editfib`, with the `fibform` of `DrawBar`).
+  levels (`editfib`, with the `fibform` of `DrawBar`), showing them on
+  the fib while the form is open (`FibDialog.changed`, `shown`) and
+  putting it back before the one `LevelsCmd`; `pickcolor` shows colors
+  the same way as they move in the `QColorDialog`.
 - `ImageView.renderimage` renders the scene (image and drawings, without the
   selection) at the image's size; `copyimage`, `DrawBar`'s **Copy**
   (⇧⌘C), puts it on the clipboard.

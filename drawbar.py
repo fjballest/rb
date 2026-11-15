@@ -4,7 +4,7 @@
 #
 import json
 
-from PySide6.QtCore import QSettings, QSize, Qt
+from PySide6.QtCore import QSettings, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
 	QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLayout,
@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (
 	QWidget
 )
 
-from drawing import FIBALL, FIBROWS, FIBSETS, RECTSETS, fmtlevels, parselevels
+from drawing import FIBALL, FIBROWS, FIBSETS, RECTSETS, FibShape, fmtlevels, parselevels
+from viewer import pickcolor
 
 COLORS = (("Red", "#e53935"), ("Green", "#2e7d32"), ("Blue", "#1e63d6"), ("Orange", "#f57c00"),
 	("Purple", "#8e24aa"), ("Black", "#000000"), ("White", "#ffffff"))
@@ -210,7 +211,10 @@ def customlevels():
 
 class FibDialog(QDialog):
 	"""the custom fib levels: FIBROWS levels in two columns, each one with a
-	check to use it, and whether to draw the diagonal"""
+	check to use it, and whether to draw the diagonal; changed is emitted on
+	every change, to show it"""
+	changed = Signal()
+
 	def __init__(self, rows, diagonal, parent=None, taken=()):
 		super().__init__(parent)
 		self.taken = set(taken)	# names that can't be used: the built-in sets
@@ -262,6 +266,18 @@ class FibDialog(QDialog):
 		bb.accepted.connect(self.accept)
 		bb.rejected.connect(self.reject)
 		lay.addWidget(bb)
+		for c, e in zip(self.checks, self.edits):
+			c.toggled.connect(lambda *_: self.changed.emit())
+			e.textChanged.connect(lambda *_: self.changed.emit())
+		self.diagbox.toggled.connect(lambda *_: self.changed.emit())
+
+	def shown(self):
+		"""the levels and diagonal as they are now, or None if they are not
+		levels yet"""
+		try:
+			return rowlevels(self.rows()), self.diagonal()
+		except ValueError:
+			return None
 
 	def rows(self):
 		return [(c.isChecked(), e.text().strip()) for c, e in zip(self.checks, self.edits)]
@@ -646,11 +662,20 @@ class DrawBar(QToolBar):
 		if name == "Custom":
 			rows, diagonal = customrows()
 			dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",))
+			sel = [it for it in self.view.scene().selectedItems() if isinstance(it, FibShape)]
+			old = [(it, list(it.levels), it.diagonal) for it in sel]
+			def show():	# the fibs selected show the levels as they are edited
+				r = dlg.shown()
+				for it, _, _ in old if r else ():
+					it.setlevels(*r)
+			dlg.changed.connect(show)
 			self.fibdlg = dlg	# for the tests
 			ok = dlg.exec()
 			rows, diagonal, saveas = dlg.rows(), dlg.diagonal(), dlg.name()
 			dlg.deleteLater()
 			self.fibdlg = None
+			for it, lv, dg in old:	# back as they were: the change is one undo step
+				it.setlevels(lv, dg)
 			if not ok:
 				self.fibacts[self.fibname].setChecked(True)
 				return
@@ -669,16 +694,19 @@ class DrawBar(QToolBar):
 		if not any(getattr(it, "kind", "") == "fib" for it in self.view.scene().selectedItems()):
 			self.view.settool("fib")	# else it was for the fibs selected
 
-	def fibform(self, levels, diagonal, named=True):
+	def fibform(self, levels, diagonal, named=True, show=None):
 		"""ask for other levels for a fib drawn with these: (levels, diagonal),
 		or None. A name given keeps them in the menu too (named: the form
-		asks for one)"""
+		asks for one). show(levels, diagonal), if given, is called on every
+		change that gives levels, to show them while the form is open"""
 		rows = [(l in levels, f"{l:g}") for l in sorted(set(FIBALL) | set(levels))][:FIBROWS]
 		rows += [(False, "")] * (FIBROWS - len(rows))
 		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",))
 		dlg.setWindowTitle("Fib Levels")
 		if not named:
 			dlg.namerow.setVisible(False)
+		if show is not None:
+			dlg.changed.connect(lambda: (lambda r: r and show(*r))(dlg.shown()))
 		self.fibdlg = dlg	# for the tests
 		ok = dlg.exec()
 		rows, diagonal, saveas = dlg.rows(), dlg.diagonal(), dlg.name()
@@ -754,9 +782,16 @@ class DrawBar(QToolBar):
 		self.colorbtn.setText("Color")
 
 	def othercolor(self):
-		c = QColorDialog.getColor(QColor(self.view.color), self, "Drawing color")
-		if c.isValid():
-			self.setcolor(c.name())
+		"""ask for another color; the drawings selected show it while asking"""
+		old = [(it, it.color, it.width) for it in self.view.scene().selectedItems()]
+		def show(c):
+			for it, _, w in old:
+				it.setstyle(c, w)
+		c = pickcolor(self.view.color, self, "Drawing color", show)
+		for it, c0, w in old:
+			it.setstyle(c0, w)
+		if c:
+			self.setcolor(c)
 
 	def toolchanged(self, tool):
 		a = self.toolacts.get(tool)

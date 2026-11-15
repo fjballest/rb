@@ -171,7 +171,9 @@ class ImageView(QGraphicsView):
 		diagonal, and gives the new ones, or None"""
 		if self.fibform is None:
 			return
-		r = self.fibform(list(it.levels), it.diagonal)
+		old = (list(it.levels), it.diagonal)
+		r = self.fibform(list(it.levels), it.diagonal, show=it.setlevels)
+		it.setlevels(*old)	# back as it was: the change is one undo step
 		if r is None:
 			return
 		levels, diagonal = r
@@ -888,11 +890,12 @@ class RectDialog(QDialog):
 		self.colorbtn.setText("Color…")
 
 	def choosecolor(self):
-		c = QColorDialog.getColor(QColor(self.fillcolor), self, "Fill color")
-		if c.isValid():
-			self.fillcolor = c.name()
+		old = self.fillcolor
+		def show(c):
+			self.fillcolor = c
 			self.showcolor()
 			self.changed.emit()
+		show(pickcolor(old, self, "Fill color", show) or old)
 
 	def props(self):
 		return {"fill": self.fillcolor if self.fillbox.isChecked() else None,
@@ -901,6 +904,20 @@ class RectDialog(QDialog):
 			"align": self.align.currentData(),
 			"midcolor": None if self.midcolor.color == self.color else self.midcolor.color,
 			"labelcolor": None if self.labelcolor.color == self.color else self.labelcolor.color}
+
+def pickcolor(color, parent, title, show):
+	"""ask for a color, starting at color: its name, or None. show(name) is
+	called as the color changes in the dialog, to show it; the caller puts
+	back what was there when it gives None"""
+	dlg = QColorDialog(QColor(color), parent)
+	dlg.setWindowTitle(title)
+	dlg.currentColorChanged.connect(lambda c: c.isValid() and show(c.name()))
+	parent.colordlg = dlg	# for the tests
+	ok = dlg.exec() == QDialog.DialogCode.Accepted
+	c = dlg.selectedColor()
+	parent.colordlg = None
+	dlg.deleteLater()
+	return c.name() if ok and c.isValid() else None
 
 class ColorButton(QPushButton):
 	"""a button showing a color, that asks for another one"""
@@ -919,10 +936,13 @@ class ColorButton(QPushButton):
 		self.setIcon(QIcon(pm))
 
 	def choose(self):
-		c = QColorDialog.getColor(QColor(self.color), self, self.title)
-		if c.isValid():
-			self.setcolor(c.name())
+		old = self.color
+		def show(c):
+			self.setcolor(c)
 			self.picked.emit()
+		c = pickcolor(old, self, self.title, show)
+		if c is None:
+			show(old)
 
 VALIGNS = (("Above", "above"), ("Center", "center"), ("Below", "below"))
 DASHNAMES = (("Solid", "solid"), ("Dashed", "dash"), ("Dotted", "dot"))
