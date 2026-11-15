@@ -424,7 +424,7 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
   built-in sets are listed first and can be edited as well: what changed
   of them is kept apart (`edited`, `setedited`: `editedfibs`,
   `editedrects`) and `builtinsets` lays it over `FIBSETS` and `RECTSETS`;
-  Remove drops the change. A fib set may keep `width` and `dash`
+  Remove drops the change. A fib set may keep `width`, `dash` and `color`
   (`fibpreset`, `fibstyle`), which `ImageView.fibstyle` uses for the next
   fibs and `applyfib` gives the ones selected.
   The context menu of a drawing (`ImageView.contextMenuEvent`) is filled by

@@ -178,17 +178,17 @@ class ImageView(QGraphicsView):
 		if self.fibform is None:
 			return
 		old = (list(it.levels), it.diagonal, it.from2)
-		style = {"width": it.width, "dash": it.dash}
-		def show(levels, diagonal, from2, width, dash):
+		style = {"width": it.width, "dash": it.dash, "color": it.color}
+		def show(levels, diagonal, from2, width, dash, color):
 			it.setlevels(levels, diagonal, from2)
-			it.setprops({"width": width, "dash": dash})
-		r = self.fibform(list(it.levels), it.diagonal, show=show, from2=it.from2, style=(it.width, it.dash))
+			it.setprops({"width": width, "dash": dash, "color": color})
+		r = self.fibform(list(it.levels), it.diagonal, show=show, from2=it.from2, style=(it.width, it.dash, it.color))
 		it.setlevels(*old)	# back as it was: the change is one undo step
 		it.setprops(style)
 		if r is None:
 			return
-		levels, diagonal, from2, width, dash = r
-		new = {"width": width, "dash": dash}
+		levels, diagonal, from2, width, dash, color = r
+		new = {"width": width, "dash": dash, "color": color}
 		if new == style:
 			self.applyfib([it], levels, diagonal, from2)
 			return
@@ -466,8 +466,9 @@ class ImageView(QGraphicsView):
 			d.update(self.rectpreset or {})
 			self.drawing = RectShape(QRectF(p, p), d.pop("color", self.color), d.pop("width", self.width), **d)
 		elif self.tool == "fib":
-			self.drawing = FibShape(p, p, self.fiblevels, self.color, self.fibstyle.get("width", self.width),
-				diagonal=self.fibdiagonal, dash=self.fibstyle.get("dash", self.dash), size=self.textsize, from2=self.fibfrom2)
+			st = self.fibstyle	# the set's own look, else the bar's
+			self.drawing = FibShape(p, p, self.fiblevels, st.get("color", self.color), st.get("width", self.width),
+				diagonal=self.fibdiagonal, dash=st.get("dash", self.dash), size=self.textsize, from2=self.fibfrom2)
 			self.drawing.setlive(True)
 			self.fibstep = "drag"
 		elif self.tool == "text":

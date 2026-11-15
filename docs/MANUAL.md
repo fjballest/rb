@@ -408,7 +408,7 @@ from the first point to the second; the other sets never draw it. Its
 they go from the second point to where you clicked the third. Picking a
 set with fibs selected changes their levels instead. Double click a fib
 (on one of its lines) to open its levels, checked, and change them, or
-draw its diagonal, or set the **Width** and **Style** of its lines; a name there keeps them in the menu too. The fib shows
+draw its diagonal, or set the **Width**, **Style** and **Color** of its lines; a name there keeps them in the menu too. The fib shows
 the levels as you check or type them, and so do the fibs selected while the
 custom form is open; **OK** keeps them, **Cancel** puts them back, and
 **Undo** puts the old ones back. A color picked from the bar's **Color…**
@@ -428,8 +428,9 @@ the ones saved there, to change (**Edit…** opens its form: the levels of
 a fib, or the color, style, label... of a rectangle, line, arrow or
 circle), rename (double click), remove or move them up and down. They are
 shared by DayJournal and RoadBook. Lines keep **Extend** too. A fib set's
-form there also has its line **Width** and **Style**; once set, the fibs
-drawn with it use them instead of the bar's.
+form there also has its line **Width**, **Style** and **Color**, and so does
+the custom form; once a set has its own, the fibs drawn with it use them
+instead of the bar's.
 
 The built-in ones (the OTE, Quadrants and PO3 fib sets, and the BRK, MB,
 FVG... rectangles) are listed there first, marked built-in: **Edit…**
