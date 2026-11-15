@@ -208,6 +208,29 @@ class LineShape(QGraphicsLineItem):
 	def small(self):
 		return self.line().length() < 4
 
+	# its ends can be dragged when it is selected (see handles)
+	def handles(self):
+		l = self.line()
+		return [self.mapToScene(l.p1()), self.mapToScene(l.p2())]
+
+	def geom(self):
+		return QLineF(self.line())
+
+	def setgeom(self, g):
+		self.prepareGeometryChange()
+		self.setLine(QLineF(g))
+
+	def movehandle(self, i, p, start, straight=False):
+		"""move end i to scene point p; straight keeps it level or plumb with the other"""
+		q = self.mapFromScene(p)
+		o = start.p2() if i == 0 else start.p1()
+		if straight:
+			if abs(q.x() - o.x()) >= abs(q.y() - o.y()):
+				q.setY(o.y())
+			else:
+				q.setX(o.x())
+		self.setgeom(QLineF(q, o) if i == 0 else QLineF(o, q))
+
 class CircleShape(QGraphicsEllipseItem):
 	"""a circle or ellipse, solid, dashed or dotted (dash), with a label
 	above, across or below it (valign), at its left, middle or right
@@ -298,6 +321,22 @@ class CircleShape(QGraphicsEllipseItem):
 	def small(self):
 		r = self.rect()
 		return r.width() < 4 and r.height() < 4
+
+	# its corners can be dragged when it is selected (see handles)
+	def handles(self):
+		return [self.mapToScene(c) for c in corners(self.rect())]
+
+	def geom(self):
+		return QRectF(self.rect())
+
+	def setgeom(self, g):
+		self.prepareGeometryChange()
+		self.setRect(QRectF(g))
+		self.origin = g.topLeft()
+
+	def movehandle(self, i, p, start, straight=False):
+		"""move corner i to scene point p, the opposite one staying put"""
+		self.setgeom(QRectF(corners(start)[(i + 2) % 4], self.mapFromScene(p)).normalized())
 
 # the rectangles in the menu of the Rect tool: their border, fill, middle line and label
 RECTSETS = {
@@ -453,6 +492,22 @@ class RectShape(QGraphicsRectItem):
 	def small(self):
 		r = self.rect()
 		return r.width() < 4 and r.height() < 4
+
+	# its corners can be dragged when it is selected (see handles)
+	def handles(self):
+		return [self.mapToScene(c) for c in corners(self.rect())]
+
+	def geom(self):
+		return QRectF(self.rect())
+
+	def setgeom(self, g):
+		self.prepareGeometryChange()
+		self.setRect(QRectF(g))
+		self.origin = g.topLeft()
+
+	def movehandle(self, i, p, start, straight=False):
+		"""move corner i to scene point p, the opposite one staying put"""
+		self.setgeom(QRectF(corners(start)[(i + 2) % 4], self.mapFromScene(p)).normalized())
 
 class PencilShape(QGraphicsPathItem):
 	"""a free hand stroke"""
@@ -687,6 +742,31 @@ class FibShape(QGraphicsItem):
 	def small(self):
 		return QLineF(self.p1, self.p2).length() < 4
 
+	# when it is selected, its two points and the right end of the 0 line
+	# can be dragged (see handles)
+	def handles(self):
+		return [self.mapToScene(self.p1), self.mapToScene(self.p2), self.mapToScene(QPointF(self.xs()[1], self.p2.y()))]
+
+	def geom(self):
+		return (QPointF(self.p1), QPointF(self.p2), self.right, self.extend)
+
+	def setgeom(self, g):
+		self.prepareGeometryChange()
+		self.p1, self.p2, self.right, self.extend = QPointF(g[0]), QPointF(g[1]), g[2], g[3]
+		self.update()
+
+	def movehandle(self, i, p, start, straight=False):
+		p1, p2, right, extend = start
+		q = self.mapFromScene(p)
+		if i == 0:
+			p1 = q
+		elif i == 1:
+			p2 = q
+		else:
+			right, extend = q.x(), False
+		right = max(right, min(p1.x(), p2.x()) + 1) if i == 2 else max(right, p1.x(), p2.x())
+		self.setgeom((p1, p2, right, extend))
+
 class TextShape(QGraphicsTextItem):
 	"""a text box: text on a light background with a frame. Double click
 	to edit it; edited is called with the text before and after"""
@@ -780,6 +860,10 @@ class TextShape(QGraphicsTextItem):
 	def small(self):
 		return False
 
+def corners(r):
+	"""the corners of rectangle r, clockwise from the top left"""
+	return [r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()]
+
 def selpen(painter):
 	p = QPen(QColor(30, 120, 255), 0, Qt.PenStyle.DashLine)
 	painter.setPen(p)
@@ -869,6 +953,22 @@ class MoveCmd(QUndoCommand):
 	def undo(self):
 		for it, old, _ in self.moves:
 			it.setPos(old)
+
+class GeomCmd(QUndoCommand):
+	"""a drawing reshaped by dragging one of its handles"""
+	def __init__(self, item, before, after):
+		super().__init__(f"Reshape {item.kind}")
+		self.item, self.before, self.after = item, before, after
+		self.first = True
+
+	def redo(self):
+		if self.first:
+			self.first = False
+			return
+		self.item.setgeom(self.after)
+
+	def undo(self):
+		self.item.setgeom(self.before)
 
 class TextCmd(QUndoCommand):
 	def __init__(self, item, before, after):

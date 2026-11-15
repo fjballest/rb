@@ -328,7 +328,7 @@ The toolbar at the top of the graphics window draws on the graph:
 
 | Tool | Key | What it does |
 |------|-----|--------------|
-| Select | S | click a drawing to select it, shift-click to add more, drag to move them; drag the graph itself to move around |
+| Select | S | click a drawing to select it, shift-click to add more, drag to move them; drag a handle (the small squares on the one selected: a line's ends, a box's corners, a fib's points and right end) to reshape it; drag the graph itself to move around |
 | Pencil | P | draws free hand |
 | Line, Arrow | L, A | drag from one end to the other; hold shift when you let go to keep it horizontal or vertical |
 | Circle | C | drag across the box of a circle or ellipse. Double click a line, arrow or circle for its color, width, style and label |

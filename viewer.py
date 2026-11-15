@@ -12,11 +12,12 @@ from PySide6.QtWidgets import (
 )
 
 from drawing import (
-	DRAWVERSION, FIBSETS, AddCmd, CircleShape, DeleteCmd, FibShape, LevelsCmd, LineShape, MoveCmd, PencilShape,
+	DRAWVERSION, FIBSETS, AddCmd, CircleShape, DeleteCmd, FibShape, GeomCmd, LevelsCmd, LineShape, MoveCmd, PencilShape,
 	PropsCmd, RECTSETS, RectShape, StyleCmd, TextCmd, TextShape, allprops, fromdict
 )
 
 DCLICKZOOM = 2.0
+HANDLE = 7	# the size of the handles of a drawing selected, in pixels
 TOOLS = ("select", "pencil", "line", "arrow", "circle", "rect", "text", "fib")
 TOOLKEYS = {Qt.Key.Key_S: "select", Qt.Key.Key_P: "pencil", Qt.Key.Key_L: "line", Qt.Key.Key_A: "arrow",
 	Qt.Key.Key_C: "circle", Qt.Key.Key_R: "rect", Qt.Key.Key_T: "text", Qt.Key.Key_F: "fib"}
@@ -60,6 +61,12 @@ class ImageView(QGraphicsView):
 		self.fibdone.timeout.connect(lambda: self.endfib(False))
 		self.viewport().setMouseTracking(True)	# fib steps follow the mouse with no button down
 		self.pressed = {}		# selected item -> its position when the mouse was pressed
+		self.reshaping = None	# (item, handle, its geometry before) while dragging a handle
+		self.scene().selectionChanged.connect(self.viewport().update)	# the handles
+		# Del deletes the drawings selected, unless delkey, set by the window,
+		# takes it first (to delete the image when the mouse is on a list of
+		# them, say): it says if it did
+		self.delkey = None
 		self.undo = QUndoStack(self)
 		self.undo.indexChanged.connect(self.undochanged)
 		self.loading = False
@@ -346,6 +353,10 @@ class ImageView(QGraphicsView):
 		if self.tool != "select" and not self.sceneRect().contains(p):
 			return	# drawings go on the image
 		if self.tool == "select":
+			h = self.handleat(ev.position().toPoint())
+			if h is not None:
+				self.reshaping = (h[0], h[1], h[0].geom())
+				return
 			super().mousePressEvent(ev)
 			self.pressed = {it: it.pos() for it in self.scene().selectedItems()}
 			return
@@ -387,8 +398,53 @@ class ImageView(QGraphicsView):
 			self.setcross(None)
 			self.drawto(ev)
 			return
+		if self.reshaping is not None:
+			it, i, start = self.reshaping
+			it.movehandle(i, self.clamp(self.mapToScene(ev.position().toPoint())), start,
+				bool(ev.modifiers() & Qt.KeyboardModifier.ShiftModifier))
+			self.viewport().update()
+			return
 		super().mouseMoveEvent(ev)
+		if ev.buttons() != Qt.MouseButton.NoButton and self.scene().selectedItems():
+			self.viewport().update()	# the handles go with what is dragged
+		elif self.tool == "select" and ev.buttons() == Qt.MouseButton.NoButton:
+			if self.handleat(ev.position().toPoint()) is not None:
+				self.viewport().setCursor(Qt.CursorShape.SizeAllCursor)
+			else:
+				self.setcursor()
 		self.setcross(self.crossat(ev.position().toPoint(), ev.buttons()))
+
+	# ---- handles: the points of a drawing selected that can be dragged to reshape it ----
+	def handleat(self, at):
+		"""(item, handle number) of the handle at viewport point at, or None"""
+		if self.tool != "select" or self.pixitem is None:
+			return None
+		best = None
+		for it in self.scene().selectedItems():
+			if not hasattr(it, "handles"):
+				continue
+			for i, h in enumerate(it.handles()):
+				v = self.mapFromScene(h)
+				d = max(abs(v.x() - at.x()), abs(v.y() - at.y()))
+				if d <= HANDLE and (best is None or d < best[0]):
+					best = (d, it, i)
+		return best[1:] if best else None
+
+	def drawhandles(self, painter):
+		items = [it for it in self.scene().selectedItems() if hasattr(it, "handles")]
+		if not items or self.tool != "select":
+			return
+		painter.save()
+		painter.resetTransform()	# in pixels, whatever the zoom
+		painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+		painter.setPen(QPen(QColor(30, 120, 255), 1))
+		painter.setBrush(QColor(255, 255, 255))
+		s = HANDLE - 1
+		for it in items:
+			for h in it.handles():
+				v = self.mapFromScene(h)
+				painter.drawRect(QRect(v.x() - s // 2, v.y() - s // 2, s, s))
+		painter.restore()
 
 	# ---- copying ----
 	def renderimage(self):
@@ -459,6 +515,7 @@ class ImageView(QGraphicsView):
 
 	def drawForeground(self, painter, rect):
 		super().drawForeground(painter, rect)
+		self.drawhandles(painter)
 		p = self.cross
 		if p is None:
 			return
@@ -531,6 +588,13 @@ class ImageView(QGraphicsView):
 			else:
 				self.undo.push(AddCmd(self.scene(), it))
 			return
+		if self.reshaping is not None:
+			it, _, start = self.reshaping
+			self.reshaping = None
+			if it.geom() != start:
+				self.undo.push(GeomCmd(it, start, it.geom()))
+			self.viewport().update()
+			return
 		super().mouseReleaseEvent(ev)
 		if self.tool == "select":
 			self.setcursor()	# the hand drag puts its own back
@@ -591,7 +655,8 @@ class ImageView(QGraphicsView):
 		# macOS marks the arrow keys as keypad keys
 		plain = ev.modifiers() & ~Qt.KeyboardModifier.KeypadModifier == Qt.KeyboardModifier.NoModifier
 		if k in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-			self.deleteselected()
+			if self.delkey is None or not self.delkey():
+				self.deleteselected()
 		elif k == Qt.Key.Key_Escape:
 			self.cancelfib()
 			self.scene().clearSelection()

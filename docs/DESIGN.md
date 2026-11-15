@@ -369,7 +369,9 @@ Drawing is the same code as in DayJournal (pyjou); keep `viewer.py`,
 - `drawing.py` has the shapes (`LineShape` for lines and arrows,
   `PencilShape`, `CircleShape`, `RectShape`, `TextShape`, `FibShape`), the fib level sets (`FIBSETS`), their JSON form (`todict`,
   `fromdict`) and the undo commands (`AddCmd`, `DeleteCmd`, `MoveCmd`,
-  `TextCmd`, `StyleCmd`).
+  `GeomCmd`, `TextCmd`, `StyleCmd`). Lines, circles, rectangles and fibs
+  have handles (`handles`, `movehandle`, `geom`, `setgeom`): the view draws
+  them on the ones selected and dragging one reshapes it.
 - `ImageView` turns the mouse into shapes for the tool chosen (`settool`),
   keeps them inside the graph, snaps lines to horizontal or vertical with
   shift, and pushes each change on its `QUndoStack`, which is cleared when
