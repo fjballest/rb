@@ -416,7 +416,10 @@ shows on what is selected while you pick it, the same way.
 
 **Clear** in the custom form unchecks all the levels, to start a set from
 scratch. Type a short **Name** before OK to keep the levels in the Fib menu,
-after the built-in sets; the same name replaces them.
+after the built-in sets. A name already in the menu, built-in or saved,
+asks whether to replace that one; **No** goes back to the form to pick
+another. This goes for the looks saved from the other forms too, and for
+renaming in **Edit Saved…**; only Plain and Custom can't be used.
 
 Rectangles, lines, arrows and circles can be kept the same way: double click
 one, set how it looks, and type a name in **Save as**. Its color, width,

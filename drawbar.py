@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from drawing import FIBALL, FIBROWS, FIBSETS, RECTSETS, FibShape, fmtlevels, parselevels
-from viewer import pickcolor
+from viewer import askreplace, pickcolor
 
 COLORS = (("Red", "#e53935"), ("Green", "#2e7d32"), ("Blue", "#1e63d6"), ("Orange", "#f57c00"),
 	("Purple", "#8e24aa"), ("Black", "#000000"), ("White", "#ffffff"))
@@ -161,9 +161,9 @@ class SavedDialog(QDialog):
 		super().__init__(parent)
 		self.kind = kind
 		self.editor = editor
-		self.taken = set(taken)
 		self.sets = dict(saved(kind))
 		self.builtins = builtinsets(kind)
+		self.fixed = set(taken) - set(self.builtins)	# Plain, Custom: never a name
 		self.edited = {n: v for n, v in edited(kind).items() if n in self.builtins}
 		self.setWindowTitle(f"{SHAPENAMES[kind]} Sets" if kind == "fib" else f"{SHAPENAMES[kind]} Looks")
 		lay = QVBoxLayout(self)
@@ -243,13 +243,25 @@ class SavedDialog(QDialog):
 	def renamed(self, it):
 		old = it.data(Qt.ItemDataRole.UserRole)
 		new = " ".join(it.text().split())
-		if not new or new in self.taken or self.names().count(new) > 1:
-			if new and new != old:
-				QMessageBox.warning(self, self.windowTitle(), f"{new} is already in the menu.")
+		others = (set(self.sets) - {old}) | set(self.builtins)
+		if not new or new == old or not askreplace(self, new, self.fixed, others):
 			self.list.blockSignals(True)
 			it.setText(old)
 			self.list.blockSignals(False)
 			return
+		if new in self.builtins:	# it replaces that one, as edited
+			self.edited[new] = self.sets.pop(old)
+			self.list.blockSignals(True)
+			self.list.takeItem(self.list.row(it))
+			self.list.blockSignals(False)
+			return
+		for i in range(self.nbuiltin, self.list.count()):	# the saved one it replaces goes
+			o = self.list.item(i)
+			if o is not it and o.data(Qt.ItemDataRole.UserRole) == new:
+				self.list.blockSignals(True)
+				self.list.takeItem(i)
+				self.list.blockSignals(False)
+				break
 		self.list.blockSignals(True)
 		it.setText(new)
 		it.setData(Qt.ItemDataRole.UserRole, new)
@@ -304,7 +316,8 @@ class FibDialog(QDialog):
 
 	def __init__(self, rows, diagonal, parent=None, taken=(), from2=False, style=None):
 		super().__init__(parent)
-		self.taken = set(taken)	# names that can't be used: the built-in sets
+		self.fixed = {"Custom"}	# a name that can't be used
+		self.existing = set(taken) - self.fixed	# the names in the menu: replaced if the user says so
 		self.setWindowTitle("Custom Fib Levels")
 		lay = QVBoxLayout(self)
 		lay.addWidget(QLabel("The levels checked are drawn: 0 is at the second point, 1 at the first."))
@@ -413,10 +426,6 @@ class FibDialog(QDialog):
 		return " ".join(self.namebox.text().split())
 
 	def accept(self):
-		if self.name() in self.taken:
-			QMessageBox.warning(self, "Fib levels", f"{self.name()} is one of the sets already in the menu; "
-				"give these levels another name.")
-			return
 		bad = [t for on, t in self.rows() if on and t]
 		bad = [t for t in bad if not isnumber(t)]
 		if bad:
@@ -426,6 +435,8 @@ class FibDialog(QDialog):
 			rowlevels(self.rows())
 		except ValueError:
 			QMessageBox.warning(self, "Fib levels", "Check at least one level.")
+			return
+		if self.name() and not askreplace(self, self.name(), self.fixed, self.existing):
 			return
 		super().accept()
 
@@ -589,6 +600,7 @@ class DrawBar(QToolBar):
 		view.setcrosshair(True)
 		view.fibform = self.fibform	# a double click on a fib changes its levels
 		view.presetmenu = self.presetmenu	# the right button on a drawing
+		view.menunames = lambda kind: tuple(self.shapesets(kind))
 		self.hideact = QAction("Hide", self)
 		self.hideact.setToolTip("hide all the drawings, to see the image as it is (H on the image); "
 			"they are kept, and drawing shows them again")
@@ -771,9 +783,25 @@ class DrawBar(QToolBar):
 			self.rectacts, self.rectname = acts, self.shapenames[kind]
 
 	def shapesaved(self, kind, name, preset):
-		"""a shape was saved with a name in its form: keep it in the menu"""
-		saveshape(kind, name, preset)
+		"""a shape was saved with a name in its form: keep it in the menu
+		(a built-in name replaces that one, as edited)"""
+		if name in builtinsets(kind):
+			e = edited(kind)
+			e[name] = {k: preset[k] for k in SHAPEKEYS[kind] if k in preset}
+			setedited(kind, e)
+		else:
+			saveshape(kind, name, preset)
 		self.remakemenu(kind)
+
+	def keepfib(self, name, levels, diagonal, from2=False, style=None):
+		"""keep fib levels under name in the menu: a built-in name replaces
+		that set, as edited"""
+		if name in FIBSETS:
+			e = edited("fib")
+			e[name] = fibpreset({"levels": list(levels), "diagonal": diagonal, "from2": from2, **(style or {})})
+			setedited("fib", e)
+		else:
+			savefib(name, levels, diagonal, from2, style)
 
 	def setshape(self, kind, name):
 		"""draw shapes of kind with the look name (Plain, built-in or saved);
@@ -796,7 +824,7 @@ class DrawBar(QToolBar):
 		if name == "Custom":
 			rows, diagonal, from2 = customrows()
 			start = self.fibdefaults()
-			dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",), from2=from2, style=start)
+			dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(self.fibsets()) + ("Custom",), from2=from2, style=start)
 			sel = [it for it in self.view.scene().selectedItems() if isinstance(it, FibShape)]
 			old = [(it, list(it.levels), it.diagonal, it.from2, {k: getattr(it, k) for k in STYLEKEYS}) for it in sel]
 			def show():	# the fibs selected show the levels as they are edited
@@ -821,7 +849,7 @@ class DrawBar(QToolBar):
 			levels = rowlevels(rows)
 			style = fibstyle(self.fibkept((levels, diagonal, from2) + picked, start))
 			if saveas:
-				savefib(saveas, levels, diagonal, from2, style)
+				self.keepfib(saveas, levels, diagonal, from2, style)
 				self.fibname = saveas
 				self.mkfibmenu()
 				name = saveas
@@ -860,7 +888,7 @@ class DrawBar(QToolBar):
 		in what show gets"""
 		rows = [(l in levels, f"{l:g}") for l in sorted(set(FIBALL) | set(levels))][:FIBROWS]
 		rows += [(False, "")] * (FIBROWS - len(rows))
-		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(FIBSETS) + ("Custom",), from2=from2, style=style)
+		dlg = FibDialog(rows, diagonal, self.window(), taken=tuple(self.fibsets()) + ("Custom",), from2=from2, style=style)
 		dlg.setWindowTitle("Fib Levels")
 		if not named:
 			dlg.namerow.setVisible(False)
@@ -875,7 +903,7 @@ class DrawBar(QToolBar):
 			return None
 		levels = rowlevels(rows)
 		if saveas:
-			savefib(saveas, levels, diagonal, from2, dict(zip(STYLEKEYS, picked)))
+			self.keepfib(saveas, levels, diagonal, from2, dict(zip(STYLEKEYS, picked)))
 			self.mkfibmenu()
 		return (levels, diagonal, from2) + picked
 

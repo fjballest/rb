@@ -78,6 +78,7 @@ class ImageView(QGraphicsView):
 		# the window (the drawing bar), called with the menu, the kind and the
 		# drawings, to add them (see contextMenuEvent)
 		self.presetmenu = None
+		self.menunames = None	# set by the window: the names in the menu of a kind of shape
 		self.undo = QUndoStack(self)
 		self.undo.indexChanged.connect(self.undochanged)
 		self.loading = False
@@ -220,6 +221,8 @@ class ImageView(QGraphicsView):
 		it; the drawing shows the changes while it is open"""
 		before = allprops(it)
 		dlg = RectDialog(it, self) if isinstance(it, RectShape) else ShapeDialog(it, self)
+		if self.menunames is not None:
+			dlg.existing |= set(self.menunames(it.kind)) - dlg.fixed
 		self.shapedlg = dlg	# for the tests
 		dlg.changed.connect(lambda: it.setprops(dlg.props()))
 		ok = dlg.exec() == QDialog.DialogCode.Accepted
@@ -866,14 +869,26 @@ def namerow(dlg, form, menu, taken):
 	dlg.namebox.setToolTip(f"a short name, like OB; how it looks (color, width, style, label...) is "
 		f"saved under it and shows up in the {menu} menu. The same name replaces it")
 	form.addRow("Save as:", dlg.namebox)
-	dlg.taken = taken
+	dlg.fixed = {"Plain"}	# can't be replaced
+	dlg.existing = set(taken) - dlg.fixed	# in the menu: replaced if the user says so
+
+def askreplace(parent, name, fixed, existing):
+	"""whether a look may be kept under name: never one of fixed (Plain,
+	Custom), and, when one by that name is already in the menu (existing),
+	only if the user says to replace it"""
+	if name in fixed:
+		QMessageBox.warning(parent, parent.windowTitle(), f"{name} can't be replaced; use another name.")
+		return False
+	if name in existing:
+		b = QMessageBox.question(parent, parent.windowTitle(), f"{name} is already in the menu. Replace it with this one?",
+			QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+		return b == QMessageBox.StandardButton.Yes
+	return True
 
 def nametaken(dlg):
-	"""warn when the name given is one of the built-in ones"""
-	if dlg.name() in dlg.taken:
-		QMessageBox.warning(dlg, dlg.windowTitle(), f"{dlg.name()} is already in the menu; use another name.")
-		return True
-	return False
+	"""whether the name given can't be used: Plain, or one in the menu the
+	user did not want to replace"""
+	return bool(dlg.name()) and not askreplace(dlg, dlg.name(), dlg.fixed, dlg.existing)
 
 class RectDialog(QDialog):
 	"""asks for the border width and style, fill, middle line and label of a
