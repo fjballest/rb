@@ -14,7 +14,7 @@ from datetime import date, timedelta
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
-	QApplication, QListWidget, QListWidgetItem, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
+	QAbstractItemView, QApplication, QListWidget, QListWidgetItem, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
 	QGroupBox, QLineEdit, QMainWindow, QMessageBox, QTableView, QTimeEdit
 )
 from checklist import CheckBoxGroup
@@ -232,9 +232,11 @@ class TradeEdit(QDialog):
 		# the ones AutoFeatures should consider too
 		self.tagslist = QListWidget()
 		self.tagslist.setToolTip("Words read from the captures that name or look like a feature. "
-			"Check the ones AutoFeatures should take into account, as if they were in the notes.")
+			"Click the ones AutoFeatures should take into account, as if they were in the notes; click again to drop one.")
 		self.tagslist.setMaximumWidth(180)
-		self.tagslist.itemChanged.connect(lambda _: self.tagschecked())
+		# a click picks a tag or drops it
+		self.tagslist.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+		self.tagslist.itemSelectionChanged.connect(self.tagschecked)
 		tagsbox = QVBoxLayout()
 		tagsbox.setContentsMargins(0, 0, 0, 0)
 		tagsbox.addWidget(QLabel("Tags read"))
@@ -385,25 +387,23 @@ class TradeEdit(QDialog):
 
 	def filltags(self):
 		"""suggest as tags the words read from the captures that look like
-		features of the setup, keeping the ones checked"""
-		was = set(self.checkedtags())
+		features of the setup, keeping the ones picked"""
+		was = set(self.checkedtags().values())
 		self.tagslist.blockSignals(True)
 		self.tagslist.clear()
-		for tag, feat in self.rb.ocrtags(self.ocrtexts, self.setupbox.currentText()).items():
+		for tag, feat, words in self.rb.ocrtags(self.ocrtexts, self.setupbox.currentText()):
 			it = QListWidgetItem(tag)
 			it.setData(Qt.ItemDataRole.UserRole, feat)
-			it.setToolTip(f"looks like the feature {feat}")
-			it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-			it.setCheckState(Qt.CheckState.Checked if tag in was else Qt.CheckState.Unchecked)
+			others = [w for w in words if w != tag]
+			it.setToolTip(f"looks like the feature {feat}" + (f"; also read as {', '.join(others)}" if others else ""))
 			self.tagslist.addItem(it)
+			it.setSelected(feat in was)
 		self.tagslist.blockSignals(False)
 		self.tagspanel.setVisible(self.tagslist.count() > 0)
 
 	def checkedtags(self):
-		"""tag -> feature for the tags checked"""
-		its = [self.tagslist.item(i) for i in range(self.tagslist.count())]
-		return {it.text(): it.data(Qt.ItemDataRole.UserRole) for it in its
-			if it.checkState() == Qt.CheckState.Checked}
+		"""tag -> feature for the tags picked"""
+		return {it.text(): it.data(Qt.ItemDataRole.UserRole) for it in self.tagslist.selectedItems()}
 
 	def tagschecked(self):
 		n = len(self.checkedtags())

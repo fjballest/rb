@@ -178,11 +178,14 @@ the roadbook when you accept.
 
 When you drop captures on the form, **Tags read** shows next to the notes
 the words read from them that name a feature of the setup, or one of its
-aka names, or look much like one (a misread `sin muro` for Sin Muros).
+aka names, or look much like one (a misread `sin muro` for Sin Muros). The
+misreads of one feature make a single tag, named by the word read most like
+it: Londont, Londdn and London are just London.
 Names shorter than five letters are suggested only when read as they are, so
-FVG is not taken for IFVG. Hover a tag to see its feature. Check the tags you
-want, and AutoFeatures checks their features too, as if they were in the
-notes. Tags are only suggestions: they are not saved with the trade.
+FVG is not taken for IFVG. Hover a tag to see its feature and the other ways
+it was read. Click the tags you want, and click one again to drop it;
+AutoFeatures checks the features of the tags picked too, as if they were in
+the notes. Tags are only suggestions: they are not saved with the trade.
 
 ### Screenshots
 

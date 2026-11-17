@@ -497,24 +497,23 @@ class RoadBook:
 				found.add(f.feature)
 		return found
 
-	def ocrtags(self, texts, setup) -> dict[str, str]:
+	def ocrtags(self, texts, setup) -> list[tuple[str, str, list[str]]]:
 		"""the words in texts (read from a capture) that name a feature, or
-		look like its name or aka names, as tag -> feature, in the order found.
+		look like its name or aka names, as (tag, feature, words read) in the
+		order found. The words that look like the same feature (London,
+		Londont, Londdn) make one tag: the word most like its name.
 		Features for other setups than setup are left out."""
 		feats = [(f, pat) for f, pat in self.featurepatterns() if not f.setups or setup in f.setups]
-		tags = {}
-		def key(t):	# EQLs is EQL
-			t = t.lower()
-			return t[:-1] if t.endswith("s") and len(t) > 1 else t
-		def add(tag, f):
-			tag = tag.strip()
-			if tag and key(tag) not in (key(t) for t in tags):
-				tags[tag] = f.feature
+		found = {}	# feature -> [(how alike, word)], in the order found
+		def add(word, f, alike):
+			word = word.strip()
+			if word and word not in (w for _, w in found.get(f.feature, [])):
+				found.setdefault(f.feature, []).append((alike, word))
 		for text in texts or []:
 			words = re.findall(r"[^\W\d_]\w*(?:[.+-]\w+)*", text)
 			for f, pat in feats:
 				for m in pat.finditer(text):
-					add(m.group(0), f)
+					add(m.group(0), f, 1.0)
 				for name in [f.feature] + list(f.aka or []):
 					name = (name or "").strip().lower()
 					if len(name) < SIMILARLEN or "*" in name:
@@ -522,8 +521,13 @@ class RoadBook:
 					n = len(name.split())
 					for i in range(len(words) - n + 1):
 						w = " ".join(words[i:i + n])
-						if len(w) >= 3 and difflib.SequenceMatcher(None, w.lower(), name).ratio() >= SIMILAR:
-							add(w, f)
+						alike = difflib.SequenceMatcher(None, w.lower(), name).ratio()
+						if len(w) >= 3 and alike >= SIMILAR:
+							add(w, f, alike)
+		tags = []
+		for feat, ws in found.items():
+			best = max(ws, key=lambda x: x[0])[1]	# the first of the most alike
+			tags.append((best, feat, [w for _, w in ws]))
 		return tags
 
 	def autofeatures(self, trades) -> tuple[int, int]:
