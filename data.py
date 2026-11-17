@@ -6,6 +6,7 @@ from datetime import date, time, datetime
 from typing import Optional, Set, List
 from enum import Enum, IntEnum
 import os
+import difflib
 import re
 import sys
 import shutil
@@ -98,6 +99,9 @@ class Setup:
 
 def setupexample():
 	return Setup("ApoyoH4 Aper", "apoyo pero antes de GL y con cota cerca")
+
+SIMILARLEN = 5	# shorter names are suggested only when found as they are
+SIMILAR = 0.8	# how alike a word read from a capture and a feature name must be to suggest it
 
 @dataclass
 class Feature:
@@ -492,6 +496,35 @@ class RoadBook:
 			if pat.search(notes):
 				found.add(f.feature)
 		return found
+
+	def ocrtags(self, texts, setup) -> dict[str, str]:
+		"""the words in texts (read from a capture) that name a feature, or
+		look like its name or aka names, as tag -> feature, in the order found.
+		Features for other setups than setup are left out."""
+		feats = [(f, pat) for f, pat in self.featurepatterns() if not f.setups or setup in f.setups]
+		tags = {}
+		def key(t):	# EQLs is EQL
+			t = t.lower()
+			return t[:-1] if t.endswith("s") and len(t) > 1 else t
+		def add(tag, f):
+			tag = tag.strip()
+			if tag and key(tag) not in (key(t) for t in tags):
+				tags[tag] = f.feature
+		for text in texts or []:
+			words = re.findall(r"[^\W\d_]\w*(?:[.+-]\w+)*", text)
+			for f, pat in feats:
+				for m in pat.finditer(text):
+					add(m.group(0), f)
+				for name in [f.feature] + list(f.aka or []):
+					name = (name or "").strip().lower()
+					if len(name) < SIMILARLEN or "*" in name:
+						continue	# short names only as they are: FVG is not IFVG
+					n = len(name.split())
+					for i in range(len(words) - n + 1):
+						w = " ".join(words[i:i + n])
+						if len(w) >= 3 and difflib.SequenceMatcher(None, w.lower(), name).ratio() >= SIMILAR:
+							add(w, f)
+		return tags
 
 	def autofeatures(self, trades) -> tuple[int, int]:
 		"""add to each trade the features whose name or aka names appear

@@ -14,7 +14,7 @@ from datetime import date, timedelta
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
-	QApplication, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
+	QApplication, QListWidget, QListWidgetItem, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QDockWidget, QFormLayout,
 	QGroupBox, QLineEdit, QMainWindow, QMessageBox, QTableView, QTimeEdit
 )
 from checklist import CheckBoxGroup
@@ -147,6 +147,7 @@ class TradeEdit(QDialog):
 		self.rb = rb
 		self.t = t
 		self.tOCR = None
+		self.ocrtexts = []	# the text read from the captures dropped
 		if t is not None and t.trade <= 0:
 			t.trade = rb.nextId()
 		self.formGroupBox = QGroupBox("Data:")
@@ -227,7 +228,24 @@ class TradeEdit(QDialog):
 
 		layout.addRow(QLabel("Euros Out"), self.eurosbox)
 		layout.addRow(QLabel("Graphics"), self.grafbox)
-		layout.addRow(QLabel("Notes"), self.notesbox)
+		# words read from the captures that look like features, to pick
+		# the ones AutoFeatures should consider too
+		self.tagslist = QListWidget()
+		self.tagslist.setToolTip("Words read from the captures that name or look like a feature. "
+			"Check the ones AutoFeatures should take into account, as if they were in the notes.")
+		self.tagslist.setMaximumWidth(180)
+		self.tagslist.itemChanged.connect(lambda _: self.tagschecked())
+		tagsbox = QVBoxLayout()
+		tagsbox.setContentsMargins(0, 0, 0, 0)
+		tagsbox.addWidget(QLabel("Tags read"))
+		tagsbox.addWidget(self.tagslist)
+		self.tagspanel = QWidget()
+		self.tagspanel.setLayout(tagsbox)
+		self.tagspanel.setVisible(False)	# until a capture gives some
+		notesrow = QHBoxLayout()
+		notesrow.addWidget(self.notesbox, 1)
+		notesrow.addWidget(self.tagspanel)
+		layout.addRow(QLabel("Notes"), notesrow)
 
 		fset = []
 		if t and t.has is not None and len(t.has) > 0:
@@ -298,6 +316,8 @@ class TradeEdit(QDialog):
 		best, bestscore, bestocr = 0, -1, None
 		for i, p in enumerate(paths):
 			o = self.ocr(p)
+			if o is not None and o.texts:
+				self.ocrtexts += o.texts
 			score = self.ocrscore(o)
 			if score > bestscore:
 				best, bestscore, bestocr = i, score, o
@@ -319,6 +339,7 @@ class TradeEdit(QDialog):
 			if self.tOCR is not None:
 				self.pnginfo()
 		self.grafbox.setText(';'.join(old + paths))
+		self.filltags()
 
 	def pnginfo(self):
 		if self.tOCR is None:
@@ -337,10 +358,10 @@ class TradeEdit(QDialog):
 				self.dirbox.setCurrentText("Long")
 			else:
 				self.dirbox.setCurrentText("Short")
-		if self.tOCR.success:
+		if self.tOCR.success and self.tOCR.ptstp is not None:
 			self.outbox.setText(f"{self.tOCR.ptstp}")
-		else:
-			self.outbox.setText(f"-{self.tOCR.ptsstop}")
+		elif self.tOCR.ptsstop is not None:
+			self.outbox.setText(f"-{self.tOCR.ptsstop}")	# not "-None" when the stop was not read
 		if self.tOCR.size is not None:
 			self.sizebox.setText(f"{self.tOCR.size}")
 		if self.tOCR.at is not None:
@@ -362,9 +383,37 @@ class TradeEdit(QDialog):
 		else:
 			event.ignore()
 
+	def filltags(self):
+		"""suggest as tags the words read from the captures that look like
+		features of the setup, keeping the ones checked"""
+		was = set(self.checkedtags())
+		self.tagslist.blockSignals(True)
+		self.tagslist.clear()
+		for tag, feat in self.rb.ocrtags(self.ocrtexts, self.setupbox.currentText()).items():
+			it = QListWidgetItem(tag)
+			it.setData(Qt.ItemDataRole.UserRole, feat)
+			it.setToolTip(f"looks like the feature {feat}")
+			it.setFlags(it.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+			it.setCheckState(Qt.CheckState.Checked if tag in was else Qt.CheckState.Unchecked)
+			self.tagslist.addItem(it)
+		self.tagslist.blockSignals(False)
+		self.tagspanel.setVisible(self.tagslist.count() > 0)
+
+	def checkedtags(self):
+		"""tag -> feature for the tags checked"""
+		its = [self.tagslist.item(i) for i in range(self.tagslist.count())]
+		return {it.text(): it.data(Qt.ItemDataRole.UserRole) for it in its
+			if it.checkState() == Qt.CheckState.Checked}
+
+	def tagschecked(self):
+		n = len(self.checkedtags())
+		self.errors.setText(f"AutoFeatures will consider {n} tag{'s' if n != 1 else ''} too" if n else "")
+
 	def autofeatures(self):
-		"""check the features named in the notes of the form"""
+		"""check the features named in the notes of the form, and those of
+		the tags checked"""
 		found = self.rb.featuresin(self.notesbox.toPlainText(), self.setupbox.currentText())
+		found |= set(self.checkedtags().values())
 		checked = set(self.featuresGroup.checked_items())
 		new = found - checked
 		if new:
@@ -372,7 +421,7 @@ class TradeEdit(QDialog):
 			self.featuresGroup.set_items(items, checked | new)
 			self.errors.setText("AutoFeatures checked " + ", ".join(sorted(new)))
 		else:
-			self.errors.setText("AutoFeatures: no new features in the notes")
+			self.errors.setText("AutoFeatures: no new features in the notes or the tags checked")
 
 	def setupchanged(self, txt):
 		if self.lastsetup == txt or self.rb is None:
@@ -380,6 +429,7 @@ class TradeEdit(QDialog):
 		nfset = self.rb.featureNames(txt)
 		self.featuresGroup.set_items(nfset)
 		self.lastsetup = txt
+		self.filltags()	# features of this setup
 
 	def edited(self):
 		self.errors.setText("")

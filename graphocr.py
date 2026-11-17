@@ -174,6 +174,7 @@ class TradeOCR:
 	size: float = None
 	tin: time = None
 	tout: time = None
+	texts: list = None	# all the text read, to suggest tags
 
 	def OCR(path, setups=None):
 		try:
@@ -385,7 +386,8 @@ class TradeOCR:
 		if when is not None:
 			at = when
 
-		to = TradeOCR(setup, instr, ptstp, ptsstop, success, long, at, size, tin, tout)
+		to = TradeOCR(setup, instr, ptstp, ptsstop, success, long, at, size, tin, tout,
+			[t for _, t, _ in results])
 		dprint(to)
 		return to
 

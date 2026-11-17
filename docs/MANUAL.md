@@ -176,6 +176,14 @@ only, it never unchecks any, and nothing is saved until you press OK. If you
 type an instrument, setup or feature that does not exist yet, it is added to
 the roadbook when you accept.
 
+When you drop captures on the form, **Tags read** shows next to the notes
+the words read from them that name a feature of the setup, or one of its
+aka names, or look much like one (a misread `sin muro` for Sin Muros).
+Names shorter than five letters are suggested only when read as they are, so
+FVG is not taken for IFVG. Hover a tag to see its feature. Check the tags you
+want, and AutoFeatures checks their features too, as if they were in the
+notes. Tags are only suggestions: they are not saved with the trade.
+
 ### Screenshots
 
 Drop one or more PNG files on the form. When the trade has no graphs yet,
