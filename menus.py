@@ -103,6 +103,11 @@ class MainMenus:
 		e.addAction(mkaction(d, "&Edit Trade…", t.edit_row, shortcut="Ctrl+E", tip="edit the selected trade"))
 		e.addAction(mkaction(d, "&Delete Trade", t.delete_row, tip="delete the selected trade"))
 		e.addSeparator()
+		e.addAction(mkaction(d, "Recompute Euros of Trade", d.recomputeselected,
+			tip="set the euros of the selected trade from its points, size and the instrument's money per point"))
+		e.addAction(mkaction(d, "Recompute Euros of Trades Listed…", d.recomputelisted,
+			tip="set the euros of the trades listed (the filtered ones, when filtering) from their points, size and the instrument's money per point"))
+		e.addSeparator()
 		e.addAction(mkaction(d, "&Find and Replace…", d.findintable, "find",
 			QKeySequence.StandardKey.Find, "find in the table shown"))
 		for tbl in d.tables():

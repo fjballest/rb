@@ -74,7 +74,7 @@ side by side. **View ▸ Side Panels** shows or hides the right panels.
 | Menu | Entries |
 |------|---------|
 | File | New Roadbook (⌘N), Open Roadbook (⌘O), Open Recent, Save (⌘S), Save As (⌘⇧S), Backups (⌘B), Quit (⌘Q) |
-| Edit | New Trade (⌘T), Edit Trade (⌘E), Delete Trade, Find and Replace (⌘F) |
+| Edit | New Trade (⌘T), Edit Trade (⌘E), Delete Trade, Recompute Euros of Trade, Recompute Euros of Trades Listed, Find and Replace (⌘F) |
 | View | one entry per tab (⌘1 to ⌘7), Expand or Collapse All Trades (⌘⇧E), Graphics (⌘G), Filter (⌘⇧F), Statistics, Side Panels |
 | Window | Minimize (⌘M), layouts for the windows shown (Tile ⌥⌘T), the windows shown |
 | Help | About |
@@ -240,8 +240,19 @@ buttons.
 - **Instruments**: what you trade. Besides its name it has an alias, its
   currency, the money per point (`pipmoney`), the point size and a scale
   used to normalize points between instruments, among others.
-- **Currencies**: name, forex pair and value in euros, used to convert
-  results to euros.
+- **Currencies**: name, forex pair and its rate, used to convert results to
+  euros. The rate is read as the pair says: for `EURUSD` it is dollars per
+  euro (1.08), so dollars are divided by it; for `USDEUR`, or no pair, it is
+  what one unit is worth in euros (0.92).
+
+The euros of a trade, when left at zero in its form, are its points times
+its size times the instrument's money per point, in the instrument's
+currency converted to euros: 100 points with 2 contracts of an instrument
+at $2 a point are $400. **Edit ▸ Recompute Euros of Trade** does that again
+for the selected trade, and **Recompute Euros of Trades Listed** for all the
+trades listed (the filtered ones when there is a filter), after asking.
+Earlier versions left the money per point out when filling in the euros,
+so recompute the trades entered with them.
 
 Renaming a setup, feature, instrument or currency updates every trade (and
 feature or instrument) that uses it. Names must be unique and cannot be

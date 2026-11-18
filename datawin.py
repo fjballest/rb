@@ -484,7 +484,8 @@ class TradeEdit(QDialog):
 		if t.lots == 0:
 			t.lots = 1
 		if t.euros == 0:
-			t.euros = t.lots * t.out
+			t.rb = self.rb	# for its instrument's money per point
+			t.euros = t.eurosfor()
 		if e:
 			self.errors.setText(e)
 			return None
@@ -1076,6 +1077,34 @@ class DataWindow(QMainWindow):
 		else:
 			msg = "No new features found in the notes."
 		QMessageBox.information(self, "AutoFeatures", msg)
+
+	def recomputeeuros(self, trades, what):
+		if self.rb is None or not trades:
+			return
+		if len(trades) > 1 and not self.askuser(f"Recompute the euros of {what} from their points, "
+				"size and the instrument's money per point and currency?"):
+			return
+		n = self.rb.recomputeeuros(trades)
+		if n:
+			self.tradestbl.refresh()
+			self.dirtiedTrades()
+		QMessageBox.information(self, "Recompute Euros",
+			f"Changed the euros of {n} of {len(trades)} trade{'s' if len(trades) != 1 else ''}." if n
+			else "The euros were already right.")
+
+	def recomputeselected(self):
+		cur = self.tradestbl.view.currentIndex()
+		t = self.tradestbl.model.objat(cur.row()) if cur.isValid() else None
+		if t is None:
+			QMessageBox.information(self, "Recompute Euros", "Select a trade first.")
+			return
+		self.recomputeeuros([t], f"trade {t.trade}")
+
+	def recomputelisted(self):
+		if self.rb is None:
+			return
+		ts = list(self.rb.listedtrades())
+		self.recomputeeuros(ts, f"the {len(ts)} trades listed")
 
 	def featureschanged(self):
 		"""the features of many trades changed"""

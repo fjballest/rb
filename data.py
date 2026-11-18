@@ -120,6 +120,17 @@ class Currency:
 	forex: Optional[str] = ""
 	euros2: Optional[float] = 1.0
 
+def toeuros(c) -> float:
+	"""what one unit of currency c is in euros. euros2 is the price in the
+	forex pair named: for EURUSD it is dollars per euro, so dollars are
+	divided by it; for USDEUR (or no pair) it is the value in euros."""
+	if c is None or not c.euros2 or c.name.upper() in ("EUR", "EURO", "EUROS"):
+		return 1.0
+	fx = (c.forex or "").upper().replace("/", "")
+	if fx.startswith("EUR") and not fx.endswith("EUR"):
+		return 1 / c.euros2
+	return c.euros2
+
 def currencyexample():
 	return Currency("EUROS", "EURUSD", 43234.3)
 
@@ -262,7 +273,7 @@ class Trade:
 		if self.lots == 0 or self.lots is None:
 			self.lots = 1
 		if self.euros == 0 or self.euros is None:
-			self.euros = self.lots * self.out
+			self.euros = self.eurosfor()	# was lots * out, without the money per point
 		if self.instrument == "":
 			self.instrument = "DAX"
 		if self.graf is None:
@@ -333,19 +344,25 @@ class Trade:
 		return self.rb.findCurrency(i.currency)
 
 	def ptseuros(self, pts = None) -> float:
+		"""the money result in euros: the one given, else computed (see eurosfor)"""
 		if self.euros != 0:
 			return self.euros
+		return self.eurosfor(pts)
+
+	def eurosfor(self, pts = None) -> float:
+		"""the result in euros for pts (the trade's points by default): the
+		points times the size times the instrument's money per point
+		(pipmoney, $2 per point for the micro Nasdaq), converted to euros
+		with its currency"""
 		if pts is None:
 			pts = self.points()
-		toeur = 1.0
 		mult = 1.0
-		i = self.instr()
-		if i is not None and i.pipmoney is not None:
+		i = self.instr() if self.rb is not None else None
+		if i is not None and i.pipmoney:
 			mult = i.pipmoney
-		c = self.currency()
-		if c is not None and c.name not in ("EUR", "EURO") and c.euros2:
-			toeur = 1/c.euros2
-		return pts * self.lots * toeur * mult
+		money = pts * (self.lots or 1) * mult
+		c = self.currency() if i is not None else None
+		return round(money * toeuros(c), 2)
 
 	def hasfeature(self, name) -> bool:
 		return self.has is not None and name in self.has
@@ -529,6 +546,19 @@ class RoadBook:
 			best = max(ws, key=lambda x: x[0])[1]	# the first of the most alike
 			tags.append((best, feat, [w for _, w in ws]))
 		return tags
+
+	def recomputeeuros(self, trades) -> int:
+		"""set the euros of trades from their points, size and instrument
+		(see Trade.eurosfor); returns how many changed"""
+		n = 0
+		for t in trades:
+			e = t.eurosfor()
+			if e != t.euros:
+				t.euros = e
+				n += 1
+		if n:
+			self.dirty = True
+		return n
 
 	def autofeatures(self, trades) -> tuple[int, int]:
 		"""add to each trade the features whose name or aka names appear
