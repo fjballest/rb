@@ -21,7 +21,7 @@ from checklist import CheckBoxGroup
 from data import (
 	RoadBook, Trade, Setup, Feature, Instrument, Currency, Dir, TRADEVIEWORDER,
 	TRADEVIEWRDONLY, tradeexample,
-	setupexample, featureexample, instrumentexample, currencyexample, tradedir
+	setupexample, featureexample, instrumentexample, currencyexample, fetchrates, tradedir
 )
 from calwin import TradeCalendar, daysign, tradeorder
 from filterwin import FilterWindow, TextFilterEdit
@@ -1142,7 +1142,33 @@ class DataWindow(QMainWindow):
 		if self.filterwindow is not None:
 			self.filterwindow.refresh()
 	def mkcurrenciestbl(self):
-		return self.mknamestbl(currencyexample(), lambda: Currency(), self.renamedCurrency)
+		tbl = self.mknamestbl(currencyexample(), lambda: Currency(), self.renamedCurrency)
+		tbl.addbutton("Update", "Set the rates from the euro's reference rates of today, "
+			"published by the European Central Bank. Each rate is set as its forex pair says.", self.updaterates)
+		return tbl
+
+	def updaterates(self):
+		if self.rb is None:
+			return
+		QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+		try:
+			day, rates = fetchrates()
+		except Exception as e:
+			QApplication.restoreOverrideCursor()
+			QMessageBox.warning(self, "Update", f"Can't get the rates from the ECB: {e}")
+			return
+		QApplication.restoreOverrideCursor()
+		if not rates:
+			QMessageBox.warning(self, "Update", "The ECB sent no rates.")
+			return
+		done, missing = self.rb.updaterates(rates)
+		self.currenciestbl.refresh()
+		self.dirtied()
+		msg = f"Rates of {day} from the ECB set for {', '.join(done) or 'no currency'}."
+		if missing:
+			msg += f" No rate for {', '.join(missing)}."
+		msg += " Recompute the euros of the trades listed (Edit menu) to use them."
+		QMessageBox.information(self, "Update", msg)
 	def renamedCurrency(self, oname, nname):
 		if self.rb is None:
 			return

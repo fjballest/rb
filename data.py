@@ -146,6 +146,40 @@ def toeuros(c, find=None, depth=0) -> float:
 		return c.euros2 * (v if v is not None else 1.0)
 	return c.euros2
 
+RATESURL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+
+def parserates(xml: str) -> tuple[str, dict[str, float]]:
+	"""the date and the rates (units per euro, by currency) of the ECB's
+	daily reference rates"""
+	day = re.search(r"time=['\"]([\d-]+)['\"]", xml)
+	rates = {c: float(r) for c, r in re.findall(r"currency=['\"](\w+)['\"]\s+rate=['\"]([\d.]+)['\"]", xml)}
+	return (day.group(1) if day else ""), rates
+
+def fetchrates(url=RATESURL, timeout=15) -> tuple[str, dict[str, float]]:
+	"""the euro's reference rates of today from the ECB, as parserates"""
+	import ssl
+	import urllib.request
+	try:
+		import certifi	# the built app may not find the system's certificates
+		ctx = ssl.create_default_context(cafile=certifi.where())
+	except ImportError:
+		ctx = ssl.create_default_context()
+	req = urllib.request.Request(url, headers={"User-Agent": "RoadBook"})
+	with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+		return parserates(r.read().decode("utf-8", "replace"))
+
+def pairrate(c, rates) -> float|None:
+	"""the rate for currency c as its euros2 is read (see toeuros), from the
+	euro's rates; None when one of its currencies has no rate"""
+	def per(n):	# units of n per euro
+		return 1.0 if n in EURNAMES else rates.get(n)
+	fx = re.sub(r"[^A-Z]", "", (c.forex or "").upper())
+	if len(fx) == 6:
+		b, q = per(fx[:3]), per(fx[3:])	# quote units per base unit
+		return q / b if b and q else None
+	n = per(c.name.upper())
+	return 1 / n if n else None	# no pair: its value in euros
+
 def currencyexample():
 	return Currency("EUROS", "EURUSD", 43234.3)
 
@@ -561,6 +595,24 @@ class RoadBook:
 			best = max(ws, key=lambda x: x[0])[1]	# the first of the most alike
 			tags.append((best, feat, [w for _, w in ws]))
 		return tags
+
+	def updaterates(self, rates) -> tuple[list[str], list[str]]:
+		"""set the rates of the currencies from the euro's rates; returns the
+		names updated and the ones with no rate"""
+		done, missing = [], []
+		for c in self.currencies:
+			if c.name.upper() in EURNAMES:
+				continue
+			r = pairrate(c, rates)
+			if r is None:
+				missing.append(c.name)
+				continue
+			r = round(r, 6 if r < 0.01 else 4)
+			if r != c.euros2:
+				c.euros2 = r
+				self.dirty = True
+			done.append(c.name)
+		return done, missing
 
 	def recomputeeuros(self, trades) -> int:
 		"""set the euros of trades from their points, size and instrument

@@ -246,6 +246,11 @@ buttons.
   `USD/EUR`, or no pair, it is what one unit is worth in euros. A pair
   without the euro goes through the other currency: with `GBPSEK` 10.92 a
   crown is 1/10.92 pounds, and the pound row says what a pound is in euros.
+  **Update**, below the table, sets the rates from the euro's reference
+  rates of the day, published by the European Central Bank, each as its
+  pair says (GBPSEK gets crowns per pound). It needs the Internet, and
+  currencies the ECB has no rate for are left as they were. Recompute the
+  euros of the trades afterwards to use the new rates.
 
 The euros of a trade, when left at zero in its form, are its points times
 its size times the instrument's money per point, in the instrument's
