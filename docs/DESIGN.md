@@ -90,7 +90,7 @@ CSV column order.
 | Class | Key field | Notes |
 |-------|-----------|-------|
 | `Account` | (one row) | account size, `neutral` threshold, `fixed`, `copygraphs`, format `version` |
-| `Currency` | `name` | `euros2`: the rate of the `forex` pair (dollars per euro for EURUSD; the value in euros for USDEUR or no pair), used to convert results (see `toeuros`) |
+| `Currency` | `name` | `euros2`: the rate of the `forex` pair (quote units per base unit: dollars per euro for EUR/USD; through the other currency for a cross like GBPSEK; the value in euros with no pair), used to convert results (see `toeuros`) |
 | `Instrument` | `instrument` | `currency`, `pipmoney` (money per point), `scale` (to normalize points), and other per-instrument numbers |
 | `Setup` | `setup` | name and description |
 | `Feature` | `feature` | `setups`: the setups it applies to, empty means all; `aka`: a list of other names (the `AKA` column, optional in the CSV) |

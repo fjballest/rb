@@ -241,9 +241,11 @@ buttons.
   currency, the money per point (`pipmoney`), the point size and a scale
   used to normalize points between instruments, among others.
 - **Currencies**: name, forex pair and its rate, used to convert results to
-  euros. The rate is read as the pair says: for `EURUSD` it is dollars per
-  euro (1.08), so dollars are divided by it; for `USDEUR`, or no pair, it is
-  what one unit is worth in euros (0.92).
+  euros. The rate is read as the pair says, with or without a slash: for
+  `EUR/USD` 1.17 it is dollars per euro, so a dollar is 1/1.17 euros; for
+  `USD/EUR`, or no pair, it is what one unit is worth in euros. A pair
+  without the euro goes through the other currency: with `GBPSEK` 10.92 a
+  crown is 1/10.92 pounds, and the pound row says what a pound is in euros.
 
 The euros of a trade, when left at zero in its form, are its points times
 its size times the instrument's money per point, in the instrument's

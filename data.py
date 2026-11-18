@@ -120,15 +120,30 @@ class Currency:
 	forex: Optional[str] = ""
 	euros2: Optional[float] = 1.0
 
-def toeuros(c) -> float:
-	"""what one unit of currency c is in euros. euros2 is the price in the
-	forex pair named: for EURUSD it is dollars per euro, so dollars are
-	divided by it; for USDEUR (or no pair) it is the value in euros."""
-	if c is None or not c.euros2 or c.name.upper() in ("EUR", "EURO", "EUROS"):
+EURNAMES = ("EUR", "EURO", "EUROS")
+
+def toeuros(c, find=None, depth=0) -> float:
+	"""what one unit of currency c is in euros. euros2 is the rate of its
+	forex pair, BASEQUOTE, quote units per base unit: EUR/USD 1.17 is
+	dollars per euro, so a dollar is 1/1.17 euros; GBPSEK 10.92 is crowns
+	per pound, so a crown is 1/10.92 pounds, and find (a name -> Currency
+	lookup) gives the pound in euros. Without a pair, euros2 is the value
+	in euros."""
+	if c is None or not c.euros2 or c.name.upper() in EURNAMES:
 		return 1.0
-	fx = (c.forex or "").upper().replace("/", "")
-	if fx.startswith("EUR") and not fx.endswith("EUR"):
-		return 1 / c.euros2
+	def unit(name):	# one unit of the currency named, in euros
+		if name in EURNAMES:
+			return 1.0
+		o = find(name) if find is not None and depth < 3 else None
+		return toeuros(o, find, depth + 1) if o is not None else None
+	fx = re.sub(r"[^A-Z]", "", (c.forex or "").upper())
+	name = c.name.upper()
+	if len(fx) == 6 and fx.endswith(name):	# EURUSD for USD: per euro
+		v = unit(fx[:3])
+		return (v if v is not None else 1.0) / c.euros2
+	if len(fx) == 6 and fx.startswith(name):	# USDEUR for USD: in euros
+		v = unit(fx[3:])
+		return c.euros2 * (v if v is not None else 1.0)
 	return c.euros2
 
 def currencyexample():
@@ -362,7 +377,7 @@ class Trade:
 			mult = i.pipmoney
 		money = pts * (self.lots or 1) * mult
 		c = self.currency() if i is not None else None
-		return round(money * toeuros(c), 2)
+		return round(money * toeuros(c, self.rb.findCurrency if self.rb else None), 2)
 
 	def hasfeature(self, name) -> bool:
 		return self.has is not None and name in self.has
