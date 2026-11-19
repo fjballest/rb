@@ -91,7 +91,7 @@ CSV column order.
 |-------|-----------|-------|
 | `Account` | (one row) | account size, `neutral` threshold, `fixed`, `copygraphs`, format `version` |
 | `Currency` | `name` | `euros2`: the rate of the `forex` pair (quote units per base unit: dollars per euro for EUR/USD; through the other currency for a cross like GBPSEK; the value in euros with no pair), used to convert results (see `toeuros`) |
-| `Instrument` | `instrument` | `currency`, `pipmoney` (money per point), `scale` (to normalize points), and other per-instrument numbers |
+| `Instrument` | `instrument` | `aka`: a list of expressions for other names (`MNQ*`, `*nasdaq*`, see `akapattern`; `DEFAULTAKA` for NASDAQ, DAX and SP500 when empty), `currency`, `pipmoney` (money per point), `scale` (to normalize points), and other per-instrument numbers |
 | `Setup` | `setup` | name and description |
 | `Feature` | `feature` | `setups`: the setups it applies to, empty means all; `aka`: a list of other names (the `AKA` column, optional in the CSV) |
 | `Trade` | `trade` (number) | instrument, setup, date and times, `dir`, `lots`, `tp`, `stop`, `out` (points), `euros`, `graf` (list of graph paths, primary first), `notes`, `has` (set of feature names) |
@@ -307,8 +307,12 @@ because importing them takes seconds. When several files are dropped on a
 trade with no graphs, `TradeEdit.ocrbest` scores each one (`ocrscore`: a
 known instrument counts most) and makes the best the primary graph.
 
-- Instrument: `instrumentin` matches each text against `INSTRS` (Nasdaq
-  first, so NASDAX is the Nasdaq); the instrument named most wins.
+- Instrument: `instrumentin` matches each text against the roadbook's
+  `instrumentpatterns` (each name and its aka expressions; `DEFAULTAKA`
+  without a roadbook), the longest match winning in a text (so NASDAX is the
+  Nasdaq, not the DAX); the instrument named most wins. `findInstrument`
+  falls back to the aka expressions and `instrumentname` turns a name into
+  the instrument's, for trades loaded or edited and for the OCR.
 - Direction: the middles of the *Stop:*, *Objetivo:* and *Cerrado/Abierto
   PyG* labels go to `_side`; a stop below the target or the entry is long.
 - Times: `timelabels` pairs each `yy-mm-dd` date text with its time (in the

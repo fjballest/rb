@@ -197,9 +197,11 @@ graphs. The first OCR takes a while because the OCR engine loads then.
 
 What the OCR looks for, in TradingView captures:
 
-- **Instrument:** the one named most in the capture. MNQ1!, NQ…, Micro or
-  E-mini Nasdaq, NASDAX, US100 or USTEC are the NASDAQ; FDAX, FDXM, GER40,
-  DE40 or Alemania 40 are the DAX.
+- **Instrument:** the one named most in the capture, by its name or its aka
+  expressions (see Instruments below). With the usual ones, MNQ1!, NQ…, Micro
+  or E-mini Nasdaq, NASDAX, US100 or USTEC are the NASDAQ; FDAX, FDXM, GER40,
+  DE40 or Alemania 40 are the DAX; ES1!, ESZ2025, MESH26 or E-mini S&P 500
+  are the SP500.
 - **Long or short:** where the position's labels are. A stop below the
   target (or below the entry, the label in the middle) is a long; a stop
   above it is a short.
@@ -237,9 +239,17 @@ buttons.
   final lowercase `s` is optional, so `EQL` matches `EQLs` (and `EQLs`
   matches `EQL`). In aka names a `*` matches any letters within the word,
   so `EQ*` matches `EQL`, `EQH` and `EQLs`.
-- **Instruments**: what you trade. Besides its name it has an alias, its
-  currency, the money per point (`pipmoney`), the point size and a scale
-  used to normalize points between instruments, among others.
+- **Instruments**: what you trade. Besides its name it has its currency, the
+  money per point (`pipmoney`), the point size and a scale used to normalize
+  points between instruments, among others. The **aka** column lists, split
+  by `;`, expressions for other names of the instrument, compared ignoring
+  case: `*X*` is a word that has X, `X*` one that starts with X, `*X` one
+  that ends with X, and `X` the word X; a space also matches no space, so
+  `GER 40*` matches GER40. For example `MNQ*;NQ*` for the Nasdaq futures, or
+  `SPTRD;ES1!;ESZ2*;MESZ2*` for the SP500. A trade, a typed instrument or an
+  OCR'd one that matches an aka gets the instrument's name, so SPTRD becomes
+  SP500 and MNQU2026 the NASDAQ. A NASDAQ, DAX or SP500 with no aka gets the
+  usual expressions for it.
 - **Currencies**: name, forex pair and its rate, used to convert results to
   euros. The rate is read as the pair says, with or without a slash: for
   `EUR/USD` 1.17 it is dollars per euro, so a dollar is 1/1.17 euros; for

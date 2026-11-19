@@ -296,7 +296,8 @@ class TradeEdit(QDialog):
 		# the first call loads the OCR engine, which takes a few seconds
 		QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
 		try:
-			return TradeOCR.OCR(path, self.rb.setupNames())
+			pats = [(i.instrument, rx) for i, rx in self.rb.instrumentpatterns()]
+			return TradeOCR.OCR(path, self.rb.setupNames(), pats)
 		finally:
 			QApplication.restoreOverrideCursor()
 
@@ -349,7 +350,7 @@ class TradeEdit(QDialog):
 		if self.tOCR.setup and len(self.setupbox.lineEdit().text()) == 0:
 			self.setupbox.setCurrentText(self.tOCR.setup)
 		if self.tOCR.instr and len(self.instrbox.lineEdit().text()) == 0:
-			self.instrbox.setCurrentText(self.tOCR.instr)
+			self.instrbox.setCurrentText(self.rb.instrumentname(self.tOCR.instr))
 
 		if self.tOCR.ptstp and len(self.tpbox.text()) == 0:
 			self.tpbox.setText(f"{self.tOCR.ptstp}")
@@ -437,6 +438,8 @@ class TradeEdit(QDialog):
 		if self.t:
 			t.trade = self.t.trade
 		t.instrument = getstr(self.instrbox.lineEdit().text())
+		if t.instrument:
+			t.instrument = self.rb.instrumentname(t.instrument)
 		t.setup = getstr(self.setupbox.lineEdit().text())
 		t.datein = self.datebox.date().toPython()
 		t.timein = self.timeinbox.time().toPython()
@@ -985,6 +988,8 @@ class DataWindow(QMainWindow):
 		or features it now names if the roadbook does not have them"""
 		if self.rb is None or name not in ("instrument", "setup", "has"):
 			return
+		if t.instrument:
+			t.instrument = self.rb.instrumentname(t.instrument)
 		self.rb.defaultinstr(t.instrument)
 		self.rb.defaultsetup(t.setup)
 		self.rb.defaultfeatures(t.has, t.setup)

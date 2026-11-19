@@ -54,19 +54,26 @@ def s2t(s):
 	except Exception:
 		return None
 
-# instrument names as they show in the charts (TradingView, PRT...), checked
-# in order: NASDAX is the Nasdaq, not the DAX
-INSTRS = (
-	("NASDAQ", re.compile(r"nasda[qx]|\b(?:M|N)?NQ[A-Z0-9!]*\b|\bNNQ|\bNAS ?100|\bUS ?100|\bUSTEC|\bUSTECH", re.I)),
-	("DAX", re.compile(r"\bF?DAX|\bFDXM|\bFDXS|\bGER ?40|\bDE ?40|\bGERMANY ?40|Alemania ?40", re.I)),
-)
+def defaultinstrs():
+	"""(name, regex) for the instruments of DEFAULTAKA, for an OCR
+	without a roadbook to tell them"""
+	from data import DEFAULTAKA, RoadBook
+	return [(n, re.compile("|".join(RoadBook.akapattern(x) for x in [n] + a), re.I))
+		for n, a in DEFAULTAKA.items()]
 
-def instrumentin(text):
-	"""the instrument named in a text of the chart, or None"""
-	for name, rx in INSTRS:
-		if rx.search(text):
-			return name
-	return None
+def instrumentin(text, instrs=None):
+	"""the instrument named in a text of the chart, or None. instrs is a
+	list of (name, regex), the roadbook's instruments and their aka
+	expressions; when two match, the longest match wins (NASDAX is the
+	Nasdaq, not the DAX)"""
+	if instrs is None:
+		instrs = defaultinstrs()
+	best, blen = None, 0
+	for name, rx in instrs:
+		for m in rx.finditer(text):
+			if len(m.group(0)) > blen:
+				best, blen = name, len(m.group(0))
+	return best
 
 def chartzone(texts, instr):
 	"""the time zone the chart times are in: the UTC offset it shows
@@ -176,12 +183,14 @@ class TradeOCR:
 	tout: time = None
 	texts: list = None	# all the text read, to suggest tags
 
-	def OCR(path, setups=None):
+	def OCR(path, setups=None, instrs=None):
+		"""instrs: (name, regex) to tell the instrument, see instrumentin"""
 		try:
 			if setups is None:
 				setups = []
-
-			return TradeOCR._OCR(path, [ x for x in setups ])
+			if instrs is None:
+				instrs = defaultinstrs()
+			return TradeOCR._OCR(path, [ x for x in setups ], instrs)
 		except Exception as e:
 			print("OCR:", e, file=sys.stderr)
 			return None
@@ -252,7 +261,7 @@ class TradeOCR:
 		return tin, tout
 
 	# heuristics for PRT/TradingView scans according to experience
-	def _OCR(path, setups):
+	def _OCR(path, setups, instrs):
 		first=True
 		instr=None
 		ninstr=0
@@ -283,7 +292,7 @@ class TradeOCR:
 			_, y0, _, y1 = boxof(bbox)
 			ymid = (y0 + y1) / 2
 			# the instrument named most; else the first name, usually
-			named = instrumentin(text)
+			named = instrumentin(text, instrs)
 			if named:
 				votes[named] = votes.get(named, 0) + 1
 			if first:

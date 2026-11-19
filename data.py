@@ -183,10 +183,19 @@ def pairrate(c, rates) -> float|None:
 def currencyexample():
 	return Currency("EUROS", "EURUSD", 43234.3)
 
+# the aka expressions for instruments that have none: how the charts
+# (TradingView, PRT...) name them
+DEFAULTAKA = {
+	"NASDAQ": ["*nasdaq*", "*nasdax*", "MNQ*", "NQ*", "NNQ*", "NAS 100*", "US 100*", "USTEC*"],
+	"DAX": ["DAX*", "FDAX*", "FDXM*", "FDXS*", "GER 40*", "DE 40*", "GERMANY 40*", "ALEMANIA 40*"],
+	"SP500": ["SPTRD", "*S&P 500*", "SP 500*", "US 500*", "SPX*",
+		"ES1!", "ESH2*", "ESM2*", "ESU2*", "ESZ2*", "MES1!", "MESH2*", "MESM2*", "MESU2*", "MESZ2*"],
+}
+
 @dataclass
 class Instrument:
 	instrument: str = ""
-	aka: Optional[str] = ""
+	aka: Optional[List[str]] = field(default_factory= list)	# expressions for its other names
 	currency: Optional[str] = ""
 	pipmoney: Optional[float] = 1.0
 	pip: Optional[float] = 1.0
@@ -199,7 +208,7 @@ class Instrument:
 	sreadpm: Optional[float] = 0
 
 def instrumentexample():
-	return Instrument("NASDAQ", "SP 500", "EURUSD", 1.0, 0.0001, 144.3, 240000,
+	return Instrument("NASDAQ", ["*nasdaq*", "MNQ*", "NQ*"], "EURUSD", 1.0, 0.0001, 144.3, 240000,
 		243.4, 354.4, 354.4,  432, 432)
 
 TRADEVIEWORDER = ["trade", "instrument", "setup", "dir", "out", "datein", "timein",
@@ -494,10 +503,55 @@ class RoadBook:
 
 
 	def findInstrument(self, name):
+		"""the instrument called name (ignoring case), or else the first one with an aka
+		expression that matches name (see akapattern)"""
 		for i in self.instruments:
 			if i.instrument == name:
 				return i
+		if not name:
+			return None
+		for i in self.instruments:
+			if i.instrument.lower() == name.lower():
+				return i
+		for i, pat in self.instrumentpatterns(names=False):
+			if pat.search(name):
+				return i
 		return None
+
+	def instrumentname(self, name):
+		"""the name of the instrument name stands for: SPTRD or ESZ2025 give
+		SP500 when its aka has SPTRD and ESZ*. Unknown names stay as they are."""
+		i = self.findInstrument(name)
+		return i.instrument if i is not None else name
+
+	@staticmethod
+	def akapattern(expr) -> str:
+		"""regex for an aka expression of an instrument, matched ignoring
+		case: *X* means a word that has X, X* one that starts with X, *X one
+		that ends with X and X the word X. A space matches spaces or none,
+		so GER 40 matches GER40 too."""
+		parts = [re.escape(x) for x in expr.strip().split("*")]
+		p = r"\S*".join(parts)
+		p = re.sub(r"(\\ )+", r"\\s*", p)	# re.escape turns a space into "\ "
+		if not expr.strip().startswith("*"):
+			p = r"(?<!\w)" + p
+		if not expr.strip().endswith("*"):
+			p += r"(?!\w)"
+		return p
+
+	def instrumentpatterns(self, names=True) -> list:
+		"""(instrument, regex) to look for each instrument in a text, as its
+		aka expressions say, and, with names, as its name, as a word"""
+		pats = []
+		for i in self.instruments:
+			aka = i.aka.split(";") if isinstance(i.aka, str) else (i.aka or [])
+			exprs = [x for x in aka if x and x.strip()]
+			if names and i.instrument:
+				exprs = [i.instrument] + exprs
+			if exprs:
+				alts = "|".join(self.akapattern(x) for x in exprs)
+				pats.append((i, re.compile(alts, re.IGNORECASE)))
+		return pats
 	def findSetup(self, name):
 		for s in self.setups:
 			if s.setup == name:
@@ -749,6 +803,14 @@ class RoadBook:
 	def defaultsforinstruments(self) -> None:
 		for i in self.instruments:
 			self.defaultcurrency(i.currency)
+			if i.aka is None:
+				i.aka = []
+			elif isinstance(i.aka, str):
+				i.aka = i.aka.split(";")
+			# old files had the name itself, or nothing, as its aka
+			i.aka = [x for x in i.aka if x.strip() and x.strip() != i.instrument]
+			if not i.aka and i.instrument in DEFAULTAKA:
+				i.aka = list(DEFAULTAKA[i.instrument])
 			if i.pipmoney is None:
 				i.pipmoney = 1.0
 				if i.instrument == "NASDAQ":
@@ -757,6 +819,7 @@ class RoadBook:
 	def defaultsfortrade(self, t):
 			t.rb = self
 			t.setdefaults()
+			t.instrument = self.instrumentname(t.instrument)
 			self.defaultinstr(t.instrument)
 			self.defaultsetup(t.setup)
 			#self.defaultfeatures(t.has, t.setup)
