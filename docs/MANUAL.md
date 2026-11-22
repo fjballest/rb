@@ -641,10 +641,11 @@ place found to the next. Click a section to go to it, and clear the search
 to see all of them again.
 
 **Help ▸ Guide Topics** lists the sections of the guide; pick one to open
-the guide there. On macOS, the search box of the Help menu finds them too:
-type a word and it shows the menu entries for it and the guide's topics
-whose titles have it (*Scaling one of two charts* for "scal"), to go to
-either.
+the guide there. On macOS, the search box of the Help menu searches the
+guide too: type a word and, besides the menu entries for it, **Help Topics**
+lists the sections of the guide that have it (those whose titles have it
+first). Pick one to open the guide there, or **Show All Help Topics** to
+open it with that search.
 
 ## Keyboard reference
 

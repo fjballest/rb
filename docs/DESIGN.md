@@ -548,8 +548,11 @@ without markup, has every word, marks every place found
 `GuideView.loadResource` shrinks the pictures to fit, and links to
 `#anchors` (the Contents) go to their section (`slug`). `addtopics` adds Help ▸ Guide
 Topics, an entry per section (levels 2 and 3, `guidetopics`) calling
-`gotosection`; macOS's Help search box finds menu entries by name, so it
-finds those topics too.
+`gotosection`. On macOS `registerhelpsearch` registers a
+`NSUserInterfaceItemSearching` handler (PyObjC, `pyobjc-framework-Cocoa`;
+skipped without it), so the Help menu's search box lists the sections that
+have the words typed under Help Topics, opens one with `gotosection`, and
+Show All Help Topics opens the guide with that search.
 
 ## Conventions
 

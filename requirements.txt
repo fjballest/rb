@@ -4,3 +4,4 @@ certifi
 easyocr
 opencv-python
 pyinstaller>=6.17.0
+pyobjc-framework-Cocoa; sys_platform == "darwin"	# the guide in the Help menu search

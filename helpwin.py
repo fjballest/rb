@@ -249,13 +249,70 @@ def guidetopics():
 
 def addtopics(menu, appname):
 	"""a Guide Topics submenu in menu, with an entry per section of the guide
-	that opens it there. On macOS the Help menu's search box finds them, so
-	searching for a word lists the parts of the guide about it too."""
+	that opens it there; on macOS the guide also goes into the Help menu's
+	search (registerhelpsearch)"""
 	topics = guidetopics()
 	if not topics:
 		return None
+	registerhelpsearch(appname)
 	sub = menu.addMenu("Guide &Topics")
 	for lv, title, i in topics:
-		a = sub.addAction(("    " if lv == 3 else "") + title)
+		a = sub.addAction(title)
 		a.triggered.connect(lambda _=False, i=i: showguide(appname).gotosection(i))
 	return sub
+
+# macOS: the search box of the Help menu lists, under Help Topics, the
+# sections of the guide that have the words typed; picking one opens the
+# guide there, and Show All Help Topics opens it with that search. Through
+# NSUserInterfaceItemSearching, with PyObjC; without it nothing is added.
+_searcher = None	# kept, so it is not collected
+
+def registerhelpsearch(appname):
+	"""add the guide to the Help menu's search, on macOS; True if done"""
+	global _searcher
+	if sys.platform != "darwin" or _searcher is not None:
+		return _searcher is not None
+	path = guidepath()
+	if not path:
+		return False
+	try:
+		import objc
+		from AppKit import NSApplication
+		from Foundation import NSObject
+	except ImportError:
+		return False
+	secs = sections(open(path, encoding="utf-8").read())
+	topics = [(i, re.sub(r"[*`_]", "", t), plain(t + "\n" + body)) for i, (lv, t, body) in enumerate(secs)
+		if t and lv >= 2 and t.lower() != "contents"]
+
+	class GuideSearch(NSObject, protocols=[objc.protocolNamed("NSUserInterfaceItemSearching")]):
+		def searchForItemsWithSearchString_resultLimit_matchedItemHandler_(self, text, limit, handler):
+			words = [w for w in str(text).lower().split() if w]
+			found = []
+			if words:
+				# titles with the words first, then sections that have them
+				intitle = [i for i, t, _ in topics if all(w in t.lower() for w in words)]
+				inbody = [i for i, _, b in topics if i not in intitle and all(w in b for w in words)]
+				found = (intitle + inbody)[:max(int(limit), 0) or 10]
+			handler(found)
+
+		def localizedTitlesForItem_(self, item):
+			i = int(item)
+			return [next((t for k, t, _ in topics if k == i), "")]
+
+		def performActionForItem_(self, item):
+			showguide(appname).gotosection(int(item))
+
+		def showAllHelpTopicsForSearchString_(self, text):
+			w = showguide(appname)
+			w.search.setText(str(text))
+			w.filter()
+
+	try:
+		_searcher = GuideSearch.alloc().init()
+		NSApplication.sharedApplication().registerUserInterfaceItemSearchHandler_(_searcher)
+	except Exception as x:
+		print("help search:", x, file=sys.stderr)
+		_searcher = None
+		return False
+	return True
