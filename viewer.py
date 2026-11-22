@@ -890,6 +890,31 @@ class ImageView(QGraphicsView):
 
 ALIGNS = (("Center", "center"), ("Left", "left"), ("Right", "right"))
 
+def renderfile(path, drawing=None):
+	"""the image at path with drawing (as saved) on it, at the image's
+	size, without showing it; None if it can't be read"""
+	pix = QPixmap(path) if path else QPixmap()
+	if pix.isNull():
+		return None
+	shapes = [it for it in map(fromdict, (drawing or {}).get("shapes", [])) if it is not None]
+	if not shapes:
+		return pix.toImage()
+	sc = QGraphicsScene()
+	pi = QGraphicsPixmapItem(pix)
+	pi.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+	sc.addItem(pi)
+	sc.setSceneRect(QRectF(pix.rect()))
+	for it in shapes:
+		sc.addItem(it)
+	img = QImage(pix.width(), pix.height(), QImage.Format.Format_ARGB32)
+	img.fill(Qt.GlobalColor.white)
+	p = QPainter(img)
+	p.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
+	sc.render(p, QRectF(img.rect()), sc.sceneRect())
+	p.end()
+	sc.clear()
+	return img
+
 def openfile(p):
 	"""open p with the program the system has for it"""
 	if sys.platform == "darwin":
