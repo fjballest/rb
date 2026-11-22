@@ -1,0 +1,117 @@
+#!/bin/bash
+# RELEASE vX.Y[.Z] notes.md [-i] [-s vOLD]
+#
+# make a release of this repo (DayJournal or RoadBook, the same script in both):
+# write the version to version.py, commit and push it, run the release
+# workflow, wait for it, check its three downloads, and set the release notes
+# from notes.md, adding the paragraph about the downloads when it is not there.
+#	-i	then install it here (macOS): ./MKIT
+#	-s vOLD	the release fixes vOLD, which loses its downloads
+# fixes bump the third number, new features the second
+set -e
+cd "$(dirname "$0")"
+
+usage() { echo "usage: $0 vX.Y[.Z] notes.md [-i] [-s vOLD]" >&2; exit 2; }
+fail() { echo "RELEASE: $*" >&2; exit 1; }
+
+[ $# -ge 2 ] || usage
+tag=$1 notes=$2
+shift 2
+install= old=
+while [ $# -gt 0 ]; do
+	case $1 in
+	-i) install=y ;;
+	-s) [ $# -ge 2 ] || usage; old=$2; shift ;;
+	*) usage ;;
+	esac
+	shift
+done
+[[ $tag =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || fail "$tag is not a version like v2.6 or v2.6.1"
+[ -s "$notes" ] || fail "no notes in $notes"
+notes=$(cd "$(dirname "$notes")" && pwd)/$(basename "$notes")
+
+if [ -f dj.spec ]; then
+	prog=dj app=DayJournal.app
+elif [ -f rb.spec ]; then
+	prog=rb app=rb2.app
+else
+	fail "no dj.spec or rb.spec here"
+fi
+# owner/name from the remote, and only GitHub's REST API (gh api), which works
+# everywhere gh does
+repo=$(git remote get-url origin | sed -E 's,\.git$,,; s,.*[/:]([^/]+/[^/]+)$,\1,')
+release() { gh api "repos/$repo/releases/tags/$1" "${@:2}"; }
+workflow=python-app.yml
+
+# the release goes from master as it is on GitHub, with nothing left out
+[ "$(git rev-parse --abbrev-ref HEAD)" = master ] || fail "not on master"
+git pull -q --ff-only
+git diff --quiet HEAD || fail "uncommitted changes:
+$(git status --short --untracked-files=no)"
+if release "$tag" >/dev/null 2>&1; then
+	fail "$repo already has a release $tag"
+fi
+if [ -n "$old" ]; then
+	release "$old" >/dev/null 2>&1 || fail "$repo has no release $old"
+fi
+
+# the version About shows
+cat > version.py <<EOF
+# the version of the release: the release workflow writes the one it
+# builds here; fixes bump the third number, new features the second
+VERSION = "${tag#v}"
+EOF
+if ! git diff --quiet version.py; then
+	git commit -q -m "${tag#v}" version.py
+	git push -q origin master
+	echo "pushed version ${tag#v}"
+fi
+
+# run the workflow and find its run: one that was not there before
+runs="repos/$repo/actions/workflows/$workflow/runs?event=workflow_dispatch&per_page=5"
+before=$(gh api "$runs" -q '[.workflow_runs[].id]')
+gh api -X POST "repos/$repo/actions/workflows/$workflow/dispatches" -f ref=master -f "inputs[version]=$tag"
+run=
+for i in $(seq 30); do
+	sleep 3
+	run=$(gh api "$runs" -q "[.workflow_runs[] | select(.id as \$i | $before | index(\$i) | not)][0].id // empty")
+	[ -n "$run" ] && break
+done
+[ -n "$run" ] || fail "the workflow run did not show up"
+echo "building $tag: https://github.com/$repo/actions/runs/$run"
+while :; do
+	sleep 30
+	state=$(gh api "repos/$repo/actions/runs/$run" -q '.status + " " + (.conclusion // "")')
+	case $state in completed*) break ;; esac
+done
+[ "$state" = "completed success" ] ||
+	fail "the build ended ${state#completed }: https://github.com/$repo/actions/runs/$run"
+
+n=$(release "$tag" -q '.assets | length')
+[ "$n" -eq 3 ] || fail "release $tag has $n downloads, not 3"
+
+# the notes, with the paragraph on what each download holds
+tmp=$(mktemp)
+cat "$notes" > "$tmp"
+if ! grep -q -- "-macos.zip" "$notes"; then
+	cat >> "$tmp" <<EOF
+
+\`$prog-$tag-macos.zip\` holds the app ($app), \`$prog-$tag-linux.tar.gz\` and \`$prog-$tag-windows.zip\` a \`$prog\` folder with the program inside. On macOS the app is not signed: the first time, right click it and pick Open.
+EOF
+fi
+gh api -X PATCH "repos/$repo/releases/$(release "$tag" -q .id)" -F "body=@$tmp" >/dev/null
+rm -f "$tmp"
+echo "released https://github.com/$repo/releases/tag/$tag"
+
+# the release it fixes keeps its notes but not its downloads
+if [ -n "$old" ]; then
+	for a in $(release "$old" -q '.assets[].id'); do
+		gh api -X DELETE "repos/$repo/releases/assets/$a"
+	done
+	echo "removed the downloads of $old"
+fi
+
+if [ -n "$install" ]; then
+	[ "$(uname)" = Darwin ] || fail "-i installs on macOS only"
+	./MKIT
+fi
