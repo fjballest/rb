@@ -605,23 +605,47 @@ class ImageView(QGraphicsView):
 
 	# ---- scaling a panel ----
 	# Captures with two charts side by side: pick the x that splits them,
-	# then a y in one of them (near its time axis), then drag a point above
-	# that y up or down: that chart, above the y, is scaled vertically about
-	# it, so its price levels can match the other chart's. Below the y it is
-	# kept as it is (the times). done is called with the image made.
+	# then a y in one of them (near its time axis): below it that chart is
+	# kept as it is (its times). Then drag points of that chart, as many
+	# times as needed, to where their prices are in the other chart: with one
+	# point dragged the chart is scaled vertically about the y; with two (a
+	# top and a bottom price, say) it is scaled and moved so both land where
+	# they were dragged. A line across the whole image follows the mouse, to
+	# see if they align. A double click ends, calling done with the image.
+	PINNEAR = 8	# pixels of the view: a press this near a point dragged moves it again
+
 	def startscale(self, done):
-		"""start scaling a panel; done(img, factor, side) is called when the
-		drag ends, and should call endscale(keep)"""
+		"""start scaling a panel; done(img, factor, side) is called on the
+		double click that ends it, and should call endscale(keep)"""
 		if self.pixitem is None:
 			return False
 		self.cancelfib()
 		self.settool("select")
 		self.setDragMode(QGraphicsView.DragMode.NoDrag)
 		self.viewport().setCursor(Qt.CursorShape.CrossCursor)
-		self.scaler = {"step": "split", "x": None, "y": None, "side": None, "from": None,
-			"f": 1.0, "at": None, "orig": self.pixitem.pixmap().toImage(), "done": done}
+		self.scaler = {"step": "split", "x": None, "y": None, "side": None, "pins": [], "drag": None,
+			"at": None, "orig": self.pixitem.pixmap().toImage(), "done": done}
 		self.hint.emit("Click where the two charts meet (Esc cancels)")
 		return True
+
+	def scalemap(self, pins=None):
+		"""(a, b): the chart's rows above the base go from source y to a*y + b"""
+		sc = self.scaler
+		pins = sc["pins"] if pins is None else pins
+		base = sc["y"]
+		if len(pins) >= 2:
+			(s1, t1), (s2, t2) = pins[-2], pins[-1]
+			if abs(s1 - s2) > 1:
+				a = (t1 - t2) / (s1 - s2)
+				if 0.2 <= a <= 5:
+					return a, t1 - a * s1
+			pins = pins[-1:]
+		if len(pins) == 1:
+			s1, t1 = pins[0]
+			if abs(base - s1) > 1:
+				a = min(max((base - t1) / (base - s1), 0.2), 5.0)
+				return a, base * (1 - a)
+		return 1.0, 0.0
 
 	def scalepress(self, ev):
 		sc = self.scaler
@@ -643,9 +667,21 @@ class ImageView(QGraphicsView):
 				sc["side"] = "left" if p.x() < sc["x"] else "right"
 			sc["y"] = round(p.y())
 			sc["step"] = "drag"
-			self.hint.emit("Drag a point above that line up or down to scale the chart")
+			self.hint.emit("Drag a price of this chart to its level in the other one, then another; "
+				"double click when done")
 		elif sc["step"] == "drag" and p.y() < sc["y"] - 2 and self.inside(p):
-			sc["from"] = p.y()
+			# a point dragged before, near the press, is dragged again; else a new one
+			near = self.PINNEAR / max(self.transform().m22(), 1e-6)
+			pins = sc["pins"]
+			prev = list(pins)
+			i = next((k for k, (_, t) in enumerate(pins) if abs(t - p.y()) <= near), None)
+			if i is None:
+				a, b = self.scalemap()
+				pins.append(((p.y() - b) / a, p.y()))	# the source row under the press
+				if len(pins) > 2:
+					pins.pop(0)
+				i = len(pins) - 1
+			sc["drag"] = (i, prev, p.y())
 		self.viewport().update()
 
 	def inside(self, p):
@@ -660,43 +696,57 @@ class ImageView(QGraphicsView):
 	def scalemove(self, ev):
 		sc = self.scaler
 		sc["at"] = self.clamp(self.mapToScene(ev.position().toPoint()))
-		if sc["step"] == "drag" and sc["from"] is not None:
-			f = (sc["y"] - sc["at"].y()) / (sc["y"] - sc["from"])
-			sc["f"] = min(max(f, 0.2), 5.0)
+		if sc["step"] == "drag" and sc["drag"] is not None:
+			i, _, _ = sc["drag"]
+			s0, _ = sc["pins"][i]
+			sc["pins"][i] = (s0, min(sc["at"].y(), sc["y"] - 1))
 			self.pixitem.setPixmap(QPixmap.fromImage(self.scaledimage()))
-			self.hint.emit(f"Vertical scale ×{sc['f']:.3f}")
+			a, _ = self.scalemap()
+			self.hint.emit(f"Vertical scale ×{a:.3f}; double click when done")
 		self.viewport().update()
 
 	def scalerelease(self, ev):
 		sc = self.scaler
-		if sc["step"] != "drag" or sc["from"] is None:
+		if sc["step"] != "drag" or sc["drag"] is None:
 			return
-		sc["from"] = None
-		if abs(sc["f"] - 1) < 0.001:
-			return	# nothing done yet: drag again
-		sc["step"] = "ask"
+		i, before, y0 = sc["drag"]
+		sc["drag"] = None
+		if abs(sc["pins"][i][1] - y0) < 1:	# a click, not a drag: nothing changes
+			sc["pins"] = before
 		self.viewport().update()
+
+	def scaledouble(self):
+		"""the double click that ends scaling"""
+		sc = self.scaler
+		if sc["step"] != "drag":
+			return
+		a, b = self.scalemap()
+		if abs(a - 1) < 0.001 and abs(b) < 0.5:
+			self.endscale(False)	# nothing done
+			return
+		sc["step"] = "ask"
 		img = self.scaledimage()
-		QTimer.singleShot(0, lambda: sc["done"](img, sc["f"], sc["side"]))	# after the release
+		QTimer.singleShot(0, lambda: sc["done"](img, a, sc["side"]))	# after the click
 
 	def scaledimage(self):
-		"""the original image with the panel scaled as the scaler says"""
+		"""the original image with the panel above the base mapped as
+		scalemap says, what is left empty filled with its background"""
 		sc = self.scaler
 		src = sc["orig"]
 		img = src.copy()
-		w, base, f = src.width(), sc["y"], sc["f"]
+		w, base = src.width(), sc["y"]
+		a, b = self.scalemap()
 		x0, x1 = {"left": (0, sc["x"]), "right": (sc["x"], w), "all": (0, w)}[sc["side"]]
 		if x1 <= x0 or base <= 0:
 			return img
+		# source rows [0, base) land on [b, a*base + b), cut to [0, base)
+		t0, t1 = max(b, 0.0), min(a * base + b, float(base))
 		p = QPainter(img)
 		p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-		bg = src.pixelColor(min(x0 + 2, w - 1), 0)
-		p.fillRect(QRect(x0, 0, x1 - x0, base), bg)
-		if f >= 1:
-			sy0, ty0 = base - base / f, 0.0
-		else:
-			sy0, ty0 = 0.0, base * (1 - f)
-		p.drawImage(QRectF(x0, ty0, x1 - x0, base - ty0), src, QRectF(x0, sy0, x1 - x0, base - sy0))
+		p.fillRect(QRect(x0, 0, x1 - x0, base), src.pixelColor(min(x0 + 2, w - 1), 0))
+		if t1 > t0:
+			s0, s1 = (t0 - b) / a, (t1 - b) / a
+			p.drawImage(QRectF(x0, t0, x1 - x0, t1 - t0), src, QRectF(x0, s0, x1 - x0, s1 - s0))
 		p.end()
 		return img
 
@@ -734,6 +784,23 @@ class ImageView(QGraphicsView):
 			else:
 				x0, x1 = x, r.right()
 			painter.drawLine(QPointF(x0, y), QPointF(x1, y))
+		if sc["step"] == "drag":
+			# where the points dragged are, in the chart scaled
+			x0, x1 = {"left": (r.left(), x), "right": (x, r.right())}.get(sc["side"], (r.left(), r.right()))
+			pin = QPen(QColor("#fb8c00"), 2)
+			pin.setCosmetic(True)
+			painter.setPen(pin)
+			for _, t in sc["pins"]:
+				painter.drawLine(QPointF(x0, t), QPointF(x1, t))
+			# the line across the whole image, to compare with the other chart
+			if at is not None:
+				# white in difference mode: it shows on light and dark charts, among their lines
+				painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Difference)
+				guide = QPen(QColor(255, 255, 255), 1)
+				guide.setCosmetic(True)
+				painter.setPen(guide)
+				gy = sc["pins"][sc["drag"][0]][1] if sc["drag"] is not None else at.y()
+				painter.drawLine(QPointF(r.left(), gy), QPointF(r.right(), gy))
 		painter.restore()
 
 	# ---- crosshair ----
@@ -873,6 +940,9 @@ class ImageView(QGraphicsView):
 				self.undo.push(MoveCmd(moves))
 
 	def mouseDoubleClickEvent(self, ev):
+		if self.scaler is not None:
+			self.scaledouble()
+			return
 		if isinstance(self.drawing, FibShape):
 			if self.fibstep == "right":
 				self.endfib(True)	# a double click on the second point: lines to the right edge
