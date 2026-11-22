@@ -687,8 +687,8 @@ class FibShape(QGraphicsItem):
 	lines end before the edge of the image so it fits), of size. The lines
 	are solid, dashed or dotted (dash). The diagonal from p1 to p2 is drawn
 	only when diagonal. With from2 the lines start at the x of p2 instead
-	of the leftmost point. While it is being drawn (live) a dashed line
-	shows where the second point is."""
+	of the leftmost point, once drawn. While it is being drawn (live) a
+	dashed line shows where the second point is."""
 	SIZE = 14
 	PROPS = ("dash", "size")
 
@@ -726,9 +726,10 @@ class FibShape(QGraphicsItem):
 
 	def start(self, p1=None, p2=None):
 		"""the x where the lines start: that of p2 with from2, else that of
-		the leftmost point"""
+		the leftmost point. While it is being drawn they start at the
+		leftmost point anyway, to see the levels."""
 		p1, p2 = p1 or self.p1, p2 or self.p2
-		return p2.x() if self.from2 else min(p1.x(), p2.x())
+		return p2.x() if self.from2 and not self.live else min(p1.x(), p2.x())
 
 	def setprops(self, d):
 		setprops(self, d)
@@ -743,6 +744,7 @@ class FibShape(QGraphicsItem):
 		return f
 
 	def setlive(self, on):
+		self.prepareGeometryChange()	# with from2 the lines start elsewhere
 		self.live = on
 		self.update()
 

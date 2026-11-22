@@ -444,7 +444,8 @@ The custom form starts with all the levels above, and two blank ones, and
 remembers what you set. Its **Draw the diagonal** box adds the dashed line
 from the first point to the second; the other sets never draw it. Its
 **From 2** box starts the lines at the second point instead of the first, so
-they go from the second point to where you clicked the third. Picking a
+they go from the second point to where you clicked the third; while you
+draw it they still start at the first point, so you see the levels. Picking a
 set with fibs selected changes their levels instead. Double click a fib
 (on one of its lines) to open its levels, checked, and change them, or
 draw its diagonal, or set the **Width**, **Style** and **Color** of its lines; a name there keeps them in the menu too. The fib shows
