@@ -39,6 +39,7 @@ class ImageView(QGraphicsView):
 	crosschanged = Signal(bool)	# the crosshair was turned on or off
 	hiddenchanged = Signal(bool)	# the drawings were hidden (True) or shown again
 	shapesaved = Signal(str, str, dict)	# the look of a shape of kind was saved with this name
+	hint = Signal(str)		# what to do next, while scaling a panel
 
 	def __init__(self, parent=None):
 		super().__init__(parent)
@@ -93,6 +94,7 @@ class ImageView(QGraphicsView):
 		self.crosshair = True
 		self.cross = None
 		self.hidden = False	# the drawings are hidden, for this image and the next ones
+		self.scaler = None	# while scaling a panel: see startscale
 		self.settool("select")
 
 	def undochanged(self, _index):
@@ -119,6 +121,7 @@ class ImageView(QGraphicsView):
 	# ---- image ----
 	def setimage(self, path, drawing=None):
 		"""show the image at path with the drawing saved for it"""
+		self.scaler = None
 		self.commitedit()
 		self.loading = True
 		self.drawing = None
@@ -431,6 +434,9 @@ class ImageView(QGraphicsView):
 
 	# ---- mouse ----
 	def mousePressEvent(self, ev):
+		if self.scaler is not None:
+			self.scalepress(ev)
+			return
 		if isinstance(self.drawing, FibShape) and ev.button() == Qt.MouseButton.RightButton:
 			self.cancelfib()	# the right button drops the fib being drawn
 			return
@@ -488,6 +494,9 @@ class ImageView(QGraphicsView):
 		self.additem(self.drawing)
 
 	def mouseMoveEvent(self, ev):
+		if self.scaler is not None:
+			self.scalemove(ev)
+			return
 		if self.drawing is not None:
 			self.setcross(None)
 			self.drawto(ev)
@@ -594,6 +603,139 @@ class ImageView(QGraphicsView):
 		openfile(p)
 		return True
 
+	# ---- scaling a panel ----
+	# Captures with two charts side by side: pick the x that splits them,
+	# then a y in one of them (near its time axis), then drag a point above
+	# that y up or down: that chart, above the y, is scaled vertically about
+	# it, so its price levels can match the other chart's. Below the y it is
+	# kept as it is (the times). done is called with the image made.
+	def startscale(self, done):
+		"""start scaling a panel; done(img, factor, side) is called when the
+		drag ends, and should call endscale(keep)"""
+		if self.pixitem is None:
+			return False
+		self.cancelfib()
+		self.settool("select")
+		self.setDragMode(QGraphicsView.DragMode.NoDrag)
+		self.viewport().setCursor(Qt.CursorShape.CrossCursor)
+		self.scaler = {"step": "split", "x": None, "y": None, "side": None, "from": None,
+			"f": 1.0, "at": None, "orig": self.pixitem.pixmap().toImage(), "done": done}
+		self.hint.emit("Click where the two charts meet (Esc cancels)")
+		return True
+
+	def scalepress(self, ev):
+		sc = self.scaler
+		if ev.button() == Qt.MouseButton.RightButton:
+			self.cancelscale()
+			return
+		if ev.button() != Qt.MouseButton.LeftButton:
+			return
+		p = self.clamp(self.mapToScene(ev.position().toPoint()))
+		r = self.sceneRect()
+		if sc["step"] == "split":
+			sc["x"] = round(p.x())
+			sc["step"] = "base"
+			self.hint.emit("Click on the chart to scale, near its time axis: below that it stays as it is")
+		elif sc["step"] == "base":
+			if sc["x"] <= r.left() + 1 or sc["x"] >= r.right() - 1:
+				sc["side"] = "all"	# no split: the whole image
+			else:
+				sc["side"] = "left" if p.x() < sc["x"] else "right"
+			sc["y"] = round(p.y())
+			sc["step"] = "drag"
+			self.hint.emit("Drag a point above that line up or down to scale the chart")
+		elif sc["step"] == "drag" and p.y() < sc["y"] - 2 and self.inside(p):
+			sc["from"] = p.y()
+		self.viewport().update()
+
+	def inside(self, p):
+		"""p is in the panel being scaled"""
+		sc = self.scaler
+		if sc["side"] == "left":
+			return p.x() < sc["x"]
+		if sc["side"] == "right":
+			return p.x() >= sc["x"]
+		return True
+
+	def scalemove(self, ev):
+		sc = self.scaler
+		sc["at"] = self.clamp(self.mapToScene(ev.position().toPoint()))
+		if sc["step"] == "drag" and sc["from"] is not None:
+			f = (sc["y"] - sc["at"].y()) / (sc["y"] - sc["from"])
+			sc["f"] = min(max(f, 0.2), 5.0)
+			self.pixitem.setPixmap(QPixmap.fromImage(self.scaledimage()))
+			self.hint.emit(f"Vertical scale ×{sc['f']:.3f}")
+		self.viewport().update()
+
+	def scalerelease(self, ev):
+		sc = self.scaler
+		if sc["step"] != "drag" or sc["from"] is None:
+			return
+		sc["from"] = None
+		if abs(sc["f"] - 1) < 0.001:
+			return	# nothing done yet: drag again
+		sc["step"] = "ask"
+		self.viewport().update()
+		img = self.scaledimage()
+		QTimer.singleShot(0, lambda: sc["done"](img, sc["f"], sc["side"]))	# after the release
+
+	def scaledimage(self):
+		"""the original image with the panel scaled as the scaler says"""
+		sc = self.scaler
+		src = sc["orig"]
+		img = src.copy()
+		w, base, f = src.width(), sc["y"], sc["f"]
+		x0, x1 = {"left": (0, sc["x"]), "right": (sc["x"], w), "all": (0, w)}[sc["side"]]
+		if x1 <= x0 or base <= 0:
+			return img
+		p = QPainter(img)
+		p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+		bg = src.pixelColor(min(x0 + 2, w - 1), 0)
+		p.fillRect(QRect(x0, 0, x1 - x0, base), bg)
+		if f >= 1:
+			sy0, ty0 = base - base / f, 0.0
+		else:
+			sy0, ty0 = 0.0, base * (1 - f)
+		p.drawImage(QRectF(x0, ty0, x1 - x0, base - ty0), src, QRectF(x0, sy0, x1 - x0, base - sy0))
+		p.end()
+		return img
+
+	def endscale(self, keep):
+		"""end scaling: keep the image scaled, or put the original back"""
+		sc, self.scaler = self.scaler, None
+		if sc is not None and not keep and self.pixitem is not None:
+			self.pixitem.setPixmap(QPixmap.fromImage(sc["orig"]))
+		self.settool(self.tool)
+		self.hint.emit("")
+		self.viewport().update()
+
+	def cancelscale(self):
+		if self.scaler is not None and self.scaler["step"] != "ask":
+			self.endscale(False)
+
+	def drawscaler(self, painter):
+		sc = self.scaler
+		r = self.sceneRect()
+		painter.save()
+		pen = QPen(QColor("#1e88e5"), 2)
+		pen.setCosmetic(True)
+		pen.setStyle(Qt.PenStyle.DashLine)
+		painter.setPen(pen)
+		at = sc["at"]
+		x = sc["x"] if sc["x"] is not None else (at.x() if at is not None else None)
+		if x is not None:
+			painter.drawLine(QPointF(x, r.top()), QPointF(x, r.bottom()))
+		y = sc["y"] if sc["y"] is not None else (at.y() if at is not None and sc["step"] == "base" else None)
+		if y is not None:
+			if sc["side"] == "left" or (sc["side"] is None and at is not None and at.x() < x):
+				x0, x1 = r.left(), x
+			elif sc["side"] == "all":
+				x0, x1 = r.left(), r.right()
+			else:
+				x0, x1 = x, r.right()
+			painter.drawLine(QPointF(x0, y), QPointF(x1, y))
+		painter.restore()
+
 	# ---- crosshair ----
 	def setcrosshair(self, on):
 		self.crosshair = bool(on)
@@ -635,6 +777,9 @@ class ImageView(QGraphicsView):
 	def drawForeground(self, painter, rect):
 		super().drawForeground(painter, rect)
 		self.drawhandles(painter)
+		if self.scaler is not None:
+			self.drawscaler(painter)
+			return
 		p = self.cross
 		if p is None:
 			return
@@ -693,6 +838,9 @@ class ImageView(QGraphicsView):
 		self.drawing.setend(p)
 
 	def mouseReleaseEvent(self, ev):
+		if self.scaler is not None:
+			self.scalerelease(ev)
+			return
 		if isinstance(self.drawing, FibShape):
 			if self.fibstep == "drag":
 				# dragged to the second point, or clicked the first one: then click the second
@@ -875,6 +1023,8 @@ class ImageView(QGraphicsView):
 		if k in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
 			if self.delkey is None or not self.delkey():
 				self.deleteselected()
+		elif k == Qt.Key.Key_Escape and self.scaler is not None:
+			self.cancelscale()
 		elif k == Qt.Key.Key_Escape:
 			self.cancelfib()
 			self.scene().clearSelection()
