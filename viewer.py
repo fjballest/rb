@@ -606,14 +606,12 @@ class ImageView(QGraphicsView):
 	# ---- scaling a panel ----
 	# Captures with two charts side by side: pick the x that splits them,
 	# then a y in one of them (near its time axis): below it that chart is
-	# kept as it is (its times). Then drag points of that chart, as many
-	# times as needed, to where their prices are in the other chart: with one
-	# point dragged the chart is scaled vertically about the y; with two (a
-	# top and a bottom price, say) it is scaled and moved so both land where
-	# they were dragged. A line across the whole image follows the mouse, to
-	# see if they align. A double click ends, calling done with the image.
-	PINNEAR = 8	# pixels of the view: a press this near a point dragged moves it again
-
+	# kept as it is (its times). Then drag that chart up or down to put one
+	# of its prices on the level it has in the other chart (a line across the
+	# whole image shows it), and scale it with the wheel, or dragging with
+	# shift, keeping that price where it is. Drag again to move it, from
+	# another price if need be. A double click ends, calling done with the
+	# image made.
 	def startscale(self, done):
 		"""start scaling a panel; done(img, factor, side) is called on the
 		double click that ends it, and should call endscale(keep)"""
@@ -623,29 +621,38 @@ class ImageView(QGraphicsView):
 		self.settool("select")
 		self.setDragMode(QGraphicsView.DragMode.NoDrag)
 		self.viewport().setCursor(Qt.CursorShape.CrossCursor)
-		self.scaler = {"step": "split", "x": None, "y": None, "side": None, "pins": [], "drag": None,
-			"at": None, "orig": self.pixitem.pixmap().toImage(), "done": done}
+		self.scaler = {"step": "split", "x": None, "y": None, "side": None, "a": 1.0, "b": 0.0,
+			"anchor": None, "drag": None, "at": None, "orig": self.pixitem.pixmap().toImage(), "done": done}
 		self.hint.emit("Click where the two charts meet (Esc cancels)")
 		return True
 
-	def scalemap(self, pins=None):
+	def scalemap(self):
 		"""(a, b): the chart's rows above the base go from source y to a*y + b"""
+		return self.scaler["a"], self.scaler["b"]
+
+	def anchorat(self):
+		"""where the price kept in place is now, or None"""
 		sc = self.scaler
-		pins = sc["pins"] if pins is None else pins
-		base = sc["y"]
-		if len(pins) >= 2:
-			(s1, t1), (s2, t2) = pins[-2], pins[-1]
-			if abs(s1 - s2) > 1:
-				a = (t1 - t2) / (s1 - s2)
-				if 0.2 <= a <= 5:
-					return a, t1 - a * s1
-			pins = pins[-1:]
-		if len(pins) == 1:
-			s1, t1 = pins[0]
-			if abs(base - s1) > 1:
-				a = min(max((base - t1) / (base - s1), 0.2), 5.0)
-				return a, base * (1 - a)
-		return 1.0, 0.0
+		return None if sc["anchor"] is None else sc["a"] * sc["anchor"] + sc["b"]
+
+	def scaleby(self, k):
+		"""scale the chart by k, keeping the anchor where it is"""
+		sc = self.scaler
+		t = self.anchorat()
+		if t is None:
+			t = sc["y"]	# no price picked yet: about the base
+			sc["anchor"] = (t - sc["b"]) / sc["a"]
+		a = min(max(sc["a"] * k, 0.2), 5.0)
+		sc["b"] = t - a * sc["anchor"]
+		sc["a"] = a
+		self.showscaled()
+
+	def showscaled(self):
+		sc = self.scaler
+		self.pixitem.setPixmap(QPixmap.fromImage(self.scaledimage()))
+		self.hint.emit(f"Vertical scale ×{sc['a']:.3f}: drag to move, wheel or shift drag to scale, "
+			"double click when done")
+		self.viewport().update()
 
 	def scalepress(self, ev):
 		sc = self.scaler
@@ -667,21 +674,13 @@ class ImageView(QGraphicsView):
 				sc["side"] = "left" if p.x() < sc["x"] else "right"
 			sc["y"] = round(p.y())
 			sc["step"] = "drag"
-			self.hint.emit("Drag a price of this chart to its level in the other one, then another; "
-				"double click when done")
-		elif sc["step"] == "drag" and p.y() < sc["y"] - 2 and self.inside(p):
-			# a point dragged before, near the press, is dragged again; else a new one
-			near = self.PINNEAR / max(self.transform().m22(), 1e-6)
-			pins = sc["pins"]
-			prev = list(pins)
-			i = next((k for k, (_, t) in enumerate(pins) if abs(t - p.y()) <= near), None)
-			if i is None:
-				a, b = self.scalemap()
-				pins.append(((p.y() - b) / a, p.y()))	# the source row under the press
-				if len(pins) > 2:
-					pins.pop(0)
-				i = len(pins) - 1
-			sc["drag"] = (i, prev, p.y())
+			self.hint.emit("Drag a price of this chart to its level in the other one, then scale it with "
+				"the wheel or a shift drag; double click when done")
+		elif sc["step"] == "drag" and self.inside(p):
+			shift = bool(ev.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+			if not shift:	# the price under the press is the one kept in place from now on
+				sc["anchor"] = (p.y() - sc["b"]) / sc["a"]
+			sc["drag"] = ("scale" if shift else "move", p.y(), sc["a"], sc["b"])
 		self.viewport().update()
 
 	def inside(self, p):
@@ -697,29 +696,35 @@ class ImageView(QGraphicsView):
 		sc = self.scaler
 		sc["at"] = self.clamp(self.mapToScene(ev.position().toPoint()))
 		if sc["step"] == "drag" and sc["drag"] is not None:
-			i, _, _ = sc["drag"]
-			s0, _ = sc["pins"][i]
-			sc["pins"][i] = (s0, min(sc["at"].y(), sc["y"] - 1))
-			self.pixitem.setPixmap(QPixmap.fromImage(self.scaledimage()))
-			a, _ = self.scalemap()
-			self.hint.emit(f"Vertical scale ×{a:.3f}; double click when done")
+			kind, y0, a0, b0 = sc["drag"]
+			dy = sc["at"].y() - y0
+			if kind == "move":
+				sc["a"], sc["b"] = a0, b0 + dy
+				self.showscaled()
+			else:	# up stretches, down shrinks: 1% a pixel of the view
+				sc["a"], sc["b"] = a0, b0
+				self.scaleby(1.01 ** (-dy * self.transform().m22()))
+			return
 		self.viewport().update()
 
 	def scalerelease(self, ev):
-		sc = self.scaler
-		if sc["step"] != "drag" or sc["drag"] is None:
-			return
-		i, before, y0 = sc["drag"]
-		sc["drag"] = None
-		if abs(sc["pins"][i][1] - y0) < 1:	# a click, not a drag: nothing changes
-			sc["pins"] = before
-		self.viewport().update()
+		if self.scaler["drag"] is not None:
+			self.scaler["drag"] = None
+			self.viewport().update()
+
+	def scalewheel(self, ev):
+		"""the wheel scales the chart, about the price kept in place"""
+		d = ev.angleDelta().y() or ev.pixelDelta().y()
+		if d:
+			self.scaleby(1.0005 ** d)	# a notch (120) is 6%
+		ev.accept()
 
 	def scaledouble(self):
 		"""the double click that ends scaling"""
 		sc = self.scaler
 		if sc["step"] != "drag":
 			return
+		sc["drag"] = None
 		a, b = self.scalemap()
 		if abs(a - 1) < 0.001 and abs(b) < 0.5:
 			self.endscale(False)	# nothing done
@@ -784,23 +789,17 @@ class ImageView(QGraphicsView):
 			else:
 				x0, x1 = x, r.right()
 			painter.drawLine(QPointF(x0, y), QPointF(x1, y))
-		if sc["step"] == "drag":
-			# where the points dragged are, in the chart scaled
-			x0, x1 = {"left": (r.left(), x), "right": (x, r.right())}.get(sc["side"], (r.left(), r.right()))
-			pin = QPen(QColor("#fb8c00"), 2)
-			pin.setCosmetic(True)
-			painter.setPen(pin)
-			for _, t in sc["pins"]:
-				painter.drawLine(QPointF(x0, t), QPointF(x1, t))
-			# the line across the whole image, to compare with the other chart
-			if at is not None:
-				# white in difference mode: it shows on light and dark charts, among their lines
-				painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Difference)
-				guide = QPen(QColor(255, 255, 255), 1)
-				guide.setCosmetic(True)
-				painter.setPen(guide)
-				gy = sc["pins"][sc["drag"][0]][1] if sc["drag"] is not None else at.y()
-				painter.drawLine(QPointF(r.left(), gy), QPointF(r.right(), gy))
+		if sc["step"] == "drag" and at is not None:
+			# a line across the whole image, at the price kept in place while
+			# dragging or scaling, else at the mouse: to compare with the other chart.
+			# White in difference mode shows on light and dark charts, among their lines.
+			painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Difference)
+			guide = QPen(QColor(255, 255, 255), 1)
+			guide.setCosmetic(True)
+			painter.setPen(guide)
+			t = self.anchorat()
+			gy = t if sc["drag"] is not None and t is not None else at.y()
+			painter.drawLine(QPointF(r.left(), gy), QPointF(r.right(), gy))
 		painter.restore()
 
 	# ---- crosshair ----
@@ -938,6 +937,12 @@ class ImageView(QGraphicsView):
 			self.pressed = {}
 			if moves:
 				self.undo.push(MoveCmd(moves))
+
+	def wheelEvent(self, ev):
+		if self.scaler is not None and self.scaler["step"] == "drag":
+			self.scalewheel(ev)
+			return
+		super().wheelEvent(ev)
 
 	def mouseDoubleClickEvent(self, ev):
 		if self.scaler is not None:
