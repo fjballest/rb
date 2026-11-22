@@ -22,7 +22,8 @@ directory of graphs. You can have several roadbooks and switch between them.
 10. [Filters](#filters)
 11. [Statistics](#statistics)
 12. [Saving, backups and the files on disk](#saving-backups-and-the-files-on-disk)
-13. [Keyboard reference](#keyboard-reference)
+13. [Help](#help)
+14. [Keyboard reference](#keyboard-reference)
 
 ## Getting started
 
@@ -77,7 +78,7 @@ side by side. **View ▸ Side Panels** shows or hides the right panels.
 | Edit | New Trade (⌘T), Edit Trade (⌘E), Delete Trade, Recompute Euros of Trade, Recompute Euros of Trades Listed, Find and Replace (⌘F) |
 | View | one entry per tab (⌘1 to ⌘7), Expand or Collapse All Trades (⌘⇧E), Graphics (⌘G), Filter (⌘⇧F), Statistics, Side Panels |
 | Window | Minimize (⌘M), layouts for the windows shown (Tile ⌥⌘T), the windows shown |
-| Help | About |
+| Help | User Guide (⌘?), About |
 
 On Windows and Linux use Ctrl instead of ⌘. On macOS, Quit and About are in
 the application menu.
@@ -629,6 +630,15 @@ The CSV files use `;` as separator and can be opened with a spreadsheet if
 everything else fails. Sets and lists inside a cell (features, graphs) are
 also separated by `;`. Roadbooks written by older versions are converted
 when opened.
+
+## Help
+
+**Help ▸ RoadBook User Guide** (⌘?, F1 elsewhere) opens this guide in a window
+of its own: its sections on the left, the text on the right. Type in the
+search box to list only the sections that have all the words typed; they
+are marked in the text, and Return (⇧Return back) or the arrows go from one
+place found to the next. Click a section to go to it, and clear the search
+to see all of them again.
 
 ## Keyboard reference
 

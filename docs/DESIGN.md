@@ -536,6 +536,18 @@ first recent roadbook that still exists.
 Icons are SVG strings in `icons.py` rendered by `QSvgRenderer`, so they look
 the same on every platform.
 
+## The user guide
+
+`helpwin.py` (the same in DayJournal) shows `docs/MANUAL.md` (`guidepath`:
+next to the program, or in the bundle, where `rb.spec`'s `datas` puts it with
+`docs/img`) in `HelpWindow`, opened by Help ▸ User Guide (`showguide`, one
+window, not owned by the main window). `sections` splits the markdown at its
+headings for the contents tree; a search keeps the sections whose text,
+without markup, has every word, marks every place found
+(`setExtraSelections`) and goes through them with `QTextBrowser.find`.
+`GuideView.loadResource` shrinks the pictures to fit, and links to
+`#anchors` (the Contents) go to their section (`slug`).
+
 ## Conventions
 
 - Tabs for indentation, short lowercase method names (`mkfilter`,

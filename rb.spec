@@ -10,7 +10,7 @@ a = Analysis(
     # so PyInstaller does not find it by itself; on macOS the default
     # patterns would only match *.dylib
     binaries=collect_dynamic_libs('torchvision', search_patterns=['*.dylib', '*.so']),
-    datas=[],
+    datas=[('docs/MANUAL.md', 'docs'), ('docs/img', 'docs/img')],	# Help ▸ User Guide
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

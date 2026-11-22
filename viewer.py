@@ -755,6 +755,15 @@ class ImageView(QGraphicsView):
 		p.end()
 		return img
 
+	def scaledrawing(self, data=None):
+		"""the drawings (as saved; those shown when data is None) with the
+		points on the panel scaled, above its base, mapped as the image was"""
+		sc = self.scaler
+		data = self.drawingdata() if data is None else data
+		if sc is None or not data:
+			return data
+		return mapdrawing(data, sc["side"], sc["x"], sc["y"], *self.scalemap())
+
 	def endscale(self, keep):
 		"""end scaling: keep the image scaled, or put the original back"""
 		sc, self.scaler = self.scaler, None
@@ -1114,6 +1123,37 @@ class ImageView(QGraphicsView):
 			super().keyPressEvent(ev)
 
 ALIGNS = (("Center", "center"), ("Left", "left"), ("Right", "right"))
+
+def mapdrawing(data, side, split, base, a, b):
+	"""data, the drawings as saved, with the shapes on the panel side
+	("left" or "right" of x split, or "all") moved: their points above
+	base go from y to a*y + b, as Scale Panel moves the image"""
+	def onside(x):
+		return side == "all" or (x < split if side == "left" else x >= split)
+	def my(y):
+		return a * y + b if y < base else y
+	def mp(p):
+		return [p[0], round(my(p[1]), 1)]
+	out = []
+	for d in data.get("shapes", []):
+		d = dict(d)
+		k = d.get("kind")
+		if k in ("rect", "circle") and "rect" in d:
+			x, y, w, h = d["rect"]
+			if onside(x + w / 2):
+				y0, y1 = my(y), my(y + h)
+				d["rect"] = [x, round(y0, 1), w, round(y1 - y0, 1)]
+		elif k == "pencil" and d.get("points"):
+			if onside(d["points"][0][0]):
+				d["points"] = [mp(p) for p in d["points"]]
+		elif "p1" in d and "p2" in d:	# lines, arrows, fibs
+			if onside(d["p1"][0]):
+				d["p1"], d["p2"] = mp(d["p1"]), mp(d["p2"])
+		elif "pos" in d:	# texts
+			if onside(d["pos"][0]):
+				d["pos"] = mp(d["pos"])
+		out.append(d)
+	return dict(data, shapes=out)
 
 def renderfile(path, drawing=None):
 	"""the image at path with drawing (as saved) on it, at the image's
