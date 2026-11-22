@@ -202,6 +202,12 @@ class HelpWindow(QMainWindow):
 			self.view.setTextCursor(c)
 			self.view.find(words[0], flags)
 
+	def gotosection(self, i):
+		"""show section i of secs, with the contents as they are"""
+		it = QTreeWidgetItem([self.secs[i][1]])
+		it.setData(0, Qt.ItemDataRole.UserRole, i)
+		self.gosection(it)
+
 	def link(self, url):
 		"""links to sections of the guide go there; others open outside"""
 		if url.scheme() in ("http", "https", "mailto"):
@@ -212,9 +218,7 @@ class HelpWindow(QMainWindow):
 		if frag:
 			for i, (_, title, _) in enumerate(self.secs):
 				if slug(title) == frag:
-					it = QTreeWidgetItem([title])
-					it.setData(0, Qt.ItemDataRole.UserRole, i)
-					self.gosection(it)
+					self.gotosection(i)
 					return
 
 def slug(title):
@@ -233,3 +237,25 @@ def showguide(appname, parent=None):
 	w.raise_()
 	w.activateWindow()
 	return w
+
+def guidetopics():
+	"""[(level, title, index in sections)] of the guide's sections, for menus"""
+	path = guidepath()
+	if not path:
+		return []
+	secs = sections(open(path, encoding="utf-8").read())
+	return [(lv, re.sub(r"[*`_]", "", t), i) for i, (lv, t, _) in enumerate(secs)
+		if t and lv in (2, 3) and t.lower() != "contents"]
+
+def addtopics(menu, appname):
+	"""a Guide Topics submenu in menu, with an entry per section of the guide
+	that opens it there. On macOS the Help menu's search box finds them, so
+	searching for a word lists the parts of the guide about it too."""
+	topics = guidetopics()
+	if not topics:
+		return None
+	sub = menu.addMenu("Guide &Topics")
+	for lv, title, i in topics:
+		a = sub.addAction(("    " if lv == 3 else "") + title)
+		a.triggered.connect(lambda _=False, i=i: showguide(appname).gotosection(i))
+	return sub

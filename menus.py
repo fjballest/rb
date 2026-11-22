@@ -11,7 +11,7 @@ from data import RoadBook
 from icons import icon
 from winlayout import windowmenu
 from version import VERSION
-from helpwin import showguide
+from helpwin import addtopics, showguide
 
 RECENTMAX = 10
 QUICKMAX = 6	# roadbooks with their own toolbar button
@@ -135,6 +135,7 @@ class MainMenus:
 		guide = h.addAction("RoadBook &User Guide")
 		guide.setShortcut(QKeySequence.StandardKey.HelpContents)
 		guide.triggered.connect(lambda: showguide("RoadBook"))
+		addtopics(h, "RoadBook")
 		h.addAction(mkaction(d, "&About RoadBook", self.about, role=QAction.MenuRole.AboutRole))
 
 	def mktoolbar(self):

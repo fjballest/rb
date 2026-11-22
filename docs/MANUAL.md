@@ -640,6 +640,12 @@ are marked in the text, and Return (⇧Return back) or the arrows go from one
 place found to the next. Click a section to go to it, and clear the search
 to see all of them again.
 
+**Help ▸ Guide Topics** lists the sections of the guide; pick one to open
+the guide there. On macOS, the search box of the Help menu finds them too:
+type a word and it shows the menu entries for it and the guide's topics
+whose titles have it (*Scaling one of two charts* for "scal"), to go to
+either.
+
 ## Keyboard reference
 
 | Where | Keys | Action |

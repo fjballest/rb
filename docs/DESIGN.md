@@ -546,7 +546,10 @@ headings for the contents tree; a search keeps the sections whose text,
 without markup, has every word, marks every place found
 (`setExtraSelections`) and goes through them with `QTextBrowser.find`.
 `GuideView.loadResource` shrinks the pictures to fit, and links to
-`#anchors` (the Contents) go to their section (`slug`).
+`#anchors` (the Contents) go to their section (`slug`). `addtopics` adds Help ▸ Guide
+Topics, an entry per section (levels 2 and 3, `guidetopics`) calling
+`gotosection`; macOS's Help search box finds menu entries by name, so it
+finds those topics too.
 
 ## Conventions
 
