@@ -163,11 +163,12 @@ def timelabels(img, results):
 	return labels
 
 def findsetup(s, ss):
+	"""the setup named in s: the longest name found, so ICTIFVG is not
+	taken for IFVG. Blank names are skipped: "" is in any text, and a
+	roadbook with an unnamed setup read every capture as that one."""
 	s = s.lower()
-	for x in ss:
-		if x.lower() in s:
-			return x
-	return None
+	found = [x for x in ss if x and x.strip() and x.lower() in s]
+	return max(found, key=len) if found else None
 
 @dataclass
 class TradeOCR:
