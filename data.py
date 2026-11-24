@@ -457,13 +457,17 @@ class Table:
 	cls: type
 	key: object	# sort key used on load
 	renames: Optional[dict] = None	# CSV header names that differ from field names
+	name: object = None	# the name of a row; rows without one are dropped on load and save
+
+def blank(x) -> bool:
+	return x is None or str(x).strip() == ""
 
 # in load order: instruments refer to currencies and trades to everything else
 TABLES = [
-	Table("currencies", CURRENCIESFILE, Currency, lambda c: c.name),
-	Table("instruments", INSTRUMENTSFILE, Instrument, lambda i: i.instrument.lower()),
-	Table("setups", SETUPSFILE, Setup, lambda s: s.setup.lower()),
-	Table("features", FEATURESFILE, Feature, lambda f: f.feature.lower()),
+	Table("currencies", CURRENCIESFILE, Currency, lambda c: c.name or "", name=lambda c: c.name),
+	Table("instruments", INSTRUMENTSFILE, Instrument, lambda i: (i.instrument or "").lower(), name=lambda i: i.instrument),
+	Table("setups", SETUPSFILE, Setup, lambda s: (s.setup or "").lower(), name=lambda s: s.setup),
+	Table("features", FEATURESFILE, Feature, lambda f: (f.feature or "").lower(), name=lambda f: f.feature),
 	Table("trades", TRADESFILE, Trade, lambda t: t.datein, {"datein": "date", "has": "with"}),
 ]
 
@@ -795,6 +799,7 @@ class RoadBook:
 			# files without the column, or with an empty cell, give None
 			if f.setups is None:
 				f.setups = set()
+			f.setups = {s for s in f.setups if not blank(s)}
 			if f.aka is None:
 				f.aka = []
 			self.defaultsetups(f.setups)
@@ -995,7 +1000,7 @@ class RoadBook:
 			self.account.version = VERSION
 			if oldtrades:
 				objs = [Trade.old2new(t) for t in objs]
-		objs = sorted(objs, key=tbl.key)
+		objs = sorted(self.named(tbl, objs), key=tbl.key)
 		setattr(self, tbl.attr, objs)
 		if tbl.attr == "instruments":
 			self.defaultsforinstruments()
@@ -1005,10 +1010,18 @@ class RoadBook:
 			self.defaultsfortrades()
 		return errors
 
+	@staticmethod
+	def named(tbl: "Table", objs: list) -> list:
+		"""objs without the empty rows: the ones with no name (a row added
+		to a table and left blank)"""
+		if tbl.name is None:
+			return objs
+		return [o for o in objs if not blank(tbl.name(o))]
+
 	def savetable(self, tbl: "Table", filtered=False) -> None:
 		fname = self.path(tbl.file)
 		copyfile(fname, fname+BCK)
-		objs = getattr(self, tbl.attr)
+		objs = self.named(tbl, getattr(self, tbl.attr))
 		if tbl.attr == "trades":
 			if filtered and self.filteredtrades:
 				objs = self.filteredtrades
