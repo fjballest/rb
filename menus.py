@@ -19,6 +19,11 @@ QUICKMAX = 6	# roadbooks with their own toolbar button
 def settings():
 	return QSettings("pylg", "RoadBook")
 
+def trashdropped():
+	"""whether the captures dropped on a trade go to the Trash once copied
+	into the roadbook (File ▸ Move Dropped Captures to Trash)"""
+	return settings().value("trashdropped", True) not in (False, "false")
+
 def recentrbs():
 	"""recently used roadbook directories, newest first"""
 	v = settings().value("recent", [])
@@ -75,6 +80,11 @@ class MainMenus:
 			"save the (filtered) roadbook in another directory")
 		self.backup = mkaction(d, "&Backups…", d.backups, "backup", "Ctrl+B",
 			"back up the roadbook, clean up old backups or restore one")
+		self.trash = mkaction(d, "&Move Dropped Captures to Trash", lambda: settings().setValue("trashdropped",
+			self.trash.isChecked()), tip="move the captures dropped on a trade to the Trash once they are copied "
+			"into the roadbook's graphs")
+		self.trash.setCheckable(True)
+		self.trash.setChecked(trashdropped())
 		self.quit = mkaction(d, "&Quit", d.close, "quit", QKeySequence.StandardKey.Quit,
 			role=QAction.MenuRole.QuitRole)
 		self.recent = QMenu("Open &Recent", d)
@@ -95,6 +105,9 @@ class MainMenus:
 		f.addAction(self.save)
 		f.addAction(self.saveas)
 		f.addAction(self.backup)
+		f.addSeparator()
+		f.addAction(self.trash)
+		f.aboutToShow.connect(lambda: self.trash.setChecked(trashdropped()))
 		f.addSeparator()
 		f.addAction(self.quit)
 

@@ -220,6 +220,14 @@ roadbook are kept as they are, and existing files are never overwritten.
 Because the names carry the trade number, other tools can match graphs to
 trades.
 
+Once a dropped capture is copied into the roadbook, written to the disk and
+checked to have the same bytes, the file you dropped is moved to the Trash
+(the Recycle Bin on Windows), so the Desktop doesn't fill with captures
+already kept. If the copy can't be checked or the file can't be moved, it
+is left where it was and RoadBook says so. **File ▸ Move Dropped Captures to
+Trash** (on at first) turns this off. Paths typed in the graphs box are
+never moved. The trade itself is kept when you save the roadbook.
+
 ## Setups, features, instruments and currencies
 
 Each one has its own tab with a table you can edit in place, and New and Del
