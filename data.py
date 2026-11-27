@@ -471,6 +471,46 @@ TABLES = [
 	Table("trades", TRADESFILE, Trade, lambda t: t.datein, {"datein": "date", "has": "with"}),
 ]
 
+def syncfile(path: str) -> None:
+	"""make sure what was written to file (or the names in folder) path is
+	on the disk, not just in the system's buffers"""
+	try:
+		fd = os.open(path, os.O_RDONLY)
+	except OSError:
+		return
+	try:
+		os.fsync(fd)
+	except OSError:
+		pass	# folders can't be synced on some systems
+	finally:
+		os.close(fd)
+
+def safecopy(src: str, dst: str) -> bool:
+	"""whether dst, a copy of src, is on disk with the same bytes"""
+	import filecmp
+	try:
+		return (os.path.isfile(dst) and os.path.getsize(dst) > 0
+			and os.path.realpath(src) != os.path.realpath(dst) and filecmp.cmp(src, dst, shallow=False))
+	except OSError:
+		return False
+
+def totrash(path: str) -> bool:
+	"""move the file at path to the Trash (Recycle Bin); whether it went"""
+	from PySide6.QtCore import QFile
+	def move():
+		ok = QFile.moveToTrash(path)
+		return ok[0] if isinstance(ok, tuple) else bool(ok)
+	if move():
+		return True
+	if sys.platform.startswith("linux"):	# Qt doesn't make the folder the trash goes in
+		data = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+		try:
+			os.makedirs(data, exist_ok=True)
+		except OSError:
+			return False
+		return move()
+	return False
+
 def copyfile(src: str, dst: str) -> None:
 	try:
 		shutil.copyfile(src, dst)
@@ -1050,12 +1090,14 @@ class RoadBook:
 				nb += 1
 			try:
 				shutil.copyfile(src, dst)
+				syncfile(dst)
 				taken.add(os.path.realpath(dst))
 				graf.append(dst)
 			except Exception as e:
 				errs.append(f"failed to copy {src}: {e}")
 				graf.append(src)
 		t.graf = graf
+		syncfile(gdir)
 		return errs
 
 	def findgraphs(self, trades) -> None:

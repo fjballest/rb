@@ -1,6 +1,7 @@
 #
 # Data window (main window)
 #
+import os
 import sys
 
 from PySide6.QtCore import Qt, QDate
@@ -21,13 +22,13 @@ from checklist import CheckBoxGroup
 from data import (
 	RoadBook, Trade, Setup, Feature, Instrument, Currency, Dir, TRADEVIEWORDER,
 	TRADEVIEWRDONLY, tradeexample,
-	setupexample, featureexample, instrumentexample, currencyexample, fetchrates, tradedir
+	setupexample, featureexample, instrumentexample, currencyexample, fetchrates, tradedir, safecopy, totrash
 )
 from calwin import TradeCalendar, daysign, tradeorder
 from filterwin import FilterWindow, TextFilterEdit
 import imgwin
 from imgwin import ImageViewer
-from menus import MainMenus, addrecent
+from menus import MainMenus, addrecent, trashdropped
 from backup import BackupDialog
 from objtbl import ObjectTable
 from stats import StatTotals, StatUnit, TextFilter, tradevalue
@@ -148,6 +149,7 @@ class TradeEdit(QDialog):
 		self.t = t
 		self.tOCR = None
 		self.ocrtexts = []	# the text read from the captures dropped
+		self.dropped = set()	# the captures dropped (not typed), which may go to the Trash once copied
 		if t is not None and t.trade <= 0:
 			t.trade = rb.nextId()
 		self.formGroupBox = QGroupBox("Data:")
@@ -337,6 +339,7 @@ class TradeEdit(QDialog):
 		paths = [p for p in paths if p not in old]
 		if not paths:
 			return
+		self.dropped.update(paths)
 		if not old:
 			paths, self.tOCR = self.ocrbest(paths)
 			if self.tOCR is not None:
@@ -515,8 +518,22 @@ class TradeEdit(QDialog):
 		super(TradeEdit, self).accept()
 
 	def maycopygraphs(self, t):
+		before = list(t.graf)
 		for e in self.rb.storegraphs(t):
 			print(e, file=sys.stderr)
+		if not trashdropped():
+			return
+		kept = []
+		for src, dst in zip(before, t.graf):	# storegraphs keeps the order
+			if src not in self.dropped or src == dst:
+				continue
+			if safecopy(src, dst) and totrash(src):
+				self.dropped.discard(src)
+			else:
+				kept.append(os.path.basename(src))
+		if kept:
+			QMessageBox.warning(self, "Trade", "Added, but not moved to the Trash (the copy couldn't be "
+				"checked, or the file couldn't be moved): " + ", ".join(kept))
 
 def setfeats(q):
 	q.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable|QDockWidget.DockWidgetFeature.DockWidgetFloatable)
