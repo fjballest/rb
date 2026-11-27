@@ -66,6 +66,8 @@ Chrome or Chromium).
 Files are grouped here by layer. Arrows in the import graph only go
 downward: the data layer knows nothing about Qt widgets.
 
+![The modules by layer](img/rb-modules.svg)
+
 | Layer | File | What it holds |
 |-------|------|---------------|
 | Entry | `rb.py` | finds roadbooks on disk, creates `DataWindow`, opens the last roadbook used |
@@ -94,6 +96,8 @@ downward: the data layer knows nothing about Qt widgets.
 
 All in `data.py`. Each table row is a `@dataclass`; the field order is the
 CSV column order.
+
+![The data model: the roadbook's lists and how their rows refer to each other by name](img/rb-model.svg)
 
 | Class | Key field | Notes |
 |-------|-----------|-------|
@@ -136,6 +140,8 @@ Roadbooks are looked for (`rb.locaterbs`) in `$RBDIR`, or else in
 directory (`UDIRS`), `trade` in the system's documents directory
 (`QStandardPaths`) and the documents directory itself; then in the home and
 documents directories. `tradedir()` is where New, Open and Save As start.
+
+![A roadbook on disk, and how it is loaded and saved](img/rb-storage.svg)
 
 A roadbook is a directory:
 
@@ -180,6 +186,8 @@ content is in dock widgets:
   Account (`self.leftdocks`).
 - Right, tabbed: Trade Features, Feature Setups, Today (`self.rightdocks`).
   `shrinkrightdock()` gives them their minimum width at start.
+
+![The main window: its docks, the windows it opens and the signals between them](img/rb-window.svg)
 
 `changedata(rb)` installs a roadbook: it hands each list to its table,
 refreshes the panels and calendar, opens the latest trade groups
@@ -228,6 +236,8 @@ Options passed by `DataWindow`:
 ### Grouping
 
 With `groupby` set, the model keeps two extra lists:
+
+![The lists of a grouped ObjectTableModel](img/rb-objtbl.svg)
 
 - `order`: all objects sorted by `sortkey`.
 - `rows`: what the view shows, a mix of `Group` header rows and objects.
@@ -492,6 +502,8 @@ A graph's drawings are in `drawpath(graph)`, the graph's name with `.drw`:
 ```
 
 ## Filters and statistics
+
+![From the filters to the trades shown](img/rb-filter.svg)
 
 `stats.Filter` is a dataclass of criteria (feature sets that must and must
 not be present, instruments, setups, directions, results, hours, weekdays,

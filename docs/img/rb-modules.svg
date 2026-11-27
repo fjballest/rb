@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" xml:space="preserve" style="white-space:pre"><title>RoadBook modules</title><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa5b1"/></marker></defs><rect width="1000" height="560" fill="#ffffff"/><rect x="400" y="14" width="200" height="42" rx="6" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4"/>
+<text x="410" y="33" font-weight="600" font-size="13.5" fill="#1f2933">rb.py</text>
+<text x="410" y="52" font-size="12.5" fill="#52606d">finds roadbooks, DataWindow</text>
+<rect x="20" y="86" width="960" height="100" rx="10" fill="none" stroke="#257de0" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="32" y="80" font-size="12" font-weight="600" fill="#257de0">main window</text>
+<rect x="36" y="100" width="300" height="72" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="46" y="119" font-weight="600" font-size="13.5" fill="#1f2933">datawin.py · DataWindow</text>
+<text x="46" y="138" font-size="12.5" fill="#52606d">docks, wiring, open and save;</text>
+<text x="46" y="154" font-size="12.5" fill="#52606d">TradeEdit (the trade form)</text>
+<rect x="350" y="100" width="200" height="72" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="360" y="119" font-weight="600" font-size="13.5" fill="#1f2933">menus.py · MainMenus</text>
+<text x="360" y="138" font-size="12.5" fill="#52606d">menus, toolbar, recent</text>
+<rect x="564" y="100" width="200" height="72" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="574" y="119" font-weight="600" font-size="13.5" fill="#1f2933">backup.py</text>
+<text x="574" y="138" font-size="12.5" fill="#52606d">daily backups, restore</text>
+<rect x="778" y="100" width="186" height="72" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="788" y="119" font-weight="600" font-size="13.5" fill="#1f2933">icons.py</text>
+<text x="788" y="138" font-size="12.5" fill="#52606d">SVG icons → QIcon</text>
+<rect x="20" y="216" width="960" height="150" rx="10" fill="none" stroke="#257de0" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="32" y="210" font-size="12" font-weight="600" fill="#257de0">widgets</text>
+<rect x="36" y="230" width="220" height="120" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="46" y="249" font-weight="600" font-size="13.5" fill="#1f2933">objtbl.py</text>
+<text x="46" y="268" font-size="12.5" fill="#52606d">ObjectTable,</text>
+<text x="46" y="284" font-size="12.5" fill="#52606d">ObjectTableModel: any</text>
+<text x="46" y="300" font-size="12.5" fill="#52606d">dataclass list, grouping,</text>
+<text x="46" y="316" font-size="12.5" fill="#52606d">find and replace</text>
+<rect x="268" y="230" width="160" height="120" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="278" y="249" font-weight="600" font-size="13.5" fill="#1f2933">calwin.py</text>
+<text x="278" y="268" font-size="12.5" fill="#52606d">TradeCalendar,</text>
+<text x="278" y="284" font-size="12.5" fill="#52606d">DayCalendar,</text>
+<text x="278" y="300" font-size="12.5" fill="#52606d">YearView</text>
+<rect x="440" y="230" width="200" height="120" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="450" y="249" font-weight="600" font-size="13.5" fill="#1f2933">imgwin.py</text>
+<text x="450" y="268" font-size="12.5" fill="#52606d">ImageViewer: graphs,</text>
+<text x="450" y="284" font-size="12.5" fill="#52606d">drawings saved; viewer,</text>
+<text x="450" y="300" font-size="12.5" fill="#52606d">drawing, drawbar (the</text>
+<text x="450" y="316" font-size="12.5" fill="#52606d">same as DayJournal's)</text>
+<rect x="652" y="230" width="150" height="120" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="662" y="249" font-weight="600" font-size="13.5" fill="#1f2933">filterwin.py</text>
+<text x="662" y="268" font-size="12.5" fill="#52606d">FilterWindow,</text>
+<text x="662" y="284" font-size="12.5" fill="#52606d">TextFilterEdit</text>
+<rect x="814" y="230" width="150" height="120" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="824" y="249" font-weight="600" font-size="13.5" fill="#1f2933">statswin.py</text>
+<text x="824" y="268" font-size="12.5" fill="#52606d">StatsWindow,</text>
+<text x="824" y="284" font-size="12.5" fill="#52606d">TodayPanel; plot,</text>
+<text x="824" y="300" font-size="12.5" fill="#52606d">bar, stackbar, pie</text>
+<rect x="20" y="396" width="440" height="140" rx="10" fill="none" stroke="#2a9d5c" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="32" y="390" font-size="12" font-weight="600" fill="#2a9d5c">logic</text>
+<rect x="36" y="410" width="200" height="110" rx="6" fill="#eef7ee" stroke="#2a9d5c" stroke-width="1.4"/>
+<text x="46" y="429" font-weight="600" font-size="13.5" fill="#1f2933">stats.py</text>
+<text x="46" y="448" font-size="12.5" fill="#52606d">Filter, TextFilter,</text>
+<text x="46" y="464" font-size="12.5" fill="#52606d">StatTotals, per day,</text>
+<text x="46" y="480" font-size="12.5" fill="#52606d">week, setup… values</text>
+<rect x="248" y="410" width="196" height="110" rx="6" fill="#f3eefb" stroke="#7b5bd6" stroke-width="1.4"/>
+<text x="258" y="429" font-weight="600" font-size="13.5" fill="#1f2933">graphocr.py</text>
+<text x="258" y="448" font-size="12.5" fill="#52606d">TradeOCR: a chart</text>
+<text x="258" y="464" font-size="12.5" fill="#52606d">screenshot → trade</text>
+<text x="258" y="480" font-size="12.5" fill="#52606d">(EasyOCR, OpenCV,</text>
+<text x="258" y="496" font-size="12.5" fill="#52606d">imported when used)</text>
+<rect x="490" y="396" width="490" height="140" rx="10" fill="none" stroke="#f47230" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="502" y="390" font-size="12" font-weight="600" fill="#f47230">data (no Qt widgets)</text>
+<rect x="506" y="410" width="170" height="110" rx="6" fill="#fdf0e7" stroke="#f47230" stroke-width="1.4"/>
+<text x="516" y="429" font-weight="600" font-size="13.5" fill="#1f2933">data.py</text>
+<text x="516" y="448" font-size="12.5" fill="#52606d">dataclasses,</text>
+<text x="516" y="464" font-size="12.5" fill="#52606d">RoadBook, TABLES,</text>
+<text x="516" y="480" font-size="12.5" fill="#52606d">graph names</text>
+<rect x="688" y="410" width="150" height="110" rx="6" fill="#fdf0e7" stroke="#f47230" stroke-width="1.4"/>
+<text x="698" y="429" font-weight="600" font-size="13.5" fill="#1f2933">csv_mapper.py</text>
+<text x="698" y="448" font-size="12.5" fill="#52606d">dataclass ↔ CSV,</text>
+<text x="698" y="464" font-size="12.5" fill="#52606d">atomic writes</text>
+<rect x="850" y="410" width="114" height="110" rx="6" fill="#fdf0e7" stroke="#f47230" stroke-width="1.4"/>
+<text x="860" y="429" font-weight="600" font-size="13.5" fill="#1f2933">newdata.py</text>
+<text x="860" y="448" font-size="12.5" fill="#52606d">a new</text>
+<text x="860" y="464" font-size="12.5" fill="#52606d">roadbook's</text>
+<text x="860" y="480" font-size="12.5" fill="#52606d">CSV files</text>
+<path d="M500,56 L500,84" fill="none" stroke="#9aa5b1" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M500,186 L500,214" fill="none" stroke="#9aa5b1" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M240,366 L240,394" fill="none" stroke="#9aa5b1" stroke-width="1.5" marker-end="url(#a)"/>
+<path d="M735,366 L735,394" fill="none" stroke="#9aa5b1" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="20" y="552" font-size="11.5" fill="#52606d" text-anchor="start" font-weight="normal">Imports only go down: the data layer knows nothing of Qt widgets. Components talk through Qt signals.</text></svg>
