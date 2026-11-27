@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 330" width="1000" height="330" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" xml:space="preserve" style="white-space:pre"><title>Grouping in ObjectTableModel</title><defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa5b1"/></marker></defs><rect width="1000" height="330" fill="#ffffff"/><rect x="20" y="20" width="220" height="290" rx="6" fill="#fdf0e7" stroke="#f47230" stroke-width="1.4"/>
+<text x="30" y="39" font-weight="600" font-size="13.5" fill="#1f2933">objects</text>
+<text x="30" y="58" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">the list of the roadbook,</text>
+<text x="30" y="74" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">in its own order:</text>
+<text x="30" y="90" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace"></text>
+<text x="30" y="106" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T7  2026-11-03</text>
+<text x="30" y="122" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T3  2026-10-28</text>
+<text x="30" y="138" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T9  2026-11-04</text>
+<text x="30" y="154" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T5  2026-10-30</text>
+<text x="30" y="170" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">…</text>
+<rect x="280" y="20" width="220" height="290" rx="6" fill="#fdf0e7" stroke="#f47230" stroke-width="1.4"/>
+<text x="290" y="39" font-weight="600" font-size="13.5" fill="#1f2933">order</text>
+<text x="290" y="58" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">sorted by sortkey</text>
+<text x="290" y="74" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">(tradeorder: date,</text>
+<text x="290" y="90" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">time, number):</text>
+<text x="290" y="106" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace"></text>
+<text x="290" y="122" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T3  2026-10-28</text>
+<text x="290" y="138" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T5  2026-10-30</text>
+<text x="290" y="154" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T7  2026-11-03</text>
+<text x="290" y="170" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">T9  2026-11-04</text>
+<rect x="540" y="20" width="260" height="290" rx="6" fill="#e8f1fc" stroke="#257de0" stroke-width="1.4"/>
+<text x="550" y="39" font-weight="600" font-size="13.5" fill="#1f2933">rows (what the view shows)</text>
+<text x="550" y="58" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">▾ 2026</text>
+<text x="550" y="74" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">  ▸ October      (collapsed)</text>
+<text x="550" y="90" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">  ▾ November</text>
+<text x="550" y="106" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">    ▾ week 45</text>
+<text x="550" y="122" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">      T7</text>
+<text x="550" y="138" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">      T9</text>
+<text x="550" y="154" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace"></text>
+<text x="550" y="170" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">objat(row): object or None</text>
+<text x="550" y="186" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">rowof(obj), reveal(obj)</text>
+<rect x="830" y="20" width="150" height="290" rx="6" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4"/>
+<text x="840" y="39" font-weight="600" font-size="13.5" fill="#1f2933">collapsed</text>
+<text x="840" y="58" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">a set of group</text>
+<text x="840" y="74" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">keys:</text>
+<text x="840" y="90" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace"></text>
+<text x="840" y="106" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">(2026, 10)</text>
+<text x="840" y="122" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace"></text>
+<text x="840" y="138" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">groupby(t):</text>
+<text x="840" y="154" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">(2026,)</text>
+<text x="840" y="170" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">(2026, 11)</text>
+<text x="840" y="186" font-size="12" fill="#52606d" font-family="Menlo, Consolas, monospace">(2026, 11, 45)</text>
+<path d="M240,160 L278,160" fill="none" stroke="#9aa5b1" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="247.0" y="154.0" font-size="11.5" fill="#52606d" text-anchor="start" font-weight="normal">sort</text>
+<path d="M500,160 L538,160" fill="none" stroke="#9aa5b1" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="505.0" y="154.0" font-size="11.5" fill="#52606d" text-anchor="start" font-weight="normal">build</text>
+<path d="M828,160 L802,160" fill="none" stroke="#9aa5b1" stroke-width="1.5" marker-end="url(#a)"/></svg>
