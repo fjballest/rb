@@ -379,6 +379,13 @@ graphs, graph and unsaved drawings; it is titled *View* instead of *Trade*,
 its Prev and Next are disabled and its `navigate` only takes "less" and
 "more", so it never emits `moved` or `jumped`. The clones open are in
 `imgwin.views`, and `DataWindow.closeEvent` asks about their drawings too.
+**Journal** (`ImageViewer.dayjournal`, with `djlink.py`) sends the trade
+shown (`trade` and `rb`, set by `DataWindow.tradegraphics`) to DayJournal
+as a line of JSON on the local socket `DayJournal-goto`: its instrument and
+the names it goes by, its entry and exit as seconds since 1970 (from the
+local times of the trade), its direction and number. With no DayJournal
+listening it starts one with `--goto` and the same text (`open -a
+DayJournal --args` on macOS, `DayJournal` or `dj` on the path elsewhere).
 
 `winlayout.py` (the same file in RoadBook and DayJournal; keep them the
 same) makes the Window menu (`windowmenu`). `windows()` are the visible

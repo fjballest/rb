@@ -70,6 +70,8 @@ class ImageViewer(QMainWindow):
 		self.files = file
 		self.fileno = 0
 		self.pending = {}	# graph path -> its drawing not saved yet (None: no drawings)
+		self.trade = None	# the trade of the graphs, and its roadbook, for DayJournal
+		self.rb = None
 		if len(file) > 0 and file[0] != "":
 			file = canonlist(file)
 			self.file_path = file[0]
@@ -104,6 +106,9 @@ class ImageViewer(QMainWindow):
 		self.save_button.setToolTip("save the drawings (⌘S)")
 		self.dup_button = QPushButton("Dup")
 		self.dup_button.setToolTip("open another window with this graph, to see several at once")
+		self.dj_button = QPushButton("Journal")
+		self.dj_button.setToolTip("show the day of this trade in DayJournal, at its entry, "
+			"in the journal with data of its instrument")
 		if clone:	# it stays with its trade
 			for b in (self.prev_button, self.next_button):
 				b.setEnabled(False)
@@ -119,6 +124,7 @@ class ImageViewer(QMainWindow):
 		self.preview_button.clicked.connect(self.preview)
 		self.save_button.clicked.connect(self.savedrawings)
 		self.dup_button.clicked.connect(self.dup)
+		self.dj_button.clicked.connect(self.dayjournal)
 		self.saveact = QAction("Save", self)
 		self.saveact.setShortcut(QKeySequence.StandardKey.Save)
 		self.saveact.triggered.connect(self.savedrawings)
@@ -139,7 +145,7 @@ class ImageViewer(QMainWindow):
 		button_layout = QHBoxLayout()
 		for b in (self.prev_button, self.next_button, self.more_button, self.actual_button,
 				self.fit_button, self.zoom_in_button, self.zoom_out_button, self.preview_button,
-				self.save_button, self.dup_button):
+				self.save_button, self.dup_button, self.dj_button):
 			b.setFocusPolicy(Qt.FocusPolicy.NoFocus)	# the keys go to the graph
 			narrow(b)
 			button_layout.addWidget(b)
@@ -207,12 +213,25 @@ class ImageViewer(QMainWindow):
 		self.jumped.emit(last)
 		self.updateTitle()
 
+	def dayjournal(self):
+		"""DayJournal shows the trade's day, at its entry"""
+		import djlink
+		t = self.trade
+		if t is None:
+			QMessageBox.information(self, "DayJournal", "No trade is shown.")
+			return
+		inst = self.rb.findInstrument(t.instrument) if self.rb is not None else None
+		err = djlink.goto(t, inst)
+		if err:
+			QMessageBox.information(self, "DayJournal", err)
+
 	def dup(self):
 		"""open a clone of this window, showing the same graph, a bit lower
 		and to the right; it can go through the graphs of the trade only"""
 		self.view.commitedit()
 		w = ImageViewer(self.files, x=self.width(), y=self.height(), desc=self.desc, clone=True)
 		w.pending = dict(self.pending)	# the drawings as they are now
+		w.trade, w.rb = self.trade, self.rb
 		w.setimage(self.files, self.fileno)
 		w.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 		views.append(w)

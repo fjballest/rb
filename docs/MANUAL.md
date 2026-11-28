@@ -367,12 +367,23 @@ the graphs of the selected trade, with the trade's notes beside the buttons
 | OS View | opens the graph in the system viewer, with the drawings shown on it, as a PNG at its size |
 | Save (⌘S) | saves the drawings |
 | Dup | opens a copy of the window, titled *View* and the path of the graph, to see several graphs at once |
+| Journal | shows the day of the trade in DayJournal, zoomed on it, with lines at its entry and exit |
 
 A window opened with **Dup** stays with the graphs of its trade: Prev, Next,
 ↑ ↓, Home and End do nothing there, but More and ← → go through the graphs
 of the trade, and you can zoom and draw as in the main one. Dup it again for
 more of them. Each one keeps its own unsaved drawings; quitting asks about
 those of every window.
+
+**Journal** asks DayJournal for the day of the trade: it uses the trade's
+instrument, its date and its entry and exit times. DayJournal looks for a
+journal whose data is of that instrument (its name, or one of its other
+names in the Instruments table, such as `MNQ*` or `NQ*` for NASDAQ),
+among the ones open and those it opened last, and shows that day in its
+data view. If DayJournal is not running it is started (from Applications on
+macOS); if it is, it goes to the day, in the window with that journal, or
+opens the journal in a new window. The times are those of the trade, here;
+DayJournal draws them in New York time.
 
 The zoom mode sticks: Real Size, Fit or a zoom factor stay in use as you move
 through graphs and trades.

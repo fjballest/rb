@@ -849,6 +849,7 @@ class DataWindow(QMainWindow):
 		p = self.rb.graphpaths(t)
 		if self.graphwindow is None:
 			self.mkgraph(p, desc=t.notes)
+		self.graphwindow.trade, self.graphwindow.rb = t, self.rb
 		self.graphwindow.setimage(p, desc=t.notes or '')
 		self.graphwindow.show()
 
