@@ -70,13 +70,20 @@ Any tab or panel can be dragged out to float in its own window, or
 double-click its title bar. This is handy to see the Calendar and the Trades
 side by side. **View ▸ Side Panels** shows or hides the right panels.
 
+**View ▸ Toolbar** shows the buttons of the toolbar and of the graphics
+windows with their icons and text, their icons only, or their text only;
+the choice is remembered. In the graphics window this covers the zoom
+buttons (a magnifier with =, a double arrow, + or −) and the drawing tools,
+each with its own icon. A button without an icon keeps its text, and the
+roadbooks' buttons keep their names.
+
 ### Menus
 
 | Menu | Entries |
 |------|---------|
 | File | New Roadbook (⌘N), Open Roadbook (⌘O), Open Recent, Save (⌘S), Save As (⌘⇧S), Backups (⌘B), Quit (⌘Q) |
 | Edit | New Trade (⌘T), Edit Trade (⌘E), Delete Trade, Recompute Euros of Trade, Recompute Euros of Trades Listed, Find and Replace (⌘F) |
-| View | one entry per tab (⌘1 to ⌘7), Expand or Collapse All Trades (⌘⇧E), Graphics (⌘G), Filter (⌘⇧F), Statistics, Side Panels |
+| View | one entry per tab (⌘1 to ⌘7), Expand or Collapse All Trades (⌘⇧E), Graphics (⌘G), Filter (⌘⇧F), Statistics, Toolbar, Side Panels |
 | Window | Minimize (⌘M), layouts for the windows shown (Tile ⌥⌘T), the windows shown |
 | Help | User Guide (⌘?), About |
 
@@ -495,9 +502,9 @@ ones saved for lines, arrows and circles. The one it has is checked, and
 picking another changes it to that one (and the others of its kind
 selected with it), in one **Undo** step. The bar keeps what it draws next.
 
-The **⧉** button at the start of the drawing buttons detaches them as a
+The **Detach** button (a window with an arrow out of it) at the start of the drawing buttons detaches them as a
 small floating bar that stays on top of every window, so you can keep it
-where it suits you. Click **⧉** again, or close the bar, to put it back.
+where it suits you. Click it again, or close the bar, to put it back.
 
 **Color**, the width box, the line style box (solid, dashed, dotted) and the
 text size box (**Aa 16** by default, for texts, labels and fib numbers) set

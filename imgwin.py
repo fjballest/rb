@@ -2,20 +2,26 @@ from PySide6.QtWidgets import (
 	QMainWindow, QLabel, QPushButton, QWidget, QVBoxLayout,
 	QHBoxLayout, QSizePolicy, QMessageBox
 )
-from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QPalette
+from PySide6.QtCore import QPoint, QSettings, QSize, Qt, QTimer, Signal
 import json
 import os
 import sys
 
 from data import canonlist
 from viewer import ImageView
-from drawbar import DrawBar
+from drawbar import DrawBar, glyph
 from winlayout import narrow, windowmenu
 
 # the drawings on a graph are kept next to it, with its name and this extension:
 # trade12dax.png -> trade12dax.drw
 DRAWEXT = ".drw"
+
+def buttonstyle():
+	"""how the buttons show (View ▸ Toolbar): "both" their icons and text,
+	"icons" or "text" only"""
+	st = QSettings("pylg", "RoadBook").value("buttonstyle", "both")
+	return st if st in ("both", "icons", "text") else "both"
 
 def drawpath(graph):
 	return os.path.splitext(graph)[0] + DRAWEXT
@@ -120,6 +126,15 @@ class ImageViewer(QMainWindow):
 		if sys.platform == "darwin":	# the menu bar is the screen's: give it the Window menu
 			self.menuBar().addMenu(windowmenu(self))
 
+		self.zoombuttons = {self.zoom_in_button: "zoomin", self.zoom_out_button: "zoomout",
+			self.fit_button: "fit", self.actual_button: "realsize"}
+		self.zoomtexts = {b: b.text() for b in self.zoombuttons}
+		for b, kind in self.zoombuttons.items():
+			b.setIcon(glyph(kind, self.palette().color(QPalette.ColorRole.ButtonText)))
+			b.setIconSize(QSize(18, 18))
+			b.setToolTip(b.text())
+		self.setbuttonstyle(buttonstyle())
+
 		# --- Layout ---
 		button_layout = QHBoxLayout()
 		for b in (self.prev_button, self.next_button, self.more_button, self.actual_button,
@@ -207,6 +222,18 @@ class ImageViewer(QMainWindow):
 		return w
 
 	# ---------- Zoom controls ----------
+	def setbuttonstyle(self, style):
+		"""show the zoom buttons and the drawing tools with their icons and
+		text, their icons only, or their text only (View ▸ Toolbar)"""
+		self.drawbar.setbuttonstyle(style)
+		pal = self.palette().color(QPalette.ColorRole.ButtonText)
+		for b, kind in self.zoombuttons.items():
+			b.setText("" if style == "icons" else self.zoomtexts[b])
+			b.setIcon(glyph(kind, pal) if style != "text" else QIcon())
+			narrow(b)
+			if style == "icons":
+				b.setMinimumWidth(34)
+
 	def zoom(self, factor):
 		self.view.zoom(factor)
 

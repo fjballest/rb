@@ -5,7 +5,10 @@ import os
 
 from PySide6.QtCore import QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
-from PySide6.QtWidgets import QMenu, QMessageBox, QToolBar, QToolButton
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QToolBar, QToolButton
+
+from drawbar import applystyle
+from imgwin import ImageViewer, buttonstyle
 
 from data import RoadBook
 from icons import icon
@@ -139,6 +142,17 @@ class MainMenus:
 		v.addAction(mkaction(d, "&Filter…", d.filter, "filter", "Ctrl+Shift+F", "filter the trades"))
 		v.addAction(mkaction(d, "&Statistics", d.stats, "stats", tip="show the statistics"))
 		v.addSeparator()
+		tbm = v.addMenu("&Toolbar")
+		g = QActionGroup(d)
+		g.setExclusive(True)
+		self.styleacts = {}
+		for st, text in (("both", "Icons and Text"), ("icons", "Icons Only"), ("text", "Text Only")):
+			a = tbm.addAction(text)
+			a.setCheckable(True)
+			a.setChecked(st == buttonstyle())
+			a.triggered.connect(lambda _=False, st=st: self.setbuttonstyle(st, save=True))
+			g.addAction(a)
+			self.styleacts[st] = a
 		panels = v.addMenu("Side &Panels")
 		for dock in d.rightdocks:
 			panels.addAction(dock.toggleViewAction())
@@ -181,6 +195,27 @@ class MainMenus:
 		self.quickgroup.setExclusive(True)
 		d.addToolBar(tb)
 
+	def setbuttonstyle(self, style, save=False):
+		"""show the buttons of the toolbar and of the graph windows with
+		their icons and text, their icons only, or their text only"""
+		if save:
+			settings().setValue("buttonstyle", style)
+		self.restyle(style)
+		for st, a in getattr(self, "styleacts", {}).items():
+			a.setChecked(st == style)
+		for w in QApplication.topLevelWidgets():
+			if isinstance(w, ImageViewer):
+				w.setbuttonstyle(style)
+
+	def restyle(self, style):
+		"""the toolbar in style; the roadbooks' buttons keep their names, as
+		their icons are all the same book"""
+		applystyle(self.toolbar, style)
+		for a in self.quick:
+			w = self.toolbar.widgetForAction(a)
+			if w is not None and style == "icons":
+				w.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+
 	def candidates(self):
 		"""roadbooks to offer: recent ones first, then those found on disk"""
 		l = [p for p in recentrbs() if RoadBook.isRoadBook(p)]
@@ -209,6 +244,7 @@ class MainMenus:
 			self.quickgroup.addAction(a)
 			self.toolbar.addAction(a)
 			self.quick.append(a)
+		self.restyle(buttonstyle())
 
 	def fillrecent(self):
 		m = self.recent

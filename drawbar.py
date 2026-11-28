@@ -3,9 +3,10 @@
 # redo and delete. Shared by DayJournal and pylg's graphics window.
 #
 import json
+import math
 
-from PySide6.QtCore import QSettings, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
+from PySide6.QtCore import QPointF, QRectF, QSettings, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QKeySequence, QPainter, QPainterPath, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
 	QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLayout,
 	QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QStatusBar, QToolBar, QToolButton, QVBoxLayout,
@@ -20,15 +21,15 @@ COLORS = (("Red", "#e53935"), ("Green", "#2e7d32"), ("Blue", "#1e63d6"), ("Orang
 WIDTHS = (1.0, 2.0, 3.0, 5.0, 8.0)
 TEXTSIZES = (10, 12, 14, 16, 18, 22, 28, 36)
 TOOLS = (
-	("select", "↖ Select", "S", "select, move and delete drawings; drag the image to move around"),
-	("pencil", "✎ Pencil", "P", "draw free hand"),
-	("line", "╱ Line", "L", "draw a line; shift keeps it horizontal or vertical"),
-	("arrow", "➚ Arrow", "A", "draw an arrow; shift keeps it horizontal or vertical"),
-	("circle", "◯ Circle", "C", "draw a circle or ellipse"),
-	("rect", "▭ Rect", "R", "draw a rectangle; double click one for its fill, middle line and label. "
+	("select", "Select", "S", "select, move and delete drawings; drag the image to move around"),
+	("pencil", "Pencil", "P", "draw free hand"),
+	("line", "Line", "L", "draw a line; shift keeps it horizontal or vertical"),
+	("arrow", "Arrow", "A", "draw an arrow; shift keeps it horizontal or vertical"),
+	("circle", "Circle", "C", "draw a circle or ellipse"),
+	("rect", "Rect", "R", "draw a rectangle; double click one for its fill, middle line and label. "
 		"The menu picks a kind of rectangle (BRK, FVG...)"),
-	("text", "T Text", "T", "write a text box; double click one to edit it"),
-	("fib", "≡ Fib", "F", "draw Fibonacci levels: from the first point (1) to the second (0), then click "
+	("text", "Text", "T", "write a text box; double click one to edit it"),
+	("fib", "Fib", "F", "draw Fibonacci levels: from the first point (1) to the second (0), then click "
 		"where the lines end, or double click on the second point to take them to the right edge; "
 		"the right button drops it. The menu picks the levels"),
 )
@@ -493,6 +494,162 @@ def lineswatch(d, kind):
 	p.end()
 	return QIcon(pm)
 
+def glyph(kind, color):
+	"""a drawn icon: "undo" and "redo" (a curved arrow), "delete" (a bin), "zoomin",
+	"zoomout", "realsize" and "fit" (a magnifier), "copy", "eye", "eyeoff", "gear", the drawing tools ("select", "pencil", "line", "arrow",
+	"circle", "rect", "text", "fib") and "detach" """
+	pm = QPixmap(36, 36)
+	pm.setDevicePixelRatio(2)
+	pm.fill(Qt.GlobalColor.transparent)
+	p = QPainter(pm)
+	p.setRenderHint(QPainter.RenderHint.Antialiasing)
+	pen = QPen(color, 1.6)
+	pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+	pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+	p.setPen(pen)
+	if kind in ("undo", "redo"):
+		if kind == "redo":
+			p.translate(18, 0)
+			p.scale(-1, 1)
+		path = QPainterPath()
+		path.moveTo(4.5, 7)
+		path.lineTo(11, 7)
+		path.cubicTo(15.5, 7, 15.5, 14.5, 11, 14.5)
+		path.lineTo(7, 14.5)
+		p.drawPath(path)
+		p.drawLine(QPointF(4.5, 7), QPointF(7.5, 4))
+		p.drawLine(QPointF(4.5, 7), QPointF(7.5, 10))
+	elif kind in ("zoomin", "zoomout", "realsize", "fit"):	# a magnifier, with +, -, = or a double arrow
+		p.drawEllipse(QPointF(7.5, 7.5), 5, 5)
+		p.drawLine(QPointF(11.2, 11.2), QPointF(15.5, 15.5))
+		if kind in ("zoomin", "zoomout"):
+			p.drawLine(QPointF(5.2, 7.5), QPointF(9.8, 7.5))
+		if kind == "zoomin":
+			p.drawLine(QPointF(7.5, 5.2), QPointF(7.5, 9.8))
+		if kind == "realsize":
+			p.drawLine(QPointF(5.3, 6.4), QPointF(9.7, 6.4))
+			p.drawLine(QPointF(5.3, 8.6), QPointF(9.7, 8.6))
+		if kind == "fit":
+			p.drawLine(QPointF(5, 7.5), QPointF(10, 7.5))
+			for x, d in ((5, 1), (10, -1)):
+				p.drawLine(QPointF(x, 7.5), QPointF(x + 1.6*d, 6))
+				p.drawLine(QPointF(x, 7.5), QPointF(x + 1.6*d, 9))
+	elif kind == "copy":	# two sheets
+		p.drawRoundedRect(QRectF(6.5, 6, 8, 10), 1.2, 1.2)
+		path = QPainterPath()
+		path.moveTo(4, 12.5)
+		path.lineTo(3.5, 12.5)
+		path.lineTo(3.5, 2.5)
+		path.lineTo(11, 2.5)
+		path.lineTo(11, 4)
+		p.drawPath(path)
+	elif kind in ("eye", "eyeoff"):	# the drawings shown, or hidden (struck out)
+		path = QPainterPath()
+		path.moveTo(2, 9)
+		path.quadTo(9, 1.5, 16, 9)
+		path.quadTo(9, 16.5, 2, 9)
+		p.drawPath(path)
+		p.drawEllipse(QPointF(9, 9), 2.4, 2.4)
+		if kind == "eyeoff":
+			p.drawLine(QPointF(3.5, 15.5), QPointF(14.5, 2.5))
+	elif kind == "gear":
+		path = QPainterPath()
+		for i in range(16):	# 8 teeth
+			a = i * math.pi / 8
+			r = 7 if i % 2 == 0 else 5.2
+			for da in (-0.17, 0.17):
+				pt = QPointF(9 + r * math.cos(a + da), 9 + r * math.sin(a + da))
+				if path.elementCount() == 0:
+					path.moveTo(pt)
+				else:
+					path.lineTo(pt)
+		path.closeSubpath()
+		p.drawPath(path)
+		p.drawEllipse(QPointF(9, 9), 2.2, 2.2)
+	elif kind == "select":	# the mouse pointer
+		path = QPainterPath()
+		for i, (x, y) in enumerate(((5, 2.5), (5, 14.5), (8, 11.5), (10.2, 16), (12.2, 15), (10, 10.6), (14, 10.6))):
+			path.moveTo(x, y) if i == 0 else path.lineTo(x, y)
+		path.closeSubpath()
+		p.drawPath(path)
+	elif kind == "pencil":	# slanted, with its tip at the bottom left
+		p.translate(9, 9)
+		p.rotate(-45)
+		p.drawRect(QRectF(-3.5, -2.2, 9.5, 4.4))
+		p.drawLine(QPointF(3.6, -2.2), QPointF(3.6, 2.2))
+		path = QPainterPath()
+		path.moveTo(-3.5, -2.2)
+		path.lineTo(-7.5, 0)
+		path.lineTo(-3.5, 2.2)
+		p.drawPath(path)
+	elif kind == "line":	# with its two ends
+		p.drawLine(QPointF(4, 14), QPointF(14, 4))
+		p.setBrush(color)
+		for x, y in ((4, 14), (14, 4)):
+			p.drawEllipse(QPointF(x, y), 1.4, 1.4)
+	elif kind == "arrow":
+		p.drawLine(QPointF(4, 14), QPointF(14, 4))
+		p.drawLine(QPointF(14, 4), QPointF(8.5, 4.5))
+		p.drawLine(QPointF(14, 4), QPointF(13.5, 9.5))
+	elif kind == "circle":
+		p.drawEllipse(QPointF(9, 9), 6.5, 5.5)
+	elif kind == "rect":
+		p.drawRect(QRectF(3, 4.5, 12, 9))
+	elif kind == "text":	# a T
+		pen.setWidthF(2)
+		pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+		p.setPen(pen)
+		p.drawLine(QPointF(4, 4), QPointF(14, 4))
+		p.drawLine(QPointF(9, 4), QPointF(9, 15))
+	elif kind == "fib":	# levels, from a swing
+		for y in (3.5, 7.7, 10.3, 14.5):
+			p.drawLine(QPointF(7, y), QPointF(16, y))
+		thin = QPen(pen)
+		thin.setWidthF(1.1)
+		p.setPen(thin)
+		p.drawLine(QPointF(2.5, 14.5), QPointF(5.5, 3.5))
+	elif kind == "detach":	# a window out of another
+		p.drawRect(QRectF(2.5, 6.5, 9, 9))
+		p.drawLine(QPointF(7.5, 10.5), QPointF(15, 3))
+		p.drawLine(QPointF(15, 3), QPointF(10.5, 3))
+		p.drawLine(QPointF(15, 3), QPointF(15, 7.5))
+	else:
+		p.drawLine(QPointF(3.5, 5), QPointF(14.5, 5))
+		p.drawLine(QPointF(7, 5), QPointF(7.5, 3))
+		p.drawLine(QPointF(7.5, 3), QPointF(10.5, 3))
+		p.drawLine(QPointF(10.5, 3), QPointF(11, 5))
+		path = QPainterPath()
+		path.moveTo(5, 5)
+		path.lineTo(6, 15)
+		path.lineTo(12, 15)
+		path.lineTo(13, 5)
+		p.drawPath(path)
+		for x in (7.7, 9, 10.3):
+			p.drawLine(QPointF(x, 7.5), QPointF(x, 12.5))
+	p.end()
+	return QIcon(pm)
+
+STYLES = {"both": Qt.ToolButtonStyle.ToolButtonTextBesideIcon, "icons": Qt.ToolButtonStyle.ToolButtonIconOnly,
+	"text": Qt.ToolButtonStyle.ToolButtonTextOnly}
+
+def applystyle(tb, style, compact=()):
+	"""set the buttons of toolbar tb to style ("both", "icons" or "text"):
+	those without an icon show their text whatever the style, and those of
+	the actions in compact only their icon unless it is "text" """
+	for a in tb.actions():
+		w = tb.widgetForAction(a)
+		if not isinstance(w, QToolButton) or w.defaultAction() is None:
+			continue	# a button of its own, like the color, keeps its look
+		a = w.defaultAction()	# Open's, with its menu, is another action's
+		if a.icon().isNull():
+			w.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+		elif not a.iconText():	# an icon and no text, like the color
+			w.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+		elif style != "text" and a in compact:
+			w.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+		else:
+			w.setToolButtonStyle(STYLES.get(style, STYLES["both"]))
+
 def colorswatch(c):
 	pm = QPixmap(14, 14)
 	pm.fill(QColor(c))
@@ -506,7 +663,7 @@ class DrawBar(QToolBar):
 		self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
 		self.floating = None	# the FloatBar while it is detached
 		self.home = None		# where it goes back: the QMainWindow or the layout, and where in it
-		self.detachact = QAction("⧉", self)
+		self.detachact = QAction(glyph("detach", self.palette().color(QPalette.ColorRole.ButtonText)), "Detach", self)
 		self.detachact.setCheckable(True)
 		self.detachact.setToolTip("detach the drawing tools as a floating bar that stays on top; "
 			"click again, or close it, to put it back")
@@ -516,7 +673,7 @@ class DrawBar(QToolBar):
 		group.setExclusive(True)
 		self.toolacts = {}
 		for tool, text, key, tip in TOOLS:
-			a = QAction(text, self)
+			a = QAction(glyph(tool, self.palette().color(QPalette.ColorRole.ButtonText)), text, self)
 			a.setCheckable(True)
 			a.setToolTip(f"{tip} ({key} on the image)")
 			a.triggered.connect(lambda _=False, t=tool: self.view.settool(t))
@@ -590,12 +747,18 @@ class DrawBar(QToolBar):
 		self.clearact.triggered.connect(view.clearall)
 		for a in (self.undoact, self.redoact, self.delact, self.clearact):
 			self.addAction(a)
+		for a, kind in ((self.undoact, "undo"), (self.redoact, "redo"), (self.delact, "delete")):	# compact: icons
+			a.setIcon(glyph(kind, self.palette().color(QPalette.ColorRole.ButtonText)))
+			w = self.widgetForAction(a)
+			if w is not None:
+				w.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 		self.addSeparator()
 		self.copyimgact = QAction("Copy", self)
 		self.copyimgact.setToolTip("copy the image, with its drawings, to paste it in other programs (⇧⌘C)")
 		self.copyimgact.setShortcut(QKeySequence("Ctrl+Shift+C"))
 		self.copyimgact.triggered.connect(self.copyimage)
 		self.addAction(self.copyimgact)
+		self.copyimgact.setIcon(glyph("copy", self.palette().color(QPalette.ColorRole.ButtonText)))
 		# the crosshair is always on; Hide hides all the drawings, and Show brings them back
 		view.setcrosshair(True)
 		view.fibform = self.fibform	# a double click on a fib changes its levels
@@ -607,6 +770,7 @@ class DrawBar(QToolBar):
 		self.hideact.triggered.connect(view.togglehidden)
 		view.hiddenchanged.connect(self.hiddenchanged)
 		self.addAction(self.hideact)
+		self.hiddenchanged(False)	# its eye
 		view.scene().selectionChanged.connect(self.selchanged)
 		self.setcolor(view.color, apply=False)
 		self.selchanged()
@@ -619,6 +783,7 @@ class DrawBar(QToolBar):
 
 	def hiddenchanged(self, hidden):
 		self.hideact.setText("Show" if hidden else "Hide")
+		self.hideact.setIcon(glyph("eyeoff" if hidden else "eye", self.palette().color(QPalette.ColorRole.ButtonText)))
 		self.hideact.setToolTip("show the drawings again (H on the image)" if hidden else
 			"hide all the drawings, to see the image as it is (H on the image); they are kept, and drawing shows them again")
 
@@ -936,6 +1101,13 @@ class DrawBar(QToolBar):
 		if m.isEmpty():
 			x = m.addAction(f"No saved {SHAPENAMES[kind].lower()}s: double click it to save its look")
 			x.setEnabled(False)
+
+	def setbuttonstyle(self, style):
+		"""show the buttons with their icons and text, their icons only, or
+		their text only; a button without an icon keeps its text, and undo,
+		redo and delete keep to their icons unless it is text only"""
+		compact = (self.undoact, self.redoact, self.delact, self.detachact)
+		applystyle(self, style, compact)
 
 	def detach(self):
 		"""move the bar to a window of its own that stays on top"""

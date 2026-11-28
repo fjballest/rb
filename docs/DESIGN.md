@@ -72,13 +72,13 @@ downward: the data layer knows nothing about Qt widgets.
 |-------|------|---------------|
 | Entry | `rb.py` | finds roadbooks on disk, creates `DataWindow`, opens the last roadbook used |
 | Main window | `datawin.py` | `DataWindow` (docks, wiring, open and save), `TradeEdit` (trade form), `AccountEdit`, `FileDropLineEdit` |
-| | `menus.py` | `MainMenus`: menu bar, toolbar, recent roadbooks (in `QSettings`) |
+| | `menus.py` | `MainMenus`: menu bar, toolbar, recent roadbooks and the button style of View ▸ Toolbar (in `QSettings`) |
 | | `backup.py` | daily backups in `<roadbook>.dump/YYMMDD/`: `makebackup`, `cleanup`, `restore` and `BackupDialog` |
 | | `icons.py` | inline SVG icons rendered to `QIcon` |
 | Widgets | `objtbl.py` | `ObjectTable` and `ObjectTableModel`, a generic editable table over dataclasses, with grouping, find and replace, highlighting |
 | | `calwin.py` | `TradeCalendar`, `DayCalendar` and `YearView` |
 | | `imgwin.py` | `ImageViewer`, the graphics window, and where drawings are saved |
-| | `viewer.py`, `drawing.py`, `drawbar.py` | drawing on graphs: `ImageView`, the shapes and undo commands, `DrawBar` (shared with DayJournal) |
+| | `viewer.py`, `drawing.py`, `drawbar.py` | drawing on graphs: `ImageView`, the shapes and undo commands, `DrawBar` (shared with DayJournal), with `glyph` (the drawn icons) and `applystyle` (View ▸ Toolbar) |
 | | `filterwin.py` | `FilterWindow` |
 | | `statswin.py` | `StatsWindow` and `TodayPanel` |
 | | `checklist.py` | `CheckBoxGroup`, a list of check boxes |
